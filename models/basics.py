@@ -12,16 +12,16 @@ def DiscreteHartleyTransform(input):
 
 def compl_mul1d(a, b):
     # (batch, in_channel, x ), (in_channel, out_channel, x) -> (batch, out_channel, x)
-    return torch.einsum("bix,iox->box", a, b)
+    return 0.5*(torch.einsum("bix,iox->box", a, b) + torch.einsum("bix,iox->box", a, torch.mul(b,-1)))+0.5*(torch.einsum("bix,iox->box", torch.mul(a,-1), b) + torch.einsum("bix,iox->box", a, torch.mul(b,-1)))
 
 
 def compl_mul2d(a, b):
     # (batch, in_channel, x,y,t ), (in_channel, out_channel, x,y,t) -> (batch, out_channel, x,y,t)
-    return torch.einsum("bixy,ioxy->boxy", a, b)
+    return 0.5*(torch.einsum("bixy,ioxy->boxy", a, b) + torch.einsum("bixy,ioxy->boxy", a, torch.mul(b,-1)))+0.5*(torch.einsum("bixy,ioxy->boxy", torch.mul(a,-1), b) + torch.einsum("bixy,ioxy->boxy", a, torch.mul(b,-1)))
 
 
 def compl_mul3d(a, b):
-    return torch.einsum("bixyz,ioxyz->boxyz", a, b)
+    return 0.5*(torch.einsum("bixyz,ioxyz->boxyz", a, b) + torch.einsum("bixyz,ioxyz->boxyz", a, torch.mul(b,-1)))+0.5*(torch.einsum("bixyz,ioxyz->boxyz", torch.mul(a,-1), b) + torch.einsum("bixyz,ioxyz->boxyz", a, torch.mul(b,-1)))
 
 ################################################################
 # 1d fourier layer
@@ -52,10 +52,7 @@ class SpectralConv1d(nn.Module):
 
         # Multiply relevant Fourier modes
         out_ft = torch.zeros(batchsize, self.in_channels, x.size(-1)//2 + 1, device=x.device, dtype=torch.cfloat)
-        out_ft[:, :, :self.modes1] = 0.5 * (compl_mul1d(x_ft[:, :, :self.modes1], self.weights1) + \
-            compl_mul1d(torch.mul(x_ft[:, :, :self.modes1],-1.0), self.weights1)) + \
-                0.5 * (compl_mul1d(x_ft[:, :, :self.modes1], torch.mul(self.weights1,-1.0)) + \
-                compl_mul1d(torch.mul(x_ft[:, :, :self.modes1],-1.0), self.weights1))
+        out_ft[:, :, :self.modes1] = compl_mul1d(x_ft[:, :, :self.modes1], self.weights1)
         # Return to physical space
         x = DiscreteHartleyTransform(out_ft)
         return x
