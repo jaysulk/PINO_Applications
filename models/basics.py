@@ -5,6 +5,10 @@ import torch.nn as nn
 
 from functools import partial
 
+def DiscreteHartleyTransform(input):
+	fft = torch.rfft(input, 2, normalized=True, onesided=False)
+	dht = fft[:, :, :, :, -2] - fft[:, :, :, :, -1]
+	return dht
 
 def compl_mul1d(a, b):
     # (batch, in_channel, x ), (in_channel, out_channel, x) -> (batch, out_channel, x)
@@ -43,15 +47,15 @@ class SpectralConv1d(nn.Module):
 
     def forward(self, x):
         batchsize = x.shape[0]
-        # Compute Fourier coeffcients up to factor of e^(- something constant)
-        x_ft = torch.fft.rfftn(x, dim=[2])
+        # Compute Hartley coeffcients up to factor of e^(- something constant)
+        x_ft = DiscreteHartleyTransform(x)
 
         # Multiply relevant Fourier modes
         out_ft = torch.zeros(batchsize, self.in_channels, x.size(-1)//2 + 1, device=x.device, dtype=torch.cfloat)
-        out_ft[:, :, :self.modes1] = compl_mul1d(x_ft[:, :, :self.modes1], self.weights1)
+        out_ft[:, :, :self.modes1] = 0.5 * (compl_mul1d(x_ft[:, :, :self.modes1], self.weights1) + compl_mul1d(torch.mul(x_ft[:, :, :self.modes1],-1.0), self.weights1))
 
         # Return to physical space
-        x = torch.fft.irfft(out_ft, s=[x.size(-1)], dim=[2])
+        x = DiscreteHartleyTransform(out_ft)
         return x
 
 ################################################################
