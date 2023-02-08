@@ -52,8 +52,10 @@ class SpectralConv1d(nn.Module):
 
         # Multiply relevant Fourier modes
         out_ft = torch.zeros(batchsize, self.in_channels, x.size(-1)//2 + 1, device=x.device, dtype=torch.cfloat)
-        out_ft[:, :, :self.modes1] = 0.5 * (compl_mul1d(x_ft[:, :, :self.modes1], self.weights1) + compl_mul1d(torch.mul(x_ft[:, :, :self.modes1],-1.0), self.weights1))
-
+        out_ft[:, :, :self.modes1] = 0.5 * (compl_mul1d(x_ft[:, :, :self.modes1], self.weights1) + \
+            compl_mul1d(torch.mul(x_ft[:, :, :self.modes1],-1.0), self.weights1)) + \
+                0.5 * (compl_mul1d(x_ft[:, :, :self.modes1], torch.mul(self.weights1,-1.0)) + \
+                compl_mul1d(torch.mul(x_ft[:, :, :self.modes1],-1.0), self.weights1))
         # Return to physical space
         x = DiscreteHartleyTransform(out_ft)
         return x
