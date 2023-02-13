@@ -28,9 +28,6 @@ def dht_conv(x:torch.Tensor, y:torch.Tensor):
     This is a straightforward implementation of the convolution theorem for the
     DHT. See https://en.wikipedia.org/wiki/Discrete_Hartley_transform#Properties
     """  
-    
-    err_msg = "x and y must be 1D sequences of the same length"
-    assert (x.shape == y.shape) & (torch.squeeze(x).ndim < 2), err_msg
 
     X = DiscreteHartleyTransform(x)
     Y = DiscreteHartleyTransform(y)
@@ -48,9 +45,6 @@ def conv(x:torch.Tensor, y:torch.Tensor):
     computing the convolution just requires a IDHT.
     """  
     
-    err_msg = "x and y must be 1D sequences of the same length"
-    assert (x.shape == y.shape) & (np.squeeze(x).ndim < 2), err_msg
-
     Z = dht_conv(x, y)
     z = InverseDiscreteHartleyTransform(Z)
     return z
@@ -65,7 +59,7 @@ def compl_mul2d(a, b):
 
 def compl_mul3d(a, b):
     return conv(a, b) 
-    
+
 ################################################################
 # 1d fourier layer
 ################################################################
