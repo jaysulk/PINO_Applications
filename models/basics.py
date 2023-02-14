@@ -38,6 +38,7 @@ def dht_conv(x:torch.Tensor, y:torch.Tensor):
     Z = torch.einsum('...ij,...jk->...ik', X, Yeven) + torch.einsum('...ij,...jk->...ik', Xflip, Yodd)
     return Z    
 
+
 def conv(x:torch.Tensor, y:torch.Tensor):
     """ Computes the convolution of x and y, sequences of length n, using the DHT.
     Once the DHT of the convolution has benn computed using dht_conv(), 
@@ -50,14 +51,14 @@ def conv(x:torch.Tensor, y:torch.Tensor):
 
 def compl_mul1d(a, b):
     # (batch, in_channel, x ), (in_channel, out_channel, x) -> (batch, out_channel, x)
-    return dht_conv(a, b) 
+    return conv(a, b) 
 
 def compl_mul2d(a, b):
     # (batch, in_channel, x,y,t ), (in_channel, out_channel, x,y,t) -> (batch, out_channel, x,y,t)
-    return dht_conv(a, b) 
+    return conv(a, b) 
 
 def compl_mul3d(a, b):
-    return dht_conv(a, b) 
+    return conv(a, b) 
 
 ################################################################
 # 1d fourier layer
