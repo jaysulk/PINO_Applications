@@ -23,42 +23,41 @@ def InverseDiscreteHartleyTransform(X:torch.Tensor):
 def flip_periodic(x:torch.Tensor):
     return torch.roll(torch.flip(x,dims=[0]),1)
 
-def dht_conv(x:torch.Tensor, y:torch.Tensor):
+def compl_mul1d(a, b):
     """ Computes the DHT of the convolution of x and y, sequences of length n, using FFT.
     This is a straightforward implementation of the convolution theorem for the
     DHT. See https://en.wikipedia.org/wiki/Discrete_Hartley_transform#Properties
     """  
-
-    X = DiscreteHartleyTransform(x)
-    Y = DiscreteHartleyTransform(y)
-    Xflip = flip_periodic(X)
-    Yflip = flip_periodic(Y)
-    Yeven = 0.5 * (Y + Yflip)
-    Yodd  = 0.5 * (Y - Yflip)
-    Z = X * Yeven + Xflip * Yodd
+    Xflip = flip_periodic(a)
+    Yflip = flip_periodic(b)
+    Yeven = 0.5 * (b + Yflip)
+    Yodd  = 0.5 * (b - Yflip)
+    Z = a * Yeven + Xflip * Yodd
     return Z    
 
-
-def conv(x:torch.Tensor, y:torch.Tensor):
-    """ Computes the convolution of x and y, sequences of length n, using the DHT.
-    Once the DHT of the convolution has benn computed using dht_conv(), 
-    computing the convolution just requires a IDHT.
-    """  
-    
-    Z = dht_conv(x, y)
-    z = InverseDiscreteHartleyTransform(Z)
-    return z
-
-def compl_mul1d(a, b):
-    # (batch, in_channel, x ), (in_channel, out_channel, x) -> (batch, out_channel, x)
-    return dht_conv(a, b)
-
 def compl_mul2d(a, b):
-    # (batch, in_channel, x,y,t ), (in_channel, out_channel, x,y,t) -> (batch, out_channel, x,y,t)
-    return dht_conv(a, b)
+    """ Computes the DHT of the convolution of x and y, sequences of length n, using FFT.
+    This is a straightforward implementation of the convolution theorem for the
+    DHT. See https://en.wikipedia.org/wiki/Discrete_Hartley_transform#Properties
+    """  
+    Xflip = flip_periodic(a)
+    Yflip = flip_periodic(b)
+    Yeven = 0.5 * (b + Yflip)
+    Yodd  = 0.5 * (b - Yflip)
+    Z = a * Yeven + Xflip * Yodd
+    return Z   
 
 def compl_mul3d(a, b):
-    return dht_conv(a, b)
+    """ Computes the DHT of the convolution of x and y, sequences of length n, using FFT.
+    This is a straightforward implementation of the convolution theorem for the
+    DHT. See https://en.wikipedia.org/wiki/Discrete_Hartley_transform#Properties
+    """  
+    Xflip = flip_periodic(a)
+    Yflip = flip_periodic(b)
+    Yeven = 0.5 * (b + Yflip)
+    Yodd  = 0.5 * (b - Yflip)
+    Z = a * Yeven + Xflip * Yodd
+    return Z   
 
 ################################################################
 # 1d fourier layer
