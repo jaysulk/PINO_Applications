@@ -35,7 +35,7 @@ def dht_conv(x:torch.Tensor, y:torch.Tensor):
     Yflip = flip_periodic(Y)
     Yeven = 0.5 * (Y + Yflip)
     Yodd  = 0.5 * (Y - Yflip)
-    Z = torch.einsum('bk..., bk... -> bk', X, Yeven) + torch.einsum('bk..., bk... -> bk', Xflip, Yodd)
+    Z = torch.einsum('...ij,...jk->...ik', X, Yeven) + torch.einsum('...ij,...jk->...ik', Xflip, Yodd)
     return Z    
 
 def conv(x:torch.Tensor, y:torch.Tensor):
