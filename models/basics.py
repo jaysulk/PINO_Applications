@@ -35,7 +35,7 @@ def dht_conv(x:torch.Tensor, y:torch.Tensor):
     Yflip = flip_periodic(Y)
     Yeven = 0.5 * (Y + Yflip)
     Yodd  = 0.5 * (Y - Yflip)
-    Z = torch.einsum('...ij,...jk->...ik', X, Yeven) + torch.einsum('...ij,...jk->...ik', Xflip, Yodd)
+    Z = X * Yeven + Xflip * Yodd
     return Z    
 
 
@@ -51,14 +51,14 @@ def conv(x:torch.Tensor, y:torch.Tensor):
 
 def compl_mul1d(a, b):
     # (batch, in_channel, x ), (in_channel, out_channel, x) -> (batch, out_channel, x)
-    return conv(a, b) 
+    return dht_conv(a, b)
 
 def compl_mul2d(a, b):
     # (batch, in_channel, x,y,t ), (in_channel, out_channel, x,y,t) -> (batch, out_channel, x,y,t)
-    return conv(a, b) 
+    return dht_conv(a, b)
 
 def compl_mul3d(a, b):
-    return conv(a, b) 
+    return dht_conv(a, b)
 
 ################################################################
 # 1d fourier layer
