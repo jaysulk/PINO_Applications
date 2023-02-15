@@ -171,7 +171,7 @@ class SpectralConv2d(nn.Module):
 
         # Y (batch, channels, N)
         Xflip = flip_periodic(coeff)
-        Yflip = flip_periodic(basis)
+        Yflip = flip_periodic(basis.real)
         Yeven = 0.5 * (basis + Yflip)
         Yodd  = 0.5 * (basis - Yflip)
         Y =  torch.einsum("bcxy,bnxy->bcn", coeff, Yeven) + torch.einsum("bcxy,bnxy->bcn", Xflip, Yeven)
