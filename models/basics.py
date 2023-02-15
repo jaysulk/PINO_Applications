@@ -6,7 +6,7 @@ import torch.nn as nn
 from functools import partial
 
 def DiscreteHartleyTransform(X:torch.Tensor,s,dim):
-	fft = torch.fft.rfftn(X, s=None, dim=dim)
+	fft = torch.fft.rfftn(X, s=s, dim=dim)
 	dht = torch.real(fft) - torch.imag(fft)
 	return dht
 
@@ -84,7 +84,7 @@ class SpectralConv1d(nn.Module):
     def forward(self, x):
         batchsize = x.shape[0]
         # Compute Hartley coeffcients up to factor of e^(- something constant)
-        x_ft = DiscreteHartleyTransform(x, dim=[2])
+        x_ft = DiscreteHartleyTransform(x, s=None, dim=[2])
 
         # Multiply relevant Fourier modes
         out_ft = torch.zeros(batchsize, self.in_channels, x.size(-1)//2 + 1, device=x.device, dtype=torch.cfloat)
