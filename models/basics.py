@@ -118,7 +118,7 @@ class SpectralConv2d(nn.Module):
         size1 = x.shape[-2]
         size2 = x.shape[-1]
         # Compute Fourier coeffcients up to factor of e^(- something constant)
-        x_ft = DiscreteHartleyTransform(x, dim=[2, 3])
+        x_ft = DiscreteHartleyTransform(x, s=None, dim=[2, 3])
 
         if gridy is None:
             # Multiply relevant Fourier modes
@@ -130,7 +130,7 @@ class SpectralConv2d(nn.Module):
                 compl_mul2d(x_ft[:, :, -self.modes1:, :self.modes2], self.weights2)
 
             # Return to physical space
-            x = torch.fft.irfftn(out_ft, s=(x.size(-2), x.size(-1)), dim=[2, 3])
+            x = InverseDiscreteHartleyTransform(out_ft, s=(x.size(-2), x.size(-1)), dim=[2, 3])
         else:
             factor1 = compl_mul2d(x_ft[:, :, :self.modes1, :self.modes2], self.weights1)
             factor2 = compl_mul2d(x_ft[:, :, -self.modes1:, :self.modes2], self.weights2)
