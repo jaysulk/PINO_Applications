@@ -5,18 +5,18 @@ import torch.nn as nn
 
 from functools import partial
 
-def DiscreteHartleyTransform(X:torch.Tensor,dim):
-	fft = torch.fft.rfftn(X, dim=dim)
+def DiscreteHartleyTransform(X:torch.Tensor,s,dim):
+	fft = torch.fft.rfftn(X, s=None, dim=dim)
 	dht = torch.real(fft) - torch.imag(fft)
 	return dht
 
-def InverseDiscreteHartleyTransform(X:torch.Tensor):
+def InverseDiscreteHartleyTransform(X:torch.Tensor, s, dim):
     """ Compute the IDHT for a sequence x of length n using the FFT. 
     
     Since the DHT is involutory, IDHT(x) = 1/n DHT(H) = 1/n DHT(DHT(x))
     """
     n = len(X)
-    x = DiscreteHartleyTransform(X)
+    x = DiscreteHartleyTransform(X, s=s, dim=dim)
     x = 1.0/n*x
     return x
 
@@ -90,7 +90,7 @@ class SpectralConv1d(nn.Module):
         out_ft = torch.zeros(batchsize, self.in_channels, x.size(-1)//2 + 1, device=x.device, dtype=torch.cfloat)
         out_ft[:, :, :self.modes1] = compl_mul1d(x_ft[:, :, :self.modes1], self.weights1)
         # Return to physical space
-        x = InverseDiscreteHartleyTransform(out_ft)
+        x = InverseDiscreteHartleyTransform(out_ft, s=[x.size(-1)], dim=[2])
         return x
 
 ################################################################
@@ -118,7 +118,7 @@ class SpectralConv2d(nn.Module):
         size1 = x.shape[-2]
         size2 = x.shape[-1]
         # Compute Fourier coeffcients up to factor of e^(- something constant)
-        x_ft = torch.fft.rfftn(x, dim=[2, 3])
+        x_ft = DiscreteHartleyTransform(x, dim=[2, 3])
 
         if gridy is None:
             # Multiply relevant Fourier modes
