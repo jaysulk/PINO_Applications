@@ -32,8 +32,7 @@ def compl_mul1d(a, b):
     Yflip = flip_periodic(b)
     Yeven = 0.5 * (b + Yflip)
     Yodd  = 0.5 * (b - Yflip)
-    Z = torch.einsum("bix,iox->box", a, Yeven) +  torch.einsum("bix,iox->box", Xflip, Yodd)
-    Z = a * Yeven + Xflip * Yodd
+    Z = torch.einsum("bix,iox->box", a, Yeven.long()) +  torch.einsum("bix,iox->box", Xflip, Yodd.long())
     return Z    
 
 def compl_mul2d(a, b):
@@ -45,7 +44,7 @@ def compl_mul2d(a, b):
     Yflip = flip_periodic(b)
     Yeven = 0.5 * (b + Yflip)
     Yodd  = 0.5 * (b - Yflip)
-    Z =  torch.einsum("bixy,ioxy->boxy", a, Yeven) + torch.einsum("bixy,ioxy->boxy", Xflip, Yeven)
+    Z =  torch.einsum("bixy,ioxy->boxy", a, Yeven.long()) + torch.einsum("bixy,ioxy->boxy", Xflip, Yeven.long())
     return Z   
 
 def compl_mul3d(a, b):
@@ -57,7 +56,7 @@ def compl_mul3d(a, b):
     Yflip = flip_periodic(b)
     Yeven = 0.5 * (b + Yflip)
     Yodd  = 0.5 * (b - Yflip)
-    Z = torch.einsum("bixyz,ioxyz->boxyz", a, Yeven) + torch.einsum("bixyz,ioxyz->boxyz", Xflip, Yodd)
+    Z = torch.einsum("bixyz,ioxyz->boxyz", a, Yeven.long()) + torch.einsum("bixyz,ioxyz->boxyz", Xflip, Yodd.long())
     return Z   
 
 ################################################################
