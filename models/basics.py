@@ -6,7 +6,7 @@ import torch.nn as nn
 from functools import partial
 
 def DiscreteHartleyTransform(X:torch.Tensor):
-	fft = torch.fft.fft(X)
+	fft = torch.fft.rfft(X)
 	dht = torch.real(fft) - torch.imag(fft)
 	return dht
 
