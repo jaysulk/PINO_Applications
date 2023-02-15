@@ -160,7 +160,7 @@ class SpectralConv2d(nn.Module):
         K = K1 + K2
 
         # basis (N, m1, m2)
-        basis = torch.exp( 1j * 2* np.pi * K).to(device)
+        basis = ((1/2 + 1j/2) * torch.exp( -1j * np.pi * K) + (1/2 - 1j/2) * torch.exp( 1j * np.pi * K)).to(device)
 
         # coeff (batch, channels, m1, m2)
         coeff3 = coeff1[:,:,1:,1:].flip(-1, -2).conj()
@@ -170,7 +170,11 @@ class SpectralConv2d(nn.Module):
         coeff = torch.cat([coeff12, coeff43], dim=-1)
 
         # Y (batch, channels, N)
-        Y = torch.einsum("bcxy,bnxy->bcn", coeff, basis)
+        Xflip = flip_periodic(coeff)
+        Yflip = flip_periodic(basis)
+        Yeven = 0.5 * (basis + Yflip)
+        Yodd  = 0.5 * (basis - Yflip)
+        Y =  torch.einsum("bcxy,bnxy->bcn", coeff, Yeven) + torch.einsum("bcxy,bnxy->bcn", Xflip, Yeven)
         Y = Y.real
         return Y
 
