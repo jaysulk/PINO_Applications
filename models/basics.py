@@ -6,7 +6,7 @@ import torch.nn as nn
 from functools import partial
 
 def DiscreteHartleyTransform(X:torch.Tensor,s,dim):
-	fft = torch.fft.rfftn(X, s=s, dim=dim)
+	fft = torch.fft.rfftn(X.real, s=s, dim=dim)
 	dht = torch.real(fft) - torch.imag(fft)
 	return dht
 
@@ -27,37 +27,35 @@ def compl_mul1d(a, b):
     """ Computes the DHT of the convolution of x and y, sequences of length n, using FFT.
     This is a straightforward implementation of the convolution theorem for the
     DHT. See https://en.wikipedia.org/wiki/Discrete_Hartley_transform#Properties
-    """  
-    Xflip = flip_periodic(a)
-    Yflip = flip_periodic(b)
-    Yeven = 0.5 * (b + Yflip)
-    Yodd  = 0.5 * (b - Yflip)
-    Z = torch.einsum("bix,iox->box", a, Yeven) +  torch.einsum("bix,iox->box", Xflip, Yodd)
-    return Z    
+    """
+    aflip = flip_periodic(a)
+    bflip = flip_periodic(b)
+    beven = 0.5 * (b + bflip)
+    bodd  = 0.5 * (b - bflip)
+    return torch.einsum("bix,iox->box", a, beven) + torch.einsum("bix,iox->box", aflip, bodd)
 
 def compl_mul2d(a, b):
     """ Computes the DHT of the convolution of x and y, sequences of length n, using FFT.
     This is a straightforward implementation of the convolution theorem for the
     DHT. See https://en.wikipedia.org/wiki/Discrete_Hartley_transform#Properties
-    """  
-    Xflip = flip_periodic(a)
-    Yflip = flip_periodic(b)
-    Yeven = 0.5 * (b + Yflip)
-    Yodd  = 0.5 * (b - Yflip)
-    Z =  torch.einsum("bixy,ioxy->boxy", a, Yeven) + torch.einsum("bixy,ioxy->boxy", Xflip, Yeven)
-    return Z   
+    """
+    b = b.real + b.imag
+    aflip = flip_periodic(a)
+    bflip = flip_periodic(b)
+    beven = 0.5 * (b + bflip)
+    bodd  = 0.5 * (b - bflip)
+    return torch.einsum("bixy,ioxy->boxy", a, beven) + torch.einsum("bixy,ioxy->boxy", aflip, bodd)
 
 def compl_mul3d(a, b):
     """ Computes the DHT of the convolution of x and y, sequences of length n, using FFT.
     This is a straightforward implementation of the convolution theorem for the
     DHT. See https://en.wikipedia.org/wiki/Discrete_Hartley_transform#Properties
-    """  
-    Xflip = flip_periodic(a)
-    Yflip = flip_periodic(b)
-    Yeven = 0.5 * (b + Yflip)
-    Yodd  = 0.5 * (b - Yflip)
-    Z = torch.einsum("bixyz,ioxyz->boxyz", a, Yeven) + torch.einsum("bixyz,ioxyz->boxyz", Xflip, Yodd)
-    return Z   
+    """
+    aflip = flip_periodic(a)
+    bflip = flip_periodic(b)
+    beven = 0.5 * (b + bflip)
+    bodd  = 0.5 * (b - bflip)
+    return torch.einsum("bixyz,ioxyz->boxyz", a, beven) + torch.einsum("bixyz,ioxyz->boxyz", aflip, bodd)
 
 ################################################################
 # 1d fourier layer
