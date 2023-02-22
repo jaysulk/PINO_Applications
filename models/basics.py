@@ -6,9 +6,12 @@ import torch.nn as nn
 from functools import partial
 
 def DiscreteHartleyTransform(X:torch.Tensor,s,dim):
-	fft = torch.fft.rfftn(X, s=s, dim=dim)
-	dht = torch.real(fft) - torch.imag(fft)
-	return dht
+    if torch.is_complex(X):
+	    fft = torch.fft.fftn(X, s=s, dim=dim)
+    else:
+        fft = torch.fft.rfftn(X, s=s, dim=dim)
+    dht = torch.real(fft) - torch.imag(fft)
+    return dht.real
 
 def InverseDiscreteHartleyTransform(X:torch.Tensor, s, dim):
     """ Compute the IDHT for a sequence x of length n using the FFT. 
@@ -16,9 +19,7 @@ def InverseDiscreteHartleyTransform(X:torch.Tensor, s, dim):
     Since the DHT is involutory, IDHT(x) = 1/n DHT(H) = 1/n DHT(DHT(x))
     """
     n = len(X)
-    x = DiscreteHartleyTransform(X, s=s, dim=dim)
-    x = 1.0/n*x
-    return x
+    return 1.0/n*DiscreteHartleyTransform(X, s=s, dim=dim)
 
 def flip_periodic(x:torch.Tensor):
     return torch.roll(torch.flip(x,dims=[0]),1)
@@ -28,36 +29,33 @@ def compl_mul1d(a, b):
     This is a straightforward implementation of the convolution theorem for the
     DHT. See https://en.wikipedia.org/wiki/Discrete_Hartley_transform#Properties
     """  
-    Xflip = flip_periodic(a)
-    Yflip = flip_periodic(b)
-    Yeven = 0.5 * (b + Yflip)
-    Yodd  = 0.5 * (b - Yflip)
-    Z = torch.einsum("bix,iox->box", a, Yeven) +  torch.einsum("bix,iox->box", Xflip, Yodd)
-    return Z    
+    aflip = flip_periodic(a)
+    bflip = flip_periodic(b)
+    beven = 0.5 * (b + bflip)
+    bodd  = 0.5 * (b - bflip)
+    return torch.einsum("bix,iox->box", a, beven) +  torch.einsum("bix,iox->box", aflip, bodd)
 
 def compl_mul2d(a, b):
     """ Computes the DHT of the convolution of x and y, sequences of length n, using FFT.
     This is a straightforward implementation of the convolution theorem for the
     DHT. See https://en.wikipedia.org/wiki/Discrete_Hartley_transform#Properties
     """  
-    Xflip = flip_periodic(a)
-    Yflip = flip_periodic(b)
-    Yeven = 0.5 * (b + Yflip)
-    Yodd  = 0.5 * (b - Yflip)
-    Z =  torch.einsum("bixy,ioxy->boxy", a, Yeven) + torch.einsum("bixy,ioxy->boxy", Xflip, Yeven)
-    return Z   
+    aflip = flip_periodic(a)
+    bflip = flip_periodic(b)
+    beven = 0.5 * (b + bflip)
+    bodd  = 0.5 * (b - bflip)
+    return torch.einsum("bixy,ioxy->boxy", a, beven) + torch.einsum("bixy,ioxy->boxy", aflip, bodd)
 
 def compl_mul3d(a, b):
     """ Computes the DHT of the convolution of x and y, sequences of length n, using FFT.
     This is a straightforward implementation of the convolution theorem for the
     DHT. See https://en.wikipedia.org/wiki/Discrete_Hartley_transform#Properties
     """  
-    Xflip = flip_periodic(a)
-    Yflip = flip_periodic(b)
-    Yeven = 0.5 * (b + Yflip)
-    Yodd  = 0.5 * (b - Yflip)
-    Z = torch.einsum("bixyz,ioxyz->boxyz", a, Yeven) + torch.einsum("bixyz,ioxyz->boxyz", Xflip, Yodd)
-    return Z   
+    aflip = flip_periodic(a)
+    bflip = flip_periodic(b)
+    beven = 0.5 * (b + bflip)
+    bodd  = 0.5 * (b - bflip)
+    return torch.einsum("bixyz,ioxyz->boxyz", a, beven) + torch.einsum("bixyz,ioxyz->boxyz", aflip, bodd)
 
 ################################################################
 # 1d fourier layer
@@ -87,7 +85,7 @@ class SpectralConv1d(nn.Module):
         x_ft = DiscreteHartleyTransform(x, s=None, dim=[2])
 
         # Multiply relevant Fourier modes
-        out_ft = torch.zeros(batchsize, self.in_channels, x.size(-1)//2 + 1, device=x.device, dtype=torch.cfloat)
+        out_ft = torch.zeros(batchsize, self.in_channels, x.size(-1)//2 + 1, device=x.device, dtype=torch.float)
         out_ft[:, :, :self.modes1] = compl_mul1d(x_ft[:, :, :self.modes1], self.weights1)
         # Return to physical space
         x = InverseDiscreteHartleyTransform(out_ft, s=[x.size(-1)], dim=[2])
@@ -109,9 +107,9 @@ class SpectralConv2d(nn.Module):
 
         self.scale = (1 / (in_channels * out_channels))
         self.weights1 = nn.Parameter(
-            self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, dtype=torch.cfloat))
+            self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, dtype=torch.float))
         self.weights2 = nn.Parameter(
-            self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, dtype=torch.cfloat))
+            self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, dtype=torch.float))
 
     def forward(self, x, gridy=None):
         batchsize = x.shape[0]
@@ -174,7 +172,7 @@ class SpectralConv2d(nn.Module):
         Yflip = flip_periodic(basis.real)
         Yeven = 0.5 * (basis.real + Yflip)
         Yodd  = 0.5 * (basis.real - Yflip)
-        Y =  torch.einsum("bcxy,bnxy->bcn", coeff, Yeven) + torch.einsum("bcxy,bnxy->bcn", Xflip, Yeven)
+        Y =  torch.einsum("bcxy,bnxy->bcn", coeff, Yeven) + torch.einsum("bcxy,bnxy->bcn", Xflip, Yodd)
         Y = Y.real
         return Y
 
@@ -189,17 +187,17 @@ class SpectralConv3d(nn.Module):
         self.modes3 = modes3
 
         self.scale = (1 / (in_channels * out_channels))
-        self.weights1 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3, dtype=torch.cfloat))
-        self.weights2 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3, dtype=torch.cfloat))
-        self.weights3 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3, dtype=torch.cfloat))
-        self.weights4 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3, dtype=torch.cfloat))
+        self.weights1 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3, dtype=torch.float))
+        self.weights2 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3, dtype=torch.float))
+        self.weights3 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3, dtype=torch.float))
+        self.weights4 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3, dtype=torch.float))
 
     def forward(self, x):
         batchsize = x.shape[0]
         # Compute Fourier coeffcients up to factor of e^(- something constant)
-        x_ft = torch.fft.rfftn(x, dim=[2,3,4])
+        x_ft = DiscreteHartleyTransform(x, dim=[2,3,4])
         # Multiply relevant Fourier modes
-        out_ft = torch.zeros(batchsize, self.out_channels, x.size(2), x.size(3), x.size(4)//2 + 1, device=x.device, dtype=torch.cfloat)
+        out_ft = torch.zeros(batchsize, self.out_channels, x.size(2), x.size(3), x.size(4)//2 + 1, device=x.device, dtype=torch.float)
         out_ft[:, :, :self.modes1, :self.modes2, :self.modes3] = \
             compl_mul3d(x_ft[:, :, :self.modes1, :self.modes2, :self.modes3], self.weights1)
         out_ft[:, :, -self.modes1:, :self.modes2, :self.modes3] = \
@@ -210,7 +208,7 @@ class SpectralConv3d(nn.Module):
             compl_mul3d(x_ft[:, :, -self.modes1:, -self.modes2:, :self.modes3], self.weights4)
 
         #Return to physical space
-        x = torch.fft.irfftn(out_ft, s=(x.size(2), x.size(3), x.size(4)), dim=[2,3,4])
+        x = InverseDiscreteHartleyTransform(out_ft, s=(x.size(2), x.size(3), x.size(4)), dim=[2,3,4])
         return x
 
 
