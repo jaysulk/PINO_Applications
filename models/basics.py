@@ -6,19 +6,14 @@ import torch.nn as nn
 from functools import partial
 
 def DiscreteHartleyTransform(X:torch.Tensor,s,dim):
-	fft = torch.fft.rfftn(X, s=s, dim=dim)
-	dht = torch.real(fft) - torch.imag(fft)
-	return dht
+	fft = torch.fft.fftn(X, s=s, dim=dim)
+	return torch.real(fft) - torch.imag(fft)
 
 def InverseDiscreteHartleyTransform(X:torch.Tensor, s, dim):
     """ Compute the IDHT for a sequence x of length n using the FFT. 
-    
     Since the DHT is involutory, IDHT(x) = 1/n DHT(H) = 1/n DHT(DHT(x))
     """
-    n = len(X)
-    x = DiscreteHartleyTransform(X, s=s, dim=dim)
-    x = 1.0/n*x
-    return x
+    return (1.0/len(X))*DiscreteHartleyTransform(X, s=s, dim=dim)
 
 def flip_periodic(x:torch.Tensor):
     return torch.roll(torch.flip(x,dims=[0]),1)
