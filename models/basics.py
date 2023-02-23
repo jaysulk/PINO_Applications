@@ -23,11 +23,11 @@ def compl_mul1d(a, b):
     This is a straightforward implementation of the convolution theorem for the
     DHT. See https://en.wikipedia.org/wiki/Discrete_Hartley_transform#Properties
     """  
-    Xflip = flip_periodic(a)
-    Yflip = flip_periodic(b)
-    Yeven = 0.5 * (b + Yflip)
-    Yodd  = 0.5 * (b - Yflip)
-    Z = torch.einsum("bix,iox->box", a, Yeven) +  torch.einsum("bix,iox->box", Xflip, Yodd)
+    aflip = flip_periodic(a)
+    bflip = flip_periodic(b)
+    beven = 0.5 * (b + bflip)
+    bodd  = 0.5 * (b - bflip)
+    Z = torch.einsum("bix,iox->box", a, beven) +  torch.einsum("bix,iox->box", aflip, bodd)
     return Z    
 
 def compl_mul2d(a, b):
@@ -35,11 +35,11 @@ def compl_mul2d(a, b):
     This is a straightforward implementation of the convolution theorem for the
     DHT. See https://en.wikipedia.org/wiki/Discrete_Hartley_transform#Properties
     """  
-    Xflip = flip_periodic(a)
-    Yflip = flip_periodic(b)
-    Yeven = 0.5 * (b + Yflip)
-    Yodd  = 0.5 * (b - Yflip)
-    Z =  torch.einsum("bixy,ioxy->boxy", a, Yeven) + torch.einsum("bixy,ioxy->boxy", Xflip, Yeven)
+    aflip = flip_periodic(a)
+    bflip = flip_periodic(b)
+    beven = 0.5 * (b + bflip)
+    bodd  = 0.5 * (b - bflip)
+    Z =  torch.einsum("bixy,ioxy->boxy", a, beven) + torch.einsum("bixy,ioxy->boxy", aflip, bodd)
     return Z   
 
 def compl_mul3d(a, b):
@@ -47,11 +47,11 @@ def compl_mul3d(a, b):
     This is a straightforward implementation of the convolution theorem for the
     DHT. See https://en.wikipedia.org/wiki/Discrete_Hartley_transform#Properties
     """  
-    Xflip = flip_periodic(a)
-    Yflip = flip_periodic(b)
-    Yeven = 0.5 * (b + Yflip)
-    Yodd  = 0.5 * (b - Yflip)
-    Z = torch.einsum("bixyz,ioxyz->boxyz", a, Yeven) + torch.einsum("bixyz,ioxyz->boxyz", Xflip, Yodd)
+    aflip = flip_periodic(a)
+    bflip = flip_periodic(b)
+    beven = 0.5 * (b + bflip)
+    bodd  = 0.5 * (b - bflip)
+    Z = torch.einsum("bixyz,ioxyz->boxyz", a, beven) + torch.einsum("bixyz,ioxyz->boxyz", aflip, bodd)
     return Z   
 
 ################################################################
@@ -82,7 +82,7 @@ class SpectralConv1d(nn.Module):
         x_ft = DiscreteHartleyTransform(x, s=None, dim=[2])
 
         # Multiply relevant Fourier modes
-        out_ft = torch.zeros(batchsize, self.in_channels, x.size(-1)//2 + 1, device=x.device, dtype=torch.cfloat)
+        out_ft = torch.zeros(batchsize, self.in_channels, x.size(-1)//2 + 1, device=x.device, dtype=torch.float)
         out_ft[:, :, :self.modes1] = compl_mul1d(x_ft[:, :, :self.modes1], self.weights1)
         # Return to physical space
         x = InverseDiscreteHartleyTransform(out_ft, s=[x.size(-1)], dim=[2])
@@ -104,9 +104,9 @@ class SpectralConv2d(nn.Module):
 
         self.scale = (1 / (in_channels * out_channels))
         self.weights1 = nn.Parameter(
-            self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, dtype=torch.cfloat))
+            self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, dtype=torch.float))
         self.weights2 = nn.Parameter(
-            self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, dtype=torch.cfloat))
+            self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, dtype=torch.float))
 
     def forward(self, x, gridy=None):
         batchsize = x.shape[0]
