@@ -13,7 +13,7 @@ def InverseDiscreteHartleyTransform(X:torch.Tensor, s, dim):
     """ Compute the IDHT for a sequence x of length n using the FFT. 
     Since the DHT is involutory, IDHT(x) = 1/n DHT(H) = 1/n DHT(DHT(x))
     """
-    return DiscreteHartleyTransform(X, s=s, dim=dim)
+    return (1.0/len(X))*DiscreteHartleyTransform(X, s=s, dim=dim)
 
 def flip_periodic(x:torch.Tensor):
     return torch.roll(torch.flip(x,dims=[0]),1)
