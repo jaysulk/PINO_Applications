@@ -6,7 +6,7 @@ import torch.nn as nn
 from functools import partial
 
 def DiscreteHartleyTransform(X:torch.Tensor,s,dim):
-	fft = torch.fft.rfftn(X, s=s, dim=dim, normalized=True, onesided=False)
+	fft = torch.fft.rfftn(X, s=s, dim=dim, norm="ortho")
 	return torch.real(fft) - torch.imag(fft)
 
 def InverseDiscreteHartleyTransform(X:torch.Tensor, s, dim):
