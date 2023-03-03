@@ -12,26 +12,30 @@ def DiscreteHartleyTransform(X:torch.Tensor,s,dim):
 def InverseDiscreteHartleyTransform(X:torch.Tensor, s, dim):
     return (1.0/len(X))*DiscreteHartleyTransform(X, s=s, dim=dim)
 
-def flip_periodic(x:torch.Tensor):
-    return torch.roll(torch.flip(x,dims=[0]),1)
+def flip_periodic(x:torch.Tensor, dims):
+    if dims == 1:
+        x = torch.roll(torch.flip(x,dims=[0]),1)
+    elif dims == 2:
+        x = torch.roll(torch.flip(x,dims=[0,1]),1)
+    return x
 
 def compl_mul1d(a, b): 
-    aflip = flip_periodic(a)
-    bflip = flip_periodic(b)
+    aflip = flip_periodic(a,1)
+    bflip = flip_periodic(b,1)
     beven = 0.5 * (b + bflip)
     bodd  = 0.5 * (b - bflip)
     return torch.einsum("bix,iox->box", a, beven) +  torch.einsum("bix,iox->box", aflip, bodd)    
 
 def compl_mul2d(a, b):
-    aflip = flip_periodic(a)
-    bflip = flip_periodic(b)
+    aflip = flip_periodic(a,2)
+    bflip = flip_periodic(b,2)
     beven = 0.5 * (b + bflip)
     bodd  = 0.5 * (b - bflip)  
     return torch.einsum("bixy,ioxy->boxy", a, beven) + torch.einsum("bixy,ioxy->boxy", aflip, bodd)
 
 def compl_mul3d(a, b):
-    aflip = flip_periodic(a)
-    bflip = flip_periodic(b)
+    aflip = flip_periodic(a,2)
+    bflip = flip_periodic(b,2)
     beven = 0.5 * (b + bflip)
     bodd  = 0.5 * (b - bflip)
     return torch.einsum("bixyz,ioxyz->boxyz", a, beven) + torch.einsum("bixyz,ioxyz->boxyz", aflip, bodd)
