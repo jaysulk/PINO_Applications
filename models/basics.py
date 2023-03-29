@@ -5,14 +5,23 @@ import torch.nn as nn
 
 from functools import partial
 
-def DiscreteHartleyTransform(X:torch.Tensor,s,dim):
-	fft = torch.fft.fftn(X, s=s, dim=dim, norm="forward")
-	return torch.real(fft) - torch.imag(fft)
+def DiscreteHartleyTransform(X: torch.Tensor, s, dim):
+    fft = torch.fft.fftn(X, s=s, dim=dim, norm="forward")
+    return torch.real(fft) - torch.imag(fft)
 
-def InverseDiscreteHartleyTransform(X:torch.Tensor, s, dim):
-    return (1.0/len(X))*DiscreteHartleyTransform(X, s=s, dim=dim)
+def InverseDiscreteHartleyTransform(X: torch.Tensor, s, dim):
+    return (1.0 / len(X)) * DiscreteHartleyTransform(X, s=s, dim=dim)
+
+def pad_to_match_size(signal1: torch.Tensor, signal2: torch.Tensor):
+    max_size = max(signal1.size(-1), signal2.size(-1))
+    padded_signal1 = torch.nn.functional.pad(signal1, (0, max_size - signal1.size(-1)))
+    padded_signal2 = torch.nn.functional.pad(signal2, (0, max_size - signal2.size(-1)))
+    return padded_signal1, padded_signal2
 
 def convolve_DHT(signal1: torch.Tensor, signal2: torch.Tensor, s=None, dim=None):
+    # Pad the signals to match their sizes
+    signal1, signal2 = pad_to_match_size(signal1, signal2)
+    
     # Compute the DHT of both input signals
     dht_signal1 = DiscreteHartleyTransform(signal1, s=s, dim=dim)
     dht_signal2 = DiscreteHartleyTransform(signal2, s=s, dim=dim)
@@ -105,8 +114,6 @@ class SpectralConv2d(nn.Module):
 
         # Return to physical space
         x = InverseDiscreteHartleyTransform(out_ft, s=(x.size(-2), x.size(-1)), dim=[2, 3])
-
-
 
 class SpectralConv3d(nn.Module):
     def __init__(self, in_channels, out_channels, modes1, modes2, modes3):
