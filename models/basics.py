@@ -26,13 +26,13 @@ def convolution_using_DHT(x: torch.Tensor, y: torch.Tensor, s=None, dim=(-2, -1)
     return convolution_result
 
 def compl_mul1d(a, b): 
-    return convolve_DHT(a, b) 
+    return convolution_using_DHT(a, b) 
 
 def compl_mul2d(a, b):
-    return convolve_DHT(a, b) 
+    return convolution_using_DHT(a, b) 
 
 def compl_mul3d(a, b):
-    return convolve_DHT(a, b) 
+    return convolution_using_DHT(a, b) 
 
 ################################################################
 # 1d fourier layer
