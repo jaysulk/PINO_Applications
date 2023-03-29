@@ -12,36 +12,27 @@ def DiscreteHartleyTransform(X: torch.Tensor, s, dim):
 def InverseDiscreteHartleyTransform(X: torch.Tensor, s, dim):
     return (1.0 / len(X)) * DiscreteHartleyTransform(X, s=s, dim=dim)
 
-def pad_to_match_size(signal1: torch.Tensor, signal2: torch.Tensor):
-    max_size = max(signal1.size(-1), signal2.size(-1))
-    padded_signal1 = torch.nn.functional.pad(signal1, (0, max_size - signal1.size(-1)))
-    padded_signal2 = torch.nn.functional.pad(signal2, (0, max_size - signal2.size(-1)))
-    return padded_signal1, padded_signal2
+def convolution_using_DHT(x: torch.Tensor, y: torch.Tensor, s=None, dim=(-2, -1)):
+    # Compute the DHT of both input tensors
+    x_dht = DiscreteHartleyTransform(x, s=s, dim=dim)
+    y_dht = DiscreteHartleyTransform(y, s=s, dim=dim)
 
-def convolve_DHT(signal1: torch.Tensor, signal2: torch.Tensor, s=None, dim=None):
-    # Pad the signals to match their sizes
-    signal1, signal2 = pad_to_match_size(signal1, signal2)
-    
-    # Compute the DHT of both input signals
-    dht_signal1 = DiscreteHartleyTransform(signal1, s=s, dim=dim)
-    dht_signal2 = DiscreteHartleyTransform(signal2, s=s, dim=dim)
-    
-    # Perform element-wise multiplication of the transformed signals
-    product = torch.einsum("...i,...i->...i", dht_signal1, dht_signal2)
-    
-    # Compute the inverse DHT of the product obtained
-    convolution = InverseDiscreteHartleyTransform(product, s=s, dim=dim)
-    
-    return convolution
+    # Perform element-wise multiplication of the transformed tensors
+    product = torch.mul(x_dht, y_dht)
+
+    # Compute the IDHT of the multiplied tensor to obtain the convolution result
+    convolution_result = InverseDiscreteHartleyTransform(product, s=s, dim=dim)
+
+    return convolution_result
 
 def compl_mul1d(a, b): 
-    return convolve_DHT(a, b, s=None, dim=[2]) 
+    return convolve_DHT(a, b) 
 
 def compl_mul2d(a, b):
-    return convolve_DHT(a, b, s=None, dim=[2, 3]) 
+    return convolve_DHT(a, b) 
 
 def compl_mul3d(a, b):
-    return convolve_DHT(a, b, s=None, dim=[2,3,4]) 
+    return convolve_DHT(a, b) 
 
 ################################################################
 # 1d fourier layer
