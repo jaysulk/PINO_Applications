@@ -5,40 +5,55 @@ import torch.nn as nn
 
 from functools import partial
 
-def DiscreteHartleyTransform(X:torch.Tensor,s,dim):
-	fft = torch.fft.fftn(X, s=s, dim=dim, norm="forward")
-	return torch.real(fft) - torch.imag(fft)
+import torch
 
-def InverseDiscreteHartleyTransform(X:torch.Tensor, s, dim):
+def DiscreteHartleyTransform(X:torch.Tensor, s=None, dim=None):
+    fft = torch.fft.fftn(X, s=s, dim=dim, norm="forward")
+    return torch.real(fft) - torch.imag(fft)
+
+def InverseDiscreteHartleyTransform(X:torch.Tensor, s=None, dim=None):
     return (1.0/len(X))*DiscreteHartleyTransform(X, s=s, dim=dim)
 
-def flip_periodic(x:torch.Tensor, dims):
-    if dims == 1:
-        x = torch.roll(torch.flip(x,dims=[0]),1)
-    elif dims == 2:
-        x = torch.roll(torch.flip(x,dims=[0,1]),1)
-    return x
-
 def compl_mul1d(a, b): 
-    aflip = flip_periodic(a,1)
-    bflip = flip_periodic(b,1)
-    beven = 0.5 * (b + bflip)
-    bodd  = 0.5 * (b - bflip)
-    return torch.einsum("bix,iox->box", a, beven) +  torch.einsum("bix,iox->box", aflip, bodd)    
+    # Compute the DHT of both input signals a and b
+    a_dht = DiscreteHartleyTransform(a)
+    b_dht = DiscreteHartleyTransform(b)
 
-def compl_mul2d(a, b):
-    aflip = flip_periodic(a,2)
-    bflip = flip_periodic(b,2)
-    beven = 0.5 * (b + bflip)
-    bodd  = 0.5 * (b - bflip)  
-    return torch.einsum("bixy,ioxy->boxy", a, beven) + torch.einsum("bixy,ioxy->boxy", aflip, bodd)
+    # Multiply the DHTs element-wise
+    product_dht = torch.einsum("bix,iox->box", a_dht, b_dht)
 
-def compl_mul3d(a, b):
-    aflip = flip_periodic(a,2)
-    bflip = flip_periodic(b,2)
-    beven = 0.5 * (b + bflip)
-    bodd  = 0.5 * (b - bflip)
-    return torch.einsum("bixyz,ioxyz->boxyz", a, beven) + torch.einsum("bixyz,ioxyz->boxyz", aflip, bodd)
+    # Compute the inverse DHT of the result
+    convolution = InverseDiscreteHartleyTransform(product_dht)
+
+    return convolution
+
+def compl_mul2d(a, b): 
+    # Compute the DHT of both input signals a and b
+    a_dht = DiscreteHartleyTransform(a)
+    b_dht = DiscreteHartleyTransform(b)
+
+    # Multiply the DHTs element-wise
+    product_dht = torch.einsum("bixy,ioxy->boxy", a_dht, b_dht)
+
+    # Compute the inverse DHT of the result
+    convolution = InverseDiscreteHartleyTransform(product_dht)
+
+    return convolution
+
+
+def compl_mul3d(a, b): 
+    # Compute the DHT of both input signals a and b
+    a_dht = DiscreteHartleyTransform(a)
+    b_dht = DiscreteHartleyTransform(b)
+
+    # Multiply the DHTs element-wise
+    product_dht = torch.einsum("bixyz,ioxyz->boxyz", a_dht, b_dht)
+
+    # Compute the inverse DHT of the result
+    convolution = InverseDiscreteHartleyTransform(product_dht)
+
+    return convolution
+
 
 ################################################################
 # 1d fourier layer
