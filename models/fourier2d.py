@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from .lowrank2d import LowRank2d
-from .basics import SpectralConv2d
+from .basics import SpectralConv2d, DSpectralConv2d
 
 
 class FNN2d(nn.Module):
@@ -107,7 +107,7 @@ class PINO2d(nn.Module):
         self.modes2 = modes2
         self.width = width
         if layers is None:
-            self.layers = [width] * 4
+            self.layers = [width] * 3  # Changed to 3 layers
         else:
             self.layers = layers
         self.fc0 = nn.Linear(in_dim, layers[0])
@@ -115,13 +115,18 @@ class PINO2d(nn.Module):
         self.sp_convs = nn.ModuleList([SpectralConv2d(
             in_size, out_size, mode1_num, mode2_num)
             for in_size, out_size, mode1_num, mode2_num
-            in zip(self.layers, self.layers[1:], self.modes1, self.modes2)])
+            in zip(self.layers[:-1], self.layers[1:-1], self.modes1, self.modes2)])
+        self.sp_convs.append(DSpectralConv2d(self.layers[-2], self.layers[-1]))  # Added DHT layer
 
         self.ws = nn.ModuleList([nn.Conv1d(in_size, out_size, 1)
                                  for in_size, out_size in zip(self.layers[:-1], self.layers[1:-1])])
-        self.ws.append(LowRank2d(self.layers[-2], self.layers[-1]))
+        self.ws.append(LowRank2d(self.layers[-2], self.layers[-1]))  # No changes here
+
         self.fc1 = nn.Linear(layers[-1], layers[-1] * 4)
         self.fc2 = nn.Linear(layers[-1] * 4, out_dim)
+
+    # The rest of the class remains the same
+
 
     def forward(self, x, y=None):
         batchsize = x.shape[0]
