@@ -7,220 +7,165 @@ from functools import partial
 
 import torch
 
-def DiscreteHartleyTransform(X:torch.Tensor, s=None, dim=None):
-    fft = torch.fft.fftn(X, s=s, dim=dim, norm="forward")
-    return torch.real(fft) - torch.imag(fft)
-
-def InverseDiscreteHartleyTransform(X:torch.Tensor, s=None, dim=None):
-    return (1.0/len(X))*DiscreteHartleyTransform(X, s=s, dim=dim)
-
-def compl_mul1d(a, b): 
-    # Compute the DHT of both input signals a and b
-    a_dht = DiscreteHartleyTransform(a)
-    b_dht = DiscreteHartleyTransform(b)
-
-    # Multiply the DHTs element-wise
-    product_dht = torch.einsum("bix,iox->box", a_dht, b_dht)
-
-    # Compute the inverse DHT of the result
-    convolution = InverseDiscreteHartleyTransform(product_dht)
-
-    return convolution
-
-def compl_mul2d(a, b): 
-    # Compute the DHT of both input signals a and b
-    a_dht = DiscreteHartleyTransform(a)
-    b_dht = DiscreteHartleyTransform(b)
-
-    # Multiply the DHTs element-wise
-    product_dht = torch.einsum("bixy,ioxy->boxy", a_dht, b_dht)
-
-    # Compute the inverse DHT of the result
-    convolution = InverseDiscreteHartleyTransform(product_dht)
-
-    return convolution
+def compl_mul1d(a, b):
+    # (batch, in_channel, x ), (in_channel, out_channel, x) -> (batch, out_channel, x)
+    return torch.einsum("bix,iox->box", a, b)
 
 
-def compl_mul3d(a, b): 
-    # Compute the DHT of both input signals a and b
-    a_dht = DiscreteHartleyTransform(a)
-    b_dht = DiscreteHartleyTransform(b)
+def compl_mul2d(a, b):
+    # (batch, in_channel, x,y,t ), (in_channel, out_channel, x,y,t) -> (batch, out_channel, x,y,t)
+    return torch.einsum("bixy,ioxy->boxy", a, b)
 
-    # Multiply the DHTs element-wise
-    product_dht = torch.einsum("bixyz,ioxyz->boxyz", a_dht, b_dht)
 
-    # Compute the inverse DHT of the result
-    convolution = InverseDiscreteHartleyTransform(product_dht)
-
-    return convolution
+def compl_mul3d(a, b):
+    return torch.einsum("bixyz,ioxyz->boxyz", a, b)
 
 
 ################################################################
 # 1d fourier layer
 ################################################################
 
-
 class SpectralConv1d(nn.Module):
     def __init__(self, in_channels, out_channels, modes1):
         super(SpectralConv1d, self).__init__()
 
         """
-        1D Fourier layer. It does FFT, linear transform, and Inverse FFT.    
+        1D Hartley layer. It does HHT, linear transform, and Inverse HHT.    
         """
 
         self.in_channels = in_channels
         self.out_channels = out_channels
-        # Number of Fourier modes to multiply, at most floor(N/2) + 1
+        # Number of Hartley modes to multiply, at most floor(N/2) + 1
         self.modes1 = modes1
 
         self.scale = (1 / (in_channels*out_channels))
         self.weights1 = nn.Parameter(
-            self.scale * torch.rand(in_channels, out_channels, self.modes1, 2))
+            self.scale * torch.rand(in_channels, out_channels, self.modes1))
 
     def forward(self, x):
         batchsize = x.shape[0]
-        # Compute Hartley coeffcients up to factor of e^(- something constant)
-        x_ft = DiscreteHartleyTransform(x, s=None, dim=[2])
+        x = x.detach().cpu().numpy()
 
-        # Multiply relevant Fourier modes
-        out_ft = torch.zeros(batchsize, self.in_channels, x.size(-1)//2 + 1, device=x.device, dtype=torch.float)
-        out_ft[:, :, :self.modes1] = compl_mul1d(x_ft[:, :, :self.modes1], self.weights1)
+        # Compute Hartley coeffcients
+        x_ht = np.fft.hfft(x, axis=2)
+
+        # Convert numpy array to torch tensor and multiply relevant Hartley modes
+        x_ht = torch.from_numpy(x_ht).to(x.device)
+        out_ht = torch.zeros(batchsize, self.in_channels, x.shape[-1]//2 + 1, device=x.device)
+        out_ht[:, :, :self.modes1] = x_ht[:, :, :self.modes1] * self.weights1
+
+        # Convert torch tensor to numpy array for inverse Hartley transform
+        out_ht = out_ht.detach().cpu().numpy()
+        
         # Return to physical space
-        x = InverseDiscreteHartleyTransform(out_ft, s=[x.size(-1)], dim=[2])
-        return x
+        x = np.fft.ihfft(out_ht, axis=2)
+
+        return torch.from_numpy(x).to(out_ht.device)
+
 
 ################################################################
 # 2d fourier layer
 ################################################################
 
-
 class SpectralConv2d(nn.Module):
     def __init__(self, in_channels, out_channels, modes1, modes2):
         super(SpectralConv2d, self).__init__()
+
+        """
+        2D Hartley layer. It does HHT, linear transform, and Inverse HHT.    
+        """
+
         self.in_channels = in_channels
         self.out_channels = out_channels
-        # Number of Fourier modes to multiply, at most floor(N/2) + 1
+        # Number of Hartley modes to multiply, at most floor(N/2) + 1
         self.modes1 = modes1
         self.modes2 = modes2
 
-        self.scale = (1 / (in_channels * out_channels))
+        self.scale = (1 / (in_channels*out_channels))
         self.weights1 = nn.Parameter(
-            self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, dtype=torch.float))
-        self.weights2 = nn.Parameter(
-            self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, dtype=torch.float))
+            self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2))
 
-    def forward(self, x, gridy=None):
+    def forward(self, x):
         batchsize = x.shape[0]
-        size1 = x.shape[-2]
-        size2 = x.shape[-1]
-        # Compute Fourier coeffcients up to factor of e^(- something constant)
-        x_ft = DiscreteHartleyTransform(x, s=None, dim=[2, 3])
+        x = x.detach().cpu().numpy()
 
-        if gridy is None:
-            # Multiply relevant Fourier modes
-            out_ft = torch.zeros(batchsize, self.out_channels, x.size(-2), x.size(-1) // 2 + 1, device=x.device,
-                                 dtype=torch.cfloat)
-            out_ft[:, :, :self.modes1, :self.modes2] = \
-                compl_mul2d(x_ft[:, :, :self.modes1, :self.modes2], self.weights1)
-            out_ft[:, :, -self.modes1:, :self.modes2] = \
-                compl_mul2d(x_ft[:, :, -self.modes1:, :self.modes2], self.weights2)
+        # Compute Hartley coefficients
+        x_ht = np.fft.hfft(x, axes=[2, 3])
 
-            # Return to physical space
-            x = InverseDiscreteHartleyTransform(out_ft, s=(x.size(-2), x.size(-1)), dim=[2, 3])
-        else:
-            factor1 = compl_mul2d(x_ft[:, :, :self.modes1, :self.modes2], self.weights1)
-            factor2 = compl_mul2d(x_ft[:, :, -self.modes1:, :self.modes2], self.weights2)
-            x = self.ifft2d(gridy, factor1, factor2, self.modes1, self.modes2) / (size1 * size2)
-        return x
+        # Convert numpy array to torch tensor and multiply relevant Hartley modes
+        x_ht = torch.from_numpy(x_ht).to(x.device)
+        out_ht = torch.zeros(batchsize, self.out_channels, x.shape[-2], x.shape[-1]//2 + 1, device=x.device)
+        out_ht[:, :, :self.modes1, :self.modes2] = x_ht[:, :, :self.modes1, :self.modes2] * self.weights1
 
-    def ifft2d(self, gridy, coeff1, coeff2, k1, k2):
+        # Convert torch tensor to numpy array for inverse Hartley transform
+        out_ht = out_ht.detach().cpu().numpy()
 
-        # y (batch, N, 2) locations in [0,1]*[0,1]
-        # coeff (batch, channels, kmax, kmax)
+        # Return to physical space
+        x = np.fft.ihfft(out_ht, axes=[2, 3])
 
-        batchsize = gridy.shape[0]
-        N = gridy.shape[1]
-        device = gridy.device
-        m1 = 2 * k1
-        m2 = 2 * k2 - 1
-
-        # wavenumber (m1, m2)
-        k_x1 =  torch.cat((torch.arange(start=0, end=k1, step=1), \
-                            torch.arange(start=-(k1), end=0, step=1)), 0).reshape(m1,1).repeat(1,m2).to(device)
-        k_x2 =  torch.cat((torch.arange(start=0, end=k2, step=1), \
-                            torch.arange(start=-(k2-1), end=0, step=1)), 0).reshape(1,m2).repeat(m1,1).to(device)
-
-        # K = <y, k_x>,  (batch, N, m1, m2)
-        K1 = torch.outer(gridy[:,:,0].view(-1), k_x1.view(-1)).reshape(batchsize, N, m1, m2)
-        K2 = torch.outer(gridy[:,:,1].view(-1), k_x2.view(-1)).reshape(batchsize, N, m1, m2)
-        K = K1 + K2
-
-        # basis (N, m1, m2)
-        basis = ((1/2 + 1j/2) * torch.exp( -1j * np.pi * K) + (1/2 - 1j/2) * torch.exp( 1j * np.pi * K)).to(device)
-
-        # coeff (batch, channels, m1, m2)
-        coeff3 = coeff1[:,:,1:,1:].flip(-1, -2).conj()
-        coeff4 = torch.cat([coeff1[:,:,0:1,1:].flip(-1).conj(), coeff2[:,:,:,1:].flip(-1, -2).conj()], dim=-2)
-        coeff12 = torch.cat([coeff1, coeff2], dim=-2)
-        coeff43 = torch.cat([coeff4, coeff3], dim=-2)
-        coeff = torch.cat([coeff12, coeff43], dim=-1)
-
-        # Y (batch, channels, N)
-        Xflip = flip_periodic(coeff)
-        Yflip = flip_periodic(basis.real)
-        Yeven = 0.5 * (basis.real + Yflip)
-        Yodd  = 0.5 * (basis.real - Yflip)
-        Y =  torch.einsum("bcxy,bnxy->bcn", coeff, Yeven) + torch.einsum("bcxy,bnxy->bcn", Xflip, Yeven)
-        Y = Y.real
-        return Y
-
+        return torch.from_numpy(x).to(out_ht.device)
 
 class SpectralConv3d(nn.Module):
     def __init__(self, in_channels, out_channels, modes1, modes2, modes3):
         super(SpectralConv3d, self).__init__()
+
+        """
+        3D Hartley layer. It does HHT, linear transform, and Inverse HHT.    
+        """
+
         self.in_channels = in_channels
         self.out_channels = out_channels
-        self.modes1 = modes1  #Number of Fourier modes to multiply, at most floor(N/2) + 1
+        self.modes1 = modes1  #Number of Hartley modes to multiply, at most floor(N/2) + 1
         self.modes2 = modes2
         self.modes3 = modes3
 
         self.scale = (1 / (in_channels * out_channels))
-        self.weights1 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3, dtype=torch.cfloat))
-        self.weights2 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3, dtype=torch.cfloat))
-        self.weights3 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3, dtype=torch.cfloat))
-        self.weights4 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3, dtype=torch.cfloat))
-
+        self.weights1 = nn.Parameter(
+            self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3))
+        
     def forward(self, x):
         batchsize = x.shape[0]
-        # Compute Fourier coeffcients up to factor of e^(- something constant)
-        x_ft = torch.fft.rfftn(x, dim=[2,3,4])
-        # Multiply relevant Fourier modes
-        out_ft = torch.zeros(batchsize, self.out_channels, x.size(2), x.size(3), x.size(4)//2 + 1, device=x.device, dtype=torch.cfloat)
-        out_ft[:, :, :self.modes1, :self.modes2, :self.modes3] = \
-            compl_mul3d(x_ft[:, :, :self.modes1, :self.modes2, :self.modes3], self.weights1)
-        out_ft[:, :, -self.modes1:, :self.modes2, :self.modes3] = \
-            compl_mul3d(x_ft[:, :, -self.modes1:, :self.modes2, :self.modes3], self.weights2)
-        out_ft[:, :, :self.modes1, -self.modes2:, :self.modes3] = \
-            compl_mul3d(x_ft[:, :, :self.modes1, -self.modes2:, :self.modes3], self.weights3)
-        out_ft[:, :, -self.modes1:, -self.modes2:, :self.modes3] = \
-            compl_mul3d(x_ft[:, :, -self.modes1:, -self.modes2:, :self.modes3], self.weights4)
+        x = x.detach().cpu().numpy()
 
-        #Return to physical space
-        x = torch.fft.irfftn(out_ft, s=(x.size(2), x.size(3), x.size(4)), dim=[2,3,4])
-        return x
+        # Compute Hartley coeffcients
+        x_ht = np.fft.hfft(x, axes=[2, 3, 4])
 
+        # Convert numpy array to torch tensor and multiply relevant Hartley modes
+        x_ht = torch.from_numpy(x_ht).to(x.device)
+        out_ht = torch.zeros(batchsize, self.out_channels, x.shape[2], x.shape[3], x.shape[4]//2 + 1, device=x.device)
+        out_ht[:, :, :self.modes1, :self.modes2, :self.modes3] = \
+            x_ht[:, :, :self.modes1, :self.modes2, :self.modes3] * self.weights1
+
+        # Convert torch tensor to numpy array for inverse Hartley transform
+        out_ht = out_ht.detach().cpu().numpy()
+
+        # Return to physical space
+        x = np.fft.ihfft(out_ht, axes=[2, 3, 4])
+
+        return torch.from_numpy(x).to(out_ht.device)
+
+
+import torch
+import torch.nn as nn
 
 class FourierBlock(nn.Module):
     def __init__(self, in_channels, out_channels, modes1, modes2, modes3, activation='tanh'):
         super(FourierBlock, self).__init__()
+
+        """
+        Fourier Block is a transformation block consisting of spectral convolution, a linear transformation,
+        and a non-linear activation function.
+        """
+
         self.in_channel = in_channels
         self.out_channel = out_channels
         self.speconv = SpectralConv3d(in_channels, out_channels, modes1, modes2, modes3)
-        self.linear = nn.Conv1d(in_channels, out_channels, 1)
+        self.linear = nn.Linear(in_channels, out_channels)
+
         if activation == 'tanh':
-            self.activation = torch.tanh_
+            self.activation = torch.tanh
         elif activation == 'gelu':
-            self.activation = nn.GELU
+            self.activation = nn.GELU()
         elif activation == 'none':
             self.activation = None
         else:
@@ -233,6 +178,7 @@ class FourierBlock(nn.Module):
         x1 = self.speconv(x)
         x2 = self.linear(x.view(x.shape[0], self.in_channel, -1))
         out = x1 + x2.view(x.shape[0], self.out_channel, x.shape[2], x.shape[3], x.shape[4])
+
         if self.activation is not None:
             out = self.activation(out)
         return out
