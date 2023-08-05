@@ -8,17 +8,37 @@ from functools import partial
 import torch
 
 def compl_mul1d(a, b):
-    # (batch, in_channel, x ), (in_channel, out_channel, x) -> (batch, out_channel, x)
-    return torch.einsum("bix,iox->box", a, b)
-
+    """
+    Perform cyclic convolution for 1D Hartley-transformed inputs a and b.
+    """
+    # Pad inputs for cyclic convolution
+    a_padded = torch.cat((a, torch.zeros_like(a)), dim=-1)
+    b_padded = torch.cat((b, torch.zeros_like(b)), dim=-1)
+    
+    # Compute convolution in the frequency domain
+    return torch.irfft(torch.fft(a_padded, 1) * torch.fft(b_padded, 1), 1)[:, :, :a.size(-1)]
 
 def compl_mul2d(a, b):
-    # (batch, in_channel, x,y,t ), (in_channel, out_channel, x,y,t) -> (batch, out_channel, x,y,t)
-    return torch.einsum("bixy,ioxy->boxy", a, b)
-
+    """
+    Perform cyclic convolution for 2D Hartley-transformed inputs a and b.
+    """
+    # Pad inputs for cyclic convolution
+    a_padded = torch.cat((a, torch.zeros_like(a)), dim=-1)
+    b_padded = torch.cat((b, torch.zeros_like(b)), dim=-1)
+    
+    # Compute convolution in the frequency domain
+    return torch.irfft(torch.fft(a_padded, 2) * torch.fft(b_padded, 2), 2)[:, :, :a.size(-2), :a.size(-1)]
 
 def compl_mul3d(a, b):
-    return torch.einsum("bixyz,ioxyz->boxyz", a, b)
+    """
+    Perform cyclic convolution for 3D Hartley-transformed inputs a and b.
+    """
+    # Pad inputs for cyclic convolution
+    a_padded = torch.cat((a, torch.zeros_like(a)), dim=-1)
+    b_padded = torch.cat((b, torch.zeros_like(b)), dim=-1)
+    
+    # Compute convolution in the frequency domain
+    return torch.irfft(torch.fft(a_padded, 3) * torch.fft(b_padded, 3), 3)[:, :, :a.size(-3), :a.size(-2), :a.size(-1)]
 
 
 ################################################################
