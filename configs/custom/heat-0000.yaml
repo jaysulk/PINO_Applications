@@ -1,0 +1,41 @@
+data:
+  name: 'Heat-0000'
+  total_num: 100
+  n_train: 90
+  n_test: 10
+  # nx: 1024
+  nx: 128
+  nt: 100
+  # sub: 8
+  sub: 1
+  sub_t: 1
+  alpha: 0.01
+
+model:
+  layers: [16, 24, 24, 32, 32]
+  modes1: [15, 12, 9, 9]
+  modes2: [15, 12, 9, 9]
+  fc_dim: 128
+  activation: gelu
+
+train:
+  batchsize: 20
+  epochs: 500
+  milestones: [100, 200, 300, 400, 500]
+  base_lr: 0.001
+  scheduler_gamma: 0.5
+  ic_loss: 5.0
+  f_loss: 1.0
+  xy_loss: 5.0
+  save_dir: 'Heat'
+  save_name: 'Heat-0000.pt'
+  ckpt: 'checkpoints/Heat/Heat-0000.pt'
+  ckpt_freq: 100
+
+log:
+  project: 'PINO-Heat'
+  group: 'Heat-0000'
+
+test:
+  batchsize: 1
+  ckpt: 'checkpoints/Heat/Heat-0000.pt'
