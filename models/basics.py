@@ -16,7 +16,7 @@ def compl_mul1d(a, b):
     b_padded = torch.cat((b, torch.zeros_like(b)), dim=-1)
     
     # Compute convolution in the frequency domain
-    return torch.irfft(torch.fft(a_padded, 1) * torch.fft(b_padded, 1), 1)[:, :, :a.size(-1)]
+    return torch.fft.irfft(torch.fft.fft(a_padded, 1) * torch.fft.fft(b_padded, 1), 1)[:, :, :a.size(-1)]
 
 def compl_mul2d(a, b):
     """
@@ -27,7 +27,7 @@ def compl_mul2d(a, b):
     b_padded = torch.cat((b, torch.zeros_like(b)), dim=-1)
     
     # Compute convolution in the frequency domain
-    return torch.irfft(torch.fft(a_padded, 2) * torch.fft(b_padded, 2), 2)[:, :, :a.size(-2), :a.size(-1)]
+    return torch.fft.irfft(torch.fft.fft(a_padded, 2) * torch.fft.fft(b_padded, 2), 2)[:, :, :a.size(-2), :a.size(-1)]
 
 def compl_mul3d(a, b):
     """
@@ -38,7 +38,7 @@ def compl_mul3d(a, b):
     b_padded = torch.cat((b, torch.zeros_like(b)), dim=-1)
     
     # Compute convolution in the frequency domain
-    return torch.irfft(torch.fft(a_padded, 3) * torch.fft(b_padded, 3), 3)[:, :, :a.size(-3), :a.size(-2), :a.size(-1)]
+    return torch.fft.irfft(torch.fft.fft(a_padded, 3) * torch.fft.fft(b_padded, 3), 3)[:, :, :a.size(-3), :a.size(-2), :a.size(-1)]
 
 
 ################################################################
