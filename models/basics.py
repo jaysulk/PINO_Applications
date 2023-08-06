@@ -12,33 +12,37 @@ def compl_mul1d(a, b):
     Perform cyclic convolution for 1D Hartley-transformed inputs a and b.
     """
     # Pad inputs for cyclic convolution
-    a_padded = torch.cat((a, torch.zeros_like(a)), dim=-1)
-    b_padded = torch.cat((b, torch.zeros_like(b)), dim=-1)
-    
+    size = a.size(-1) + b.size(-1) - 1
+    a_padded = F.pad(a, (0, size - a.size(-1)))
+    b_padded = F.pad(b, (0, size - b.size(-1)))
+
     # Compute convolution in the frequency domain
-    return torch.fft.irfft(torch.fft.fft(a_padded, 1) * torch.fft.fft(b_padded, 1), 1)[:, :, :a.size(-1)]
+    return torch.fft.irfft(torch.fft.fft(a_padded, dim=-1) * torch.fft.fft(b_padded, dim=-1), n=size, dim=-1)[:, :, :a.size(-1)]
 
 def compl_mul2d(a, b):
     """
     Perform cyclic convolution for 2D Hartley-transformed inputs a and b.
     """
     # Pad inputs for cyclic convolution
-    a_padded = torch.cat((a, torch.zeros_like(a)), dim=-1)
-    b_padded = torch.cat((b, torch.zeros_like(b)), dim=-1)
-    
+    size = a.size(-1) + b.size(-1) - 1
+    a_padded = F.pad(a, (0, size - a.size(-1), 0, size - a.size(-1)))
+    b_padded = F.pad(b, (0, size - b.size(-1), 0, size - b.size(-1)))
+
     # Compute convolution in the frequency domain
-    return torch.fft.irfft(torch.fft.fft(a_padded, 2) * torch.fft.fft(b_padded, 2), 2)[:, :, :a.size(-2), :a.size(-1)]
+    return torch.fft.irfft(torch.fft.fft2(a_padded, dim=(-2, -1)) * torch.fft.fft2(b_padded, dim=(-2, -1)), s=(size, size), dim=(-2, -1))[:, :, :a.size(-2), :a.size(-1)]
 
 def compl_mul3d(a, b):
     """
     Perform cyclic convolution for 3D Hartley-transformed inputs a and b.
     """
     # Pad inputs for cyclic convolution
-    a_padded = torch.cat((a, torch.zeros_like(a)), dim=-1)
-    b_padded = torch.cat((b, torch.zeros_like(b)), dim=-1)
-    
+    size = a.size(-1) + b.size(-1) - 1
+    a_padded = F.pad(a, (0, size - a.size(-1), 0, size - a.size(-1), 0, size - a.size(-1)))
+    b_padded = F.pad(b, (0, size - b.size(-1), 0, size - b.size(-1), 0, size - b.size(-1)))
+
     # Compute convolution in the frequency domain
-    return torch.fft.irfft(torch.fft.fft(a_padded, 3) * torch.fft.fft(b_padded, 3), 3)[:, :, :a.size(-3), :a.size(-2), :a.size(-1)]
+    return torch.fft.irfftn(torch.fft.fftn(a_padded, dim=(-3, -2, -1)) * torch.fft.fftn(b_padded, dim=(-3, -2, -1)), s=(size, size, size), dim=(-3, -2, -1))[:, :, :a.size(-3), :a.size(-2), :a.size(-1)]
+
 
 
 ################################################################
