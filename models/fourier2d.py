@@ -59,12 +59,22 @@ class FNN2d(nn.Module):
             self.activation == F.relu
         elif activation == 'swish':
             self.activation = self.swish
+        elif activation == 'sinc':
+            self.activation = self.sinc
         else:
             raise ValueError(f'{activation} is not supported')
 
     @staticmethod
     def swish(x):
         return x * torch.sigmoid(x)
+
+    @staticmethod
+    def sinc(x):
+        # Condition for handling the case when x is zero
+        condition = torch.eq(x, 0.0)
+    
+        return torch.where(condition, torch.ones_like(x), torch.sin(x) / x)
+
 
     def forward(self, x):
         '''
@@ -205,12 +215,22 @@ class FNN2d_AD(nn.Module):
             self.activation == F.relu
         elif activation == 'swish':
             self.activation = self.swish
+        elif activation == 'sinc':
+            self.activation = self.sinc
         else:
             raise ValueError(f'{activation} is not supported')
 
     @staticmethod
     def swish(x):
         return x * torch.sigmoid(x)
+
+    @staticmethod
+    def sinc(x):
+        # Condition for handling the case when x is zero
+        condition = torch.eq(x, 0.0)
+    
+        return torch.where(condition, torch.ones_like(x), torch.sin(x) / x)
+
 
     def forward(self, x, y=None):
         '''
