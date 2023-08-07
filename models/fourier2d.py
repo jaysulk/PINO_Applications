@@ -197,8 +197,14 @@ class FNN2d_AD(nn.Module):
             self.activation = F.gelu
         elif activation == 'relu':
             self.activation == F.relu
+        elif activation == 'swish':
+            self.activation = self.swish
         else:
             raise ValueError(f'{activation} is not supported')
+
+    @staticmethod
+    def swish(x):
+        return x * torch.sigmoid(x)
 
     def forward(self, x, y=None):
         '''
