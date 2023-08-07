@@ -176,16 +176,21 @@ class FourierBlock(nn.Module):
         super(FourierBlock, self).__init__()
         self.in_channel = in_channels
         self.out_channel = out_channels
-        self.speconv = SpectralConv3d(in_channels, out_channels, modes1, modes2, modes3)
+        self.speconv = SpectralConv3d(in_channels, out_channels, modes1, modes2, modes3)  # Assuming you have this defined elsewhere
         self.linear = nn.Conv1d(in_channels, out_channels, 1)
+
         if activation == 'tanh':
             self.activation = torch.tanh_
         elif activation == 'gelu':
-            self.activation = nn.GELU
+            self.activation = nn.GELU()
+        elif activation == 'swish':
+            self.activation = self.swish
         elif activation == 'none':
             self.activation = None
-        else:
-            raise ValueError(f'{activation} is not supported')
+
+    @staticmethod
+    def swish(x):
+        return x * torch.sigmoid(x)
 
     def forward(self, x):
         '''
