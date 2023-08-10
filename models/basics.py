@@ -22,22 +22,14 @@ def compl_mul2d(a, b):
     """ Multiplies tensors a and b using the convolution theorem for the DHT.
     Assumes hartley_transform and inverse_hartley_transform are defined.
     """
-    a_ft = torch.fft.rfftn(a, dim=[2])
-    a_ft_mirror = torch.fft.rfftn(a.flip(dims=[2]), dim=[2])  # F(-u)
-    b_ft = torch.fft.rfftn(b, dim=[2])
-    b_ft_mirror = torch.fft.rfftn(b.flip(dims=[2]), dim=[2])  # F(-u)
-    A = a_ft + a_ft_mirror
-    B = b_ft + b_ft_mirror
     
-    A_flip = flip_periodic(A)
-    B_flip = flip_periodic(B)
+    A_flip = flip_periodic(a)
+    B_flip = flip_periodic(b)
     
-    Beven = 0.5 * (B + B_flip)
-    Bodd  = 0.5 * (B - B_flip)
+    Beven = 0.5 * (b + B_flip)
+    Bodd  = 0.5 * (b - B_flip)
     
-    C = torch.einsum("bixy,ioxy->boxy", A, Beven) + torch.einsum("bixy,ioxy->boxy", A_flip, Bodd)
-    
-    return torch.fft.irfft(C, s=[x.size(-1)], dim=[2])
+    return torch.einsum("bixy,ioxy->boxy", a, Beven) + torch.einsum("bixy,ioxy->boxy", A_flip, Bodd)
 
 
 def compl_mul3d(a, b):
