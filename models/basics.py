@@ -8,27 +8,6 @@ from functools import partial
 import torch
 import torch.nn.functional as F
 
-def hartley_transform(input):
-    """
-    Compute the Hartley transform of the input tensor using the FFT.
-    """
-    # compute FFT of the input
-    fft = torch.fft.fftn(input)
-
-    # compute Hartley transform as real part - imaginary part
-    return fft.real - fft.imag
-
-
-def inverse_hartley_transform(input):
-    """
-    Compute the inverse Hartley transform of the input tensor using the FFT.
-    """
-    # compute inverse FFT of the input
-    ifft = torch.fft.ifftn(input)
-
-    # compute inverse Hartley transform as real part + imaginary part
-    return ifft.real + ifft.imag
-
 def compl_mul1d(a, b):
     # (batch, in_channel, x ), (in_channel, out_channel, x) -> (batch, out_channel, x)
     return torch.einsum("bix,iox->box", a, b)
@@ -103,7 +82,9 @@ class SpectralConv2d(nn.Module):
     def forward(self, x):
         batchsize = x.shape[0]
         # Compute Hartley coeffcients up to factor of h^(- something constant)
-        x_ht = hartley_transform(x)
+        x_ft = torch.fft.rfftn(x, dim=[2, 3])
+        x_ft_mirror = torch.fft.rfftn(x.flip(dims=[2, 3]), dim=[2, 3])  # F(-u)
+        x_ht = x_ft + x_ft_mirror
 
         # Multiply relevant Hartley modes
         out_ht = torch.zeros(batchsize, self.out_channels, x.size(-2), x.size(-1) // 2 + 1, device=x.device,
@@ -114,7 +95,7 @@ class SpectralConv2d(nn.Module):
             compl_mul2d(x_ht[:, :, -self.modes1:, :self.modes2], self.weights2)
 
         # Return to physical space
-        x = inverse_hartley_transform(x_ht)
+        x = torch.fft.irfftn(out_ht, s=(x.size(-2), x.size(-1)), dim=[2, 3])
         return x
 
 class SpectralConv3d(nn.Module):
