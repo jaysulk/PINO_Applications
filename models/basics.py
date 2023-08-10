@@ -8,6 +8,22 @@ from functools import partial
 import torch
 import torch.nn.functional as F
 
+def dht2d(x):
+    """Compute the 2D Discrete Hartley Transform of x."""
+    # Compute the real FFT
+    x_ft = torch.fft.rfftn(x, dim=[2, 3])
+    # Compute the mirrored FFT (F(-u))
+    x_ft_mirror = torch.fft.rfftn(x.flip(dims=[2, 3]), dim=[2, 3])
+    # Combine the two to get the Hartley Transform
+    x_ht = x_ft + x_ft_mirror
+    return x_ht.real  # We only need the real part
+
+def inv_dht2d(x_ht):
+    """Compute the inverse 2D Discrete Hartley Transform of x_ht."""
+    # For the inverse DHT, we can leverage the property that DHT is its own inverse.
+    # Therefore, applying DHT again will yield the original spatial signal.
+    return dht2d(x_ht)
+
 def compl_mul1d(a, b):
     # (batch, in_channel, x ), (in_channel, out_channel, x) -> (batch, out_channel, x)
     return torch.einsum("bix,iox->box", a, b)
@@ -15,7 +31,8 @@ def compl_mul1d(a, b):
 
 def compl_mul2d(a, b):
     # (batch, in_channel, x,y,t ), (in_channel, out_channel, x,y,t) -> (batch, out_channel, x,y,t)
-    return torch.einsum("bixy,ioxy->boxy", a, b)
+    c = torch.einsum("bixy,ioxy->boxy", dht2d(a), dht2d(b))
+    return inv_dht2d(c) 
 
 
 def compl_mul3d(a, b):
