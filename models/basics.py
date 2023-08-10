@@ -103,9 +103,7 @@ class SpectralConv2d(nn.Module):
     def forward(self, x):
         batchsize = x.shape[0]
         # Compute Hartley coeffcients up to factor of h^(- something constant)
-        x_ft = torch.fft.rfftn(x, dim=[2, 3])
-        x_ft_mirror = torch.fft.rfftn(x.flip(dims=[2, 3]), dim=[2, 3])  # F(-u)
-        x_ht = x_ft + x_ft_mirror
+        x_ht = hartley_transform(x)
 
         # Multiply relevant Hartley modes
         out_ht = torch.zeros(batchsize, self.out_channels, x.size(-2), x.size(-1) // 2 + 1, device=x.device,
@@ -116,7 +114,7 @@ class SpectralConv2d(nn.Module):
             compl_mul2d(x_ht[:, :, -self.modes1:, :self.modes2], self.weights2)
 
         # Return to physical space
-        x = torch.fft.irfftn(out_ht, s=(x.size(-2), x.size(-1)), dim=[2, 3])
+        x = inverse_hartley_transform(x_ht)
         return x
 
 class SpectralConv3d(nn.Module):
