@@ -13,10 +13,31 @@ def compl_mul1d(a, b):
     return torch.einsum("bix,iox->box", a, b)
 
 
+def flip_periodic(x: torch.Tensor):
+    flipped_x = torch.cat((x[..., 0:1], torch.flip(x[..., 1:], dims=[-1])), dim=-1)
+    flipped_x = torch.cat((flipped_x[..., 0:1, :], torch.flip(flipped_x[..., 1:, :], dims=[-2])), dim=-2)
+    return flipped_x
+
 def compl_mul2d(a, b):
-    # (batch, in_channel, x,y,t ), (in_channel, out_channel, x,y,t) -> (batch, out_channel, x,y,t)
-    c = torch.einsum("bixy,ioxy->boxy", hartley_transform(a), hartley_transform(b))
-    return inverse_hartley_transform(c) 
+    """ Multiplies tensors a and b using the convolution theorem for the DHT.
+    Assumes hartley_transform and inverse_hartley_transform are defined.
+    """
+    a_ft = torch.fft.rfftn(a, dim=[2])
+    a_ft_mirror = torch.fft.rfftn(a.flip(dims=[2]), dim=[2])  # F(-u)
+    b_ft = torch.fft.rfftn(b, dim=[2])
+    b_ft_mirror = torch.fft.rfftn(b.flip(dims=[2]), dim=[2])  # F(-u)
+    A = a_ft + a_ft_mirror
+    B = b_ft + b_ft_mirror
+    
+    A_flip = flip_periodic(A)
+    B_flip = flip_periodic(B)
+    
+    Beven = 0.5 * (B + B_flip)
+    Bodd  = 0.5 * (B - B_flip)
+    
+    C = torch.einsum("bixy,ioxy->boxy", A, Beven) + torch.einsum("bixy,ioxy->boxy", A_flip, Bodd)
+    
+    return torch.fft.irfft(C, s=[x.size(-1)], dim=[2])
 
 
 def compl_mul3d(a, b):
