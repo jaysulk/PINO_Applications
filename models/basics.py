@@ -44,9 +44,16 @@ def compl_mul2d(a, b):
     """ Multiplies tensors a and b using the convolution theorem for the DHT.
     Assumes hartley_transform and inverse_hartley_transform are defined.
     """
+    X = dht(x)
+    Y = dht(y)
+    Xflip = torch.roll(torch.flip(X, [0]), 1, dims=0)
+    Yflip = torch.roll(torch.flip(Y, [0]), 1, dims=0)
+    Yplus = Y + Yflip
+    Yminus = Y - Yflip
+    Z = 0.5 *  torch.einsum("bixy,ioxy->boxy", X, Yplus) + torch.einsum("bixy,ioxy->boxy",  Xflip, Yminus)
+    z = idht(Z)
     
-        
-    return torch.einsum("bixy,ioxy->boxy", a, Beven) + torch.einsum("bixy,ioxy->boxy", A_flip, Bodd)
+    return z
 
 
 def compl_mul3d(a, b):
@@ -110,9 +117,7 @@ class SpectralConv2d(nn.Module):
     def forward(self, x):
         batchsize = x.shape[0]
         # Compute Hartley coeffcients up to factor of h^(- something constant)
-        x_ft = torch.fft.rfftn(x, dim=[2, 3])
-        x_ft_mirror = torch.fft.rfftn(x.flip(dims=[2, 3]), dim=[2, 3])  # F(-u)
-        x_ht = x_ft + x_ft_mirror
+        x_ht = dht(x)
 
         # Multiply relevant Hartley modes
         out_ht = torch.zeros(batchsize, self.out_channels, x.size(-2), x.size(-1) // 2 + 1, device=x.device,
@@ -123,7 +128,7 @@ class SpectralConv2d(nn.Module):
             compl_mul2d(x_ht[:, :, -self.modes1:, :self.modes2], self.weights2)
 
         # Return to physical space
-        x = torch.fft.irfftn(out_ht, s=(x.size(-2), x.size(-1)), dim=[2, 3])
+        x = idht(out_ht)
         return x
 
 class SpectralConv3d(nn.Module):
