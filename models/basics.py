@@ -8,6 +8,20 @@ from functools import partial
 import torch
 import torch.nn.functional as F
 
+import torch
+
+def dht(x: torch.Tensor):
+    X = torch.fft.fft(x)
+    X = X.real - X.imag
+    return X
+
+def idht(X: torch.Tensor):
+    n = X.size(0)  # Assuming a 1D tensor
+    X = dht(X)
+    x = X / n  # Element-wise division
+    return x
+
+
 def flip_periodic(x: torch.Tensor):
     flipped_x = torch.cat((x[..., 0:1], torch.flip(x[..., 1:], dims=[-1])), dim=-1)
     flipped_x = torch.cat((flipped_x[..., 0:1, :], torch.flip(flipped_x[..., 1:, :], dims=[-2])), dim=-2)
@@ -65,8 +79,8 @@ class SpectralConv1d(nn.Module):
     def forward(self, x):
         batchsize = x.shape[0]
         # Compute Hartley coefficients up to factor of h^(- something constant)
-        x_ft = torch.fft.rfftn(x, dim=[2])
-        x_ft_mirror = torch.fft.rfftn(x.flip(dims=[2]), dim=[2])  # F(-u)
+        x_ft = dht(x)
+        x_ft_mirror = dht(x.flip(dims=[2]))  # F(-u)
         x_ht = x_ft + x_ft_mirror
 
         # Multiply relevant Hartley modes
@@ -74,7 +88,7 @@ class SpectralConv1d(nn.Module):
         out_ht[:, :, :self.modes1] = compl_mul1d(x_ht[:, :, :self.modes1], self.weights1)
 
         # Return to physical space
-        x = torch.fft.irfft(out_ht, s=[x.size(-1)], dim=[2])
+        x = idht(out_ht)
         return x
 
 
