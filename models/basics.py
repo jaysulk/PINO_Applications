@@ -21,44 +21,31 @@ def idht(X: torch.Tensor):
     x = X / n  # Element-wise division
     return x
 
-def conv(x: torch.Tensor, y: torch.Tensor):
+#def flip_periodic(x: torch.Tensor):
+#    flipped_x = torch.cat((x[..., 0:1], torch.flip(x[..., 1:], dims=[-1])), dim=-1)
+#    flipped_x = torch.cat((flipped_x[..., 0:1, :], torch.flip(flipped_x[..., 1:, :], dims=[-2])), dim=-2)
+#    return flipped_x
+
+def compl_mul1d(x, y):
+    # (batch, in_channel, x ), (in_channel, out_channel, x) -> (batch, out_channel, x)
+    #return torch.einsum("bix,iox->box", a, b)
     X = dht(x)
     Y = dht(y)
     Xflip = torch.roll(torch.flip(X, [0]), 1, dims=0)
     Yflip = torch.roll(torch.flip(Y, [0]), 1, dims=0)
     Yplus = Y + Yflip
     Yminus = Y - Yflip
-    Z = 0.5 * (X * Yplus + Xflip * Yminus)
+    Z = 0.5 * torch.einsum("bix,iox->box", X, Yplus) + torch.einsum("bix,iox->box", Xflip, Yminus)
     z = idht(Z)
+    
     return z
-
-def flip_periodic(x: torch.Tensor):
-    flipped_x = torch.cat((x[..., 0:1], torch.flip(x[..., 1:], dims=[-1])), dim=-1)
-    flipped_x = torch.cat((flipped_x[..., 0:1, :], torch.flip(flipped_x[..., 1:, :], dims=[-2])), dim=-2)
-    return flipped_x
-
-def compl_mul1d(a, b):
-    # (batch, in_channel, x ), (in_channel, out_channel, x) -> (batch, out_channel, x)
-    #return torch.einsum("bix,iox->box", a, b)
-    A_flip = flip_periodic(a)
-    B_flip = flip_periodic(b)
-    
-    Beven = 0.5 * (b + B_flip)
-    Bodd  = 0.5 * (b - B_flip)
-    
-    return torch.einsum("bix,iox->box", a, Beven) + torch.einsum("bix,iox->box", A_flip, Bodd)
 
 def compl_mul2d(a, b):
     """ Multiplies tensors a and b using the convolution theorem for the DHT.
     Assumes hartley_transform and inverse_hartley_transform are defined.
     """
     
-    A_flip = flip_periodic(a)
-    B_flip = flip_periodic(b)
-    
-    Beven = 0.5 * (b + B_flip)
-    Bodd  = 0.5 * (b - B_flip)
-    
+        
     return torch.einsum("bixy,ioxy->boxy", a, Beven) + torch.einsum("bixy,ioxy->boxy", A_flip, Bodd)
 
 
@@ -89,9 +76,7 @@ class SpectralConv1d(nn.Module):
     def forward(self, x):
         batchsize = x.shape[0]
         # Compute Hartley coefficients up to factor of h^(- something constant)
-        x_ft = dht(x)
-        x_ft_mirror = dht(x.flip(dims=[2]))  # F(-u)
-        x_ht = x_ft + x_ft_mirror
+        x_ht = dht(x)
 
         # Multiply relevant Hartley modes
         out_ht = torch.zeros(batchsize, self.in_channels, x.size(-1)//2 + 1, device=x.device, dtype=torch.cfloat)
