@@ -40,7 +40,7 @@ def compl_mul1d(x, y):
     
     return z
 
-def compl_mul2d(a, b):
+def compl_mul2d(x, y):
     """ Multiplies tensors a and b using the convolution theorem for the DHT.
     Assumes hartley_transform and inverse_hartley_transform are defined.
     """
