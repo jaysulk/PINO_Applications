@@ -10,16 +10,28 @@ import torch.nn.functional as F
 
 import torch
 
+import torch
+
 def dht(x: torch.Tensor):
     X = torch.fft.fft(x)
     X = X.real - X.imag
     return X
 
 def idht(X: torch.Tensor):
-    n = X.size(0)  # Assuming a 1D tensor
+    # Get the size of each dimension
+    dims = X.size()
+    
+    # Calculate the normalization factor
+    n = torch.prod(torch.tensor(dims)).item()
+    
+    # Compute the DHT
     X = dht(X)
-    x = X / n  # Element-wise division
+    
+    # Element-wise division for normalization
+    x = X / n
+    
     return x
+
 
 #def flip_periodic(x: torch.Tensor):
 #    flipped_x = torch.cat((x[..., 0:1], torch.flip(x[..., 1:], dims=[-1])), dim=-1)
