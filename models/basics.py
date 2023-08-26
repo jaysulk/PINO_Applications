@@ -47,7 +47,8 @@ def compl_mul1d(x, y):
     Yflip = torch.roll(torch.flip(Y, [0]), 1, dims=0)
     Yplus = Y + Yflip
     Yminus = Y - Yflip
-    Z = 0.5 * torch.einsum("bix,iox->box", X, Yplus) + torch.einsum("bix,iox->box", Xflip, Yminus)
+    Z = torch.einsum("bix,iox->box", X, Yplus) + torch.einsum("bix,iox->box", Xflip, Yminus)
+    Z *= 0.5
     z = idht(Z)
     
     return z
@@ -62,7 +63,8 @@ def compl_mul2d(x, y):
     Yflip = torch.roll(torch.flip(Y, [0, 1]), shifts=(1, 1), dims=(0, 1))
     Yplus = Y + Yflip
     Yminus = Y - Yflip
-    Z = 0.5 *  torch.einsum("bixy,ioxy->boxy", X, Yplus) + torch.einsum("bixy,ioxy->boxy",  Xflip, Yminus)
+    Z = torch.einsum("bixy,ioxy->boxy", X, Yplus) + torch.einsum("bixy,ioxy->boxy",  Xflip, Yminus)
+    Z *= 0.5
     z = idht(Z)
     
     return z
