@@ -24,9 +24,9 @@ train:
   milestones: [100, 200, 300, 400, 500]
   base_lr: 0.001
   scheduler_gamma: 0.5
-  ic_loss: 5.0
+  ic_loss: 1.0
   f_loss: 1.0
-  xy_loss: 5.0
+  xy_loss: 1.0
   save_dir: 'TDE'
   save_name: 'TDE-0000.pt'
   ckpt: 'checkpoints/TDE/TDE-0000.pt'
