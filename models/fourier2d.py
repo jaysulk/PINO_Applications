@@ -29,9 +29,12 @@ class FNN2d(nn.Module):
             self.layers = layers
         self.fc0 = nn.Linear(in_dim, layers[0])
 
-        # First layer will be Hartley, the next 3 will be Fourier
-        self.sp_convs = nn.ModuleList([HartleyConv2d(self.layers[0], self.layers[1], modes1[0], modes2[0])])
-        for i in range(1, 4):  # Total of 4 layers (1 Hartley and 3 Fourier)
+        # First 2 layers will be Hartley
+        self.sp_convs = nn.ModuleList([HartleyConv2d(self.layers[i], self.layers[i+1], modes1[i], modes2[i]) 
+                                       for i in range(2)])
+        
+        # Next 2 layers will be Fourier
+        for i in range(2, 4):  
             self.sp_convs.append(SpectralConv2d(
                 self.layers[i], self.layers[i+1], modes1[i], modes2[i]))
 
