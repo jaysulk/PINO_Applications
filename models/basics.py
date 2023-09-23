@@ -147,7 +147,7 @@ class DSpectralConv1d(nn.Module):
 
         # Multiply relevant Fourier modes
         out_ft = torch.zeros(batchsize, self.in_channels, x.size(-1)//2 + 1, device=x.device, dtype=torch.float)
-        out_ft[:, :, :self.modes1] = compl_mul1d(x_ft[:, :, :self.modes1], self.weights1)
+        out_ft[:, :, :self.modes1] = dcompl_mul1d(x_ft[:, :, :self.modes1], self.weights1)
         # Return to physical space
         x = idht(out_ft)
         return x
@@ -285,18 +285,18 @@ class DSpectralConv2d(nn.Module):
         size1 = x.shape[-2]
         size2 = x.shape[-1]
         # Compute Fourier coeffcients up to factor of e^(- something constant)
-        x_ft = DiscreteHartleyTransform(x, s=None, dim=[2, 3])
+        x_ft = dht(x)
 
         # Multiply relevant Fourier modes
         out_ft = torch.zeros(batchsize, self.out_channels, x.size(-2), x.size(-1) // 2 + 1, device=x.device,
                                 dtype=torch.cfloat)
         out_ft[:, :, :self.modes1, :self.modes2] = \
-            compl_mul2d(x_ft[:, :, :self.modes1, :self.modes2], self.weights1)
+            dcompl_mul2d(x_ft[:, :, :self.modes1, :self.modes2], self.weights1)
         out_ft[:, :, -self.modes1:, :self.modes2] = \
-            compl_mul2d(x_ft[:, :, -self.modes1:, :self.modes2], self.weights2)
+            dcompl_mul2d(x_ft[:, :, -self.modes1:, :self.modes2], self.weights2)
 
         # Return to physical space
-        x = InverseDiscreteHartleyTransform(out_ft, s=(x.size(-2), x.size(-1)), dim=[2, 3])
+        x = idht(out_ft)
 
 class SpectralConv3d(nn.Module):
     def __init__(self, in_channels, out_channels, modes1, modes2, modes3):
