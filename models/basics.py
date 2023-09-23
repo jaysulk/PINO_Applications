@@ -124,7 +124,7 @@ class HartleyConv1d(nn.Module):
         super(DHartleyConv1d, self).__init__()
 
         """
-        1D Hartley layer. It does DHT, linear transform, and Inverse DHT.    
+        1D Hartley layer. It does HHT, linear transform, and Inverse HHT.    
         """
 
         self.in_channels = in_channels
@@ -132,22 +132,23 @@ class HartleyConv1d(nn.Module):
         # Number of Hartley modes to multiply, at most floor(N/2) + 1
         self.modes1 = modes1
 
-        self.scale = (1 / (in_channels * out_channels))
+        self.scale = (1 / (in_channels*out_channels))
         self.weights1 = nn.Parameter(
-            self.scale * torch.rand(in_channels, out_channels, self.modes1))
+            self.scale * torch.rand(in_channels, out_channels, self.modes1, 2))
 
     def forward(self, x):
         batchsize = x.shape[0]
-        # Compute Hartley coeffcients up to factor of e^(- something constant)
-        x_ft = dht(x)
+        # Compute Hartley coefficients up to factor of h^(- something constant)
+        x_ht = dht(x)
 
         # Multiply relevant Hartley modes
-        out_ft = torch.zeros(batchsize, self.out_channels, x.size(-1) // 2 + 1, device=x.device, dtype=torch.float)
-        out_ft[:, :, :self.modes1] = hcompl_mul1d(x_ft[:, :, :self.modes1], self.weights1)
-        # Return to physical space
-        x = idht(out_ft)
+        out_ht = torch.zeros(batchsize, self.in_channels, x.size(-1)//2 + 1, device=x.device, dtype=torch.cfloat)
+        out_ht[:, :, :self.modes1] = hcompl_mul1d(x_ht[:, :, :self.modes1], self.weights1)
 
+        # Return to physical space
+        x = idht(out_ht)
         return x
+
 
 ################################################################
 # 2d fourier layer
