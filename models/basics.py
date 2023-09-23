@@ -32,7 +32,6 @@ def idht(X: torch.Tensor):
     
     return x
 
-
 #def flip_periodic(x: torch.Tensor):
 #    flipped_x = torch.cat((x[..., 0:1], torch.flip(x[..., 1:], dims=[-1])), dim=-1)
 #    flipped_x = torch.cat((flipped_x[..., 0:1, :], torch.flip(flipped_x[..., 1:, :], dims=[-2])), dim=-2)
@@ -69,7 +68,6 @@ def compl_mul2d(x, y):
     z = idht(Z)
     
     return z
-
 
 def compl_mul3d(x, y): 
     """ Multiplies tensors a and b using the convolution theorem for the DHT.
