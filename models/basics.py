@@ -25,7 +25,7 @@ def idht(X: torch.Tensor):
     
     return x
 
-def dcompl_mul1d(x, y): 
+def hcompl_mul1d(x, y): 
     # (batch, in_channel, x ), (in_channel, out_channel, x) -> (batch, out_channel, x)
     #return torch.einsum("bix,iox->box", a, b)
     X = dht(x)
@@ -41,7 +41,7 @@ def dcompl_mul1d(x, y):
     return z
 
 
-def dcompl_mul2d(x, y): 
+def hcompl_mul2d(x, y): 
     """ Multiplies tensors a and b using the convolution theorem for the DHT.
     Assumes hartley_transform and inverse_hartley_transform are defined.
     """
@@ -59,7 +59,7 @@ def dcompl_mul2d(x, y):
     return z
 
 
-def dcompl_mul3d(x, y): 
+def hcompl_mul3d(x, y): 
     """ Multiplies tensors a and b using the convolution theorem for the DHT.
     Assumes hartley_transform and inverse_hartley_transform are defined.
     """
@@ -123,34 +123,35 @@ class SpectralConv1d(nn.Module):
         x = torch.fft.irfft(out_ft, s=[x.size(-1)], dim=[2])
         return x
 
-class DSpectralConv1d(nn.Module):
+class HartleyConv1d(nn.Module):
     def __init__(self, in_channels, out_channels, modes1):
-        super(SpectralConv1d, self).__init__()
+        super(DHartleyConv1d, self).__init__()
 
         """
-        1D Fourier layer. It does FFT, linear transform, and Inverse FFT.    
+        1D Hartley layer. It does DHT, linear transform, and Inverse DHT.    
         """
 
         self.in_channels = in_channels
         self.out_channels = out_channels
-        # Number of Fourier modes to multiply, at most floor(N/2) + 1
+        # Number of Hartley modes to multiply, at most floor(N/2) + 1
         self.modes1 = modes1
 
-        self.scale = (1 / (in_channels*out_channels))
+        self.scale = (1 / (in_channels * out_channels))
         self.weights1 = nn.Parameter(
-            self.scale * torch.rand(in_channels, out_channels, self.modes1, 2))
+            self.scale * torch.rand(in_channels, out_channels, self.modes1))
 
     def forward(self, x):
         batchsize = x.shape[0]
         # Compute Hartley coeffcients up to factor of e^(- something constant)
         x_ft = dht(x)
 
-        # Multiply relevant Fourier modes
-        out_ft = torch.zeros(batchsize, self.in_channels, x.size(-1)//2 + 1, device=x.device, dtype=torch.float)
+        # Multiply relevant Hartley modes
+        out_ft = torch.zeros(batchsize, self.out_channels, x.size(-1) // 2 + 1, device=x.device, dtype=torch.float)
         out_ft[:, :, :self.modes1] = dcompl_mul1d(x_ft[:, :, :self.modes1], self.weights1)
         # Return to physical space
         x = idht(out_ft)
         return x
+
 
 class HSpectralConv1d(nn.Module):
     def __init__(self, in_channels, out_channels, modes1):
@@ -265,12 +266,12 @@ class SpectralConv2d(nn.Module):
         Y = torch.einsum("bcxy,bnxy->bcn", coeff, basis)
         Y = Y.real
         return Y
-class DSpectralConv2d(nn.Module):
+
+class HartleyConv2d(nn.Module):
     def __init__(self, in_channels, out_channels, modes1, modes2):
-        super(DSpectralConv2d, self).__init__()
+        super(HartleyConv2d, self).__init__() # Corrected super call
         self.in_channels = in_channels
         self.out_channels = out_channels
-        # Number of Fourier modes to multiply, at most floor(N/2) + 1
         self.modes1 = modes1
         self.modes2 = modes2
 
@@ -280,10 +281,8 @@ class DSpectralConv2d(nn.Module):
         self.weights2 = nn.Parameter(
             self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, dtype=torch.float))
 
-    def forward(self, x, gridy=None):
+    def forward(self, x): # Removed gridy parameter
         batchsize = x.shape[0]
-        size1 = x.shape[-2]
-        size2 = x.shape[-1]
         # Compute Fourier coeffcients up to factor of e^(- something constant)
         x_ft = dht(x)
 
@@ -291,12 +290,14 @@ class DSpectralConv2d(nn.Module):
         out_ft = torch.zeros(batchsize, self.out_channels, x.size(-2), x.size(-1) // 2 + 1, device=x.device,
                                 dtype=torch.cfloat)
         out_ft[:, :, :self.modes1, :self.modes2] = \
-            dcompl_mul2d(x_ft[:, :, :self.modes1, :self.modes2], self.weights1)
+            hcompl_mul2d(x_ft[:, :, :self.modes1, :self.modes2], self.weights1)
         out_ft[:, :, -self.modes1:, :self.modes2] = \
-            dcompl_mul2d(x_ft[:, :, -self.modes1:, :self.modes2], self.weights2)
+            hcompl_mul2d(x_ft[:, :, -self.modes1:, :self.modes2], self.weights2)
 
         # Return to physical space
         x = idht(out_ft)
+        return x
+
 
 class SpectralConv3d(nn.Module):
     def __init__(self, in_channels, out_channels, modes1, modes2, modes3):
