@@ -31,13 +31,22 @@ class FNN2d(nn.Module):
         self.fc0 = nn.Linear(in_dim, layers[0])
 
         # Add 1 HartleyConv2d layer and 3 SpectralConv2d layers
-        self.sp_convs = nn.ModuleList([HartleyConv2d(self.layers[0], self.layers[1], modes1[0], modes2[0])] + 
-                                      [SpectralConv2d(in_size, out_size, mode1_num, mode2_num)
-                                       for in_size, out_size, mode1_num, mode2_num
-                                       in zip(self.layers[1:], self.layers[2:], self.modes1[1:], self.modes2[1:])])
+        #self.sp_convs = nn.ModuleList([HartleyConv2d(self.layers[0], self.layers[1], modes1[0], modes2[0])] + 
+        #                              [SpectralConv2d(in_size, out_size, mode1_num, mode2_num)
+        #                               for in_size, out_size, mode1_num, mode2_num
+        #                               in zip(self.layers[1:], self.layers[2:], self.modes1[1:], self.modes2[1:])])
+        self.sp_convs = nn.ModuleList(
+            [HartleyConv2d(self.layers[0], self.layers[1], modes1[0], modes2[0])] + 
+            [SpectralConv2d(self.layers[i], self.layers[i+1], modes1[i], modes2[i]) 
+             for i in range(1, len(self.layers) - 1)]
+            )
 
-        self.ws = nn.ModuleList([nn.Conv1d(in_size, out_size, 1)
-                                 for in_size, out_size in zip(self.layers, self.layers[1:])])
+        #self.ws = nn.ModuleList([nn.Conv1d(in_size, out_size, 1)
+        #                         for in_size, out_size in zip(self.layers, self.layers[1:])])
+
+        self.ws = nn.ModuleList(
+        [nn.Conv1d(self.layers[i], self.layers[i+1], 1) for i in range(len(self.layers) - 1)]
+        )
 
         self.fc1 = nn.Linear(layers[-1], fc_dim)
         self.fc2 = nn.Linear(fc_dim, out_dim)
