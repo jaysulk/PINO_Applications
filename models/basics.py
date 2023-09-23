@@ -143,13 +143,13 @@ class DSpectralConv1d(nn.Module):
     def forward(self, x):
         batchsize = x.shape[0]
         # Compute Hartley coeffcients up to factor of e^(- something constant)
-        x_ft = DiscreteHartleyTransform(x, s=None, dim=[2])
+        x_ft = dht(x)
 
         # Multiply relevant Fourier modes
         out_ft = torch.zeros(batchsize, self.in_channels, x.size(-1)//2 + 1, device=x.device, dtype=torch.float)
         out_ft[:, :, :self.modes1] = compl_mul1d(x_ft[:, :, :self.modes1], self.weights1)
         # Return to physical space
-        x = InverseDiscreteHartleyTransform(out_ft, s=[x.size(-1)], dim=[2])
+        x = idht(out_ft)
         return x
 
 class HSpectralConv1d(nn.Module):
