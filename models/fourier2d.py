@@ -25,13 +25,13 @@ class FNN2d(nn.Module):
             self.layers = layers
         self.fc0 = nn.Linear(in_dim, layers[0])
 
-        # Hartley Layer
-        self.hartley = DSpectralConv2d(in_size, out_size, mode1_num, mode2_num)
+        # Add Hartley Layer
+        self.hartley = DSpectralConv2d(self.layers[0], self.layers[1], modes1[0], modes2[0])
         
         # 3 Fourier layers
         self.sp_convs = nn.ModuleList([SpectralConv2d(in_size, out_size, mode1_num, mode2_num) 
                                        for in_size, out_size, mode1_num, mode2_num 
-                                       in zip(self.layers[1:-1], self.layers[2:], self.modes1, self.modes2)])
+                                       in zip(self.layers[1:-1], self.layers[2:], self.modes1[1:], self.modes2[1:])])
         
         self.ws = nn.ModuleList([nn.Conv1d(in_size, out_size, 1) 
                                  for in_size, out_size in zip(self.layers[1:-1], self.layers[2:])])
@@ -75,7 +75,6 @@ class FNN2d(nn.Module):
         x = x.reshape(batchsize, size_x, size_y, self.out_dim)
         x = x[..., :nx, :ny, :]
         return x
-
 
 class PINO2d(nn.Module):
     def __init__(self, modes1, modes2, width, layers=None, in_dim=3, out_dim=1):
