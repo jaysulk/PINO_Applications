@@ -37,9 +37,9 @@ class FNN2d(nn.Module):
              in zip(self.layers[1:], self.layers[2:], self.modes1[1:], self.modes2[1:])]
         )
 
-
+        # Adjust the Conv1d layers to match the transition between layers
         self.ws = nn.ModuleList(
-            [nn.Conv1d(in_size, out_size, 1) for in_size, out_size in zip(self.layers, self.layers[1:])]
+            [nn.Conv1d(self.layers[i], self.layers[i+1], 1) for i in range(len(self.layers)-1)]
         )
 
         self.fc1 = nn.Linear(layers[-1], fc_dim)
@@ -76,6 +76,7 @@ class FNN2d(nn.Module):
         x = x.reshape(batchsize, size_x, size_y, self.out_dim)
         x = x[..., :nx, :ny, :]
         return x
+
 
 class PINO2d(nn.Module):
     def __init__(self, modes1, modes2, width, layers=None, in_dim=3, out_dim=1):
