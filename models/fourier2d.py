@@ -26,7 +26,7 @@ class FNN2d(nn.Module):
         self.fc0 = nn.Linear(in_dim, layers[0])
 
         # Hartley Layer
-        self.hartley = DSpectralConv2d(self.layers[0], self.layers[1])
+        self.hartley = DSpectralConv2d(in_size, out_size, mode1_num, mode2_num)
         
         # 3 Fourier layers
         self.sp_convs = nn.ModuleList([SpectralConv2d(in_size, out_size, mode1_num, mode2_num) 
