@@ -75,8 +75,8 @@ def compl_mul3d(x, y):
     """
     X = dht(x)
     Y = dht(y)
-    Xflip = torch.roll(torch.flip(x, [0, 1]), shifts=(1, 1), dims=(0, 1))
-    Yflip = torch.roll(torch.flip(y, [0, 1]), shifts=(1, 1), dims=(0, 1))
+    Xflip = torch.roll(torch.flip(x, [0, 1, 2]), shifts=(1, 1, 1), dims=(0, 1, 2))
+    Yflip = torch.roll(torch.flip(y, [0, 1, 2]), shifts=(1, 1, 1), dims=(0, 1, 2))
 
     Yplus = y + Yflip
     Yminus = y - Yflip
