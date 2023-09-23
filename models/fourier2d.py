@@ -17,57 +17,88 @@ class FNN2d(nn.Module):
                  pad_x=0, pad_y=0):
         super(FNN2d, self).__init__()
 
+        """
+        The overall network. It contains 4 layers of the Fourier layer.
+        1. Lift the input to the desire channel dimension by self.fc0 .
+        2. 4 layers of the integral operators u' = (W + K)(u).
+            W defined by self.w; K defined by self.conv .
+        3. Project from the channel space to the output space by self.fc1 and self.fc2 .
+        
+        input: the solution of the coefficient function and locations (a(x, y), x, y)
+        input shape: (batchsize, x=s, y=s, c=3)
+        output: the solution 
+        output shape: (batchsize, x=s, y=s, c=1)
+        """
+
         self.modes1 = modes1
         self.modes2 = modes2
         self.width = width
         self.in_dim = in_dim
         self.out_dim = out_dim
         self.padding = (0, 0, 0, pad_y, 0, pad_x)
-
+        # input channel is 3: (a(x, y), x, y)
         if layers is None:
             self.layers = [width] * 4
         else:
             self.layers = layers
         self.fc0 = nn.Linear(in_dim, layers[0])
 
-        self.sp_convs = nn.ModuleList(
-            [HartleyConv2d(self.layers[0], self.layers[1], self.modes1[0], self.modes2[0])] +
-            [SpectralConv2d(in_size, out_size, mode1_num, mode2_num)
-             for in_size, out_size, mode1_num, mode2_num
-             in zip(self.layers[1:], self.layers[2:], self.modes1[1:], self.modes2[1:])]
-        )
+        self.sp_convs = nn.ModuleList([HartleyConv2d(
+            in_size, out_size, mode1_num, mode2_num)
+            for in_size, out_size, mode1_num, mode2_num
+            in zip(self.layers, self.layers[1:], self.modes1, self.modes2)])
 
-        # Adjust the Conv1d layers to match the transition between layers
-        self.ws = nn.ModuleList(
-            [nn.Conv1d(self.layers[i], self.layers[i+1], 1) for i in range(len(self.layers)-1)]
-        )
+        self.ws = nn.ModuleList([nn.Conv1d(in_size, out_size, 1)
+                                 for in_size, out_size in zip(self.layers, self.layers[1:])])
 
         self.fc1 = nn.Linear(layers[-1], fc_dim)
         self.fc2 = nn.Linear(fc_dim, out_dim)
-
-        if activation == 'tanh':
+        if activation =='tanh':
             self.activation = F.tanh
         elif activation == 'gelu':
             self.activation = F.gelu
         elif activation == 'relu':
-            self.activation = F.relu
+            self.activation == F.relu
+        elif activation == 'swish':
+            self.activation = self.swish
+        elif activation == 'sinc':
+            self.activation = self.sinc
         else:
             raise ValueError(f'{activation} is not supported')
 
+    @staticmethod
+    def swish(x):
+        return x * torch.sigmoid(x)
+
+    @staticmethod
+    def sinc(x):
+        # Condition for handling the case when x is zero
+        condition = torch.eq(x, 0.0)
+    
+        return torch.where(condition, torch.ones_like(x), torch.sin(x) / x)
+
+
     def forward(self, x):
+        '''
+        Args:
+            - x : (batch size, x_grid, y_grid, 2)
+        Returns:
+            - x: (batch size, x_grid, y_grid, 1)
+        '''
+        length = len(self.ws)
         batchsize = x.shape[0]
-        nx, ny = x.shape[1], x.shape[2]
+        nx, ny = x.shape[1], x.shape[2] # original shape
         x = F.pad(x, self.padding, "constant", 0)
         size_x, size_y = x.shape[1], x.shape[2]
 
         x = self.fc0(x)
         x = x.permute(0, 3, 1, 2)
 
-        for i, (conv, w) in enumerate(zip(self.sp_convs, self.ws)):
-            x1 = conv(x)
+        for i, (speconv, w) in enumerate(zip(self.sp_convs, self.ws)):
+            x1 = speconv(x)
             x2 = w(x.view(batchsize, self.layers[i], -1)).view(batchsize, self.layers[i+1], size_x, size_y)
             x = x1 + x2
-            if i != len(self.ws) - 1:
+            if i != length - 1:
                 x = self.activation(x)
         x = x.permute(0, 2, 3, 1)
         x = self.fc1(x)
