@@ -25,7 +25,7 @@ def idht(X: torch.Tensor):
     
     return x
 
-def dcompl_mul1d(a, b): 
+def dcompl_mul1d(x, y): 
     # (batch, in_channel, x ), (in_channel, out_channel, x) -> (batch, out_channel, x)
     #return torch.einsum("bix,iox->box", a, b)
     X = dht(x)
@@ -41,7 +41,7 @@ def dcompl_mul1d(a, b):
     return z
 
 
-def dcompl_mul2d(a, b): 
+def dcompl_mul2d(x, y): 
     """ Multiplies tensors a and b using the convolution theorem for the DHT.
     Assumes hartley_transform and inverse_hartley_transform are defined.
     """
@@ -59,7 +59,7 @@ def dcompl_mul2d(a, b):
     return z
 
 
-def dcompl_mul3d(a, b): 
+def dcompl_mul3d(x, y): 
     """ Multiplies tensors a and b using the convolution theorem for the DHT.
     Assumes hartley_transform and inverse_hartley_transform are defined.
     """
