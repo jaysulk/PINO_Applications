@@ -17,36 +17,23 @@ class FNN2d(nn.Module):
                  pad_x=0, pad_y=0):
         super(FNN2d, self).__init__()
 
-        """
-        The overall network. It contains 4 layers of the Fourier layer.
-        1. Lift the input to the desire channel dimension by self.fc0 .
-        2. 4 layers of the integral operators u' = (W + K)(u).
-            W defined by self.w; K defined by self.conv .
-        3. Project from the channel space to the output space by self.fc1 and self.fc2 .
-        
-        input: the solution of the coefficient function and locations (a(x, y), x, y)
-        input shape: (batchsize, x=s, y=s, c=3)
-        output: the solution 
-        output shape: (batchsize, x=s, y=s, c=1)
-        """
-
         self.modes1 = modes1
         self.modes2 = modes2
         self.width = width
         self.in_dim = in_dim
         self.out_dim = out_dim
         self.padding = (0, 0, 0, pad_y, 0, pad_x)
-        # input channel is 3: (a(x, y), x, y)
         if layers is None:
             self.layers = [width] * 4
         else:
             self.layers = layers
         self.fc0 = nn.Linear(in_dim, layers[0])
 
-        self.sp_convs = nn.ModuleList([HartleyConv2d(
-            in_size, out_size, mode1_num, mode2_num)
-            for in_size, out_size, mode1_num, mode2_num
-            in zip(self.layers, self.layers[1:], self.modes1, self.modes2)])
+        # First layer will be Hartley, the next 3 will be Fourier
+        self.sp_convs = nn.ModuleList([HartleyConv2d(self.layers[0], self.layers[1], modes1[0], modes2[0])])
+        for i in range(1, 4):  # Total of 4 layers (1 Hartley and 3 Fourier)
+            self.sp_convs.append(FourierConv2d(
+                self.layers[i], self.layers[i+1], modes1[i], modes2[i]))
 
         self.ws = nn.ModuleList([nn.Conv1d(in_size, out_size, 1)
                                  for in_size, out_size in zip(self.layers, self.layers[1:])])
