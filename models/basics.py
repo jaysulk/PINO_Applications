@@ -71,8 +71,22 @@ def compl_mul2d(x, y):
     return z
 
 
-def compl_mul3d(a, b):
-    return torch.einsum("bixyz,ioxyz->boxyz", a, b)
+def compl_mul3d(x, y): 
+    """ Multiplies tensors a and b using the convolution theorem for the DHT.
+    Assumes hartley_transform and inverse_hartley_transform are defined.
+    """
+    X = dht(x)
+    Y = dht(y)
+    Xflip = torch.roll(torch.flip(x, [0, 1]), shifts=(1, 1), dims=(0, 1))
+    Yflip = torch.roll(torch.flip(y, [0, 1]), shifts=(1, 1), dims=(0, 1))
+
+    Yplus = y + Yflip
+    Yminus = y - Yflip
+    Z = torch.einsum("bixyz,ioxyz->boxyz", x, Yplus) + torch.einsum("bixyz,ioxyz->boxyz",  Xflip, Yminus)
+    Z *= 0.5
+    z = idht(Z)
+    
+    return z
 
 ################################################################
 # 1d fourier layer
