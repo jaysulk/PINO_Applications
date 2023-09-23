@@ -240,25 +240,26 @@ class HartleyConv2d(nn.Module):
 
         self.scale = (1 / (in_channels * out_channels))
         self.weights1 = nn.Parameter(
-            self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, dtype=torch.float))
+            self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2))
         self.weights2 = nn.Parameter(
-            self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, dtype=torch.float))
+            self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2))
 
-    def forward(self, x): # Removed gridy parameter
+    def forward(self, x):
         batchsize = x.shape[0]
-        # Compute Fourier coeffcients up to factor of e^(- something constant)
-        x_ft = dht(x)
-
-        # Multiply relevant Fourier modes
-        out_ft = torch.zeros(batchsize, self.out_channels, x.size(-2), x.size(-1) // 2 + 1, device=x.device,
-                                dtype=torch.cfloat)
-        out_ft[:, :, :self.modes1, :self.modes2] = \
-            hcompl_mul2d(x_ft[:, :, :self.modes1, :self.modes2], self.weights1)
-        out_ft[:, :, -self.modes1:, :self.modes2] = \
-            hcompl_mul2d(x_ft[:, :, -self.modes1:, :self.modes2], self.weights2)
-
+        size1 = x.shape[-2]
+        size2 = x.shape[-1]
+        
+        # Compute DHT
+        x_dht = dht(x)
+        
+        # Multiply relevant Hartley modes
+        out_dht = torch.zeros(batchsize, self.out_channels, size1, size2, device=x.device)
+        out_dht[:, :, :self.modes1, :self.modes2] = hcompl_mul2d(x_dht[:, :, :self.modes1, :self.modes2], self.weights1)
+        out_dht[:, :, -self.modes1:, :self.modes2] = hcompl_mul2d(x_dht[:, :, -self.modes1:, :self.modes2], self.weights2)
+        
         # Return to physical space
-        x = idht(out_ft)
+        x = idht(out_dht)
+        
         return x
 
 
