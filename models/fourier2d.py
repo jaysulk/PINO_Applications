@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from .lowrank2d import LowRank2d
-from .basics import SpectralConv2d, DSpectralConv2d
+from .basics import SpectralConv2d, HartleyConv2d
 
 
 import torch.nn as nn
