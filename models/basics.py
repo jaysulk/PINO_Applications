@@ -151,7 +151,6 @@ class HartleyConv1d(nn.Module):
         # Return to physical space
         x = idht(out_ft)
 
-        print(f"Output shape of HartleyConv2d: {x.shape}")
         return x
 
 
