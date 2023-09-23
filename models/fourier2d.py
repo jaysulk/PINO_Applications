@@ -9,71 +9,65 @@ from .basics import SpectralConv2d, DSpectralConv2d
 import torch.nn as nn
 
 class FNN2d(nn.Module):
-    def __init__(self, modes1, modes2,
-                 width=64, fc_dim=128,
-                 layers=None,
-                 in_dim=3, out_dim=1,
-                 activation='tanh',
-                 pad_x=0, pad_y=0):
+    def __init__(self, modes1, modes2, width=64, fc_dim=128, layers=None, in_dim=3, out_dim=1, activation='tanh', pad_x=0, pad_y=0):
         super(FNN2d, self).__init__()
-
+        
         self.modes1 = modes1
         self.modes2 = modes2
         self.width = width
         self.in_dim = in_dim
         self.out_dim = out_dim
         self.padding = (0, 0, 0, pad_y, 0, pad_x)
+        
         if layers is None:
-            self.layers = [width] * 4
+            self.layers = [width] * 5
         else:
             self.layers = layers
         self.fc0 = nn.Linear(in_dim, layers[0])
 
-        # Replacing the second Fourier layer with a Hartley layer
-        self.sp_convs = nn.ModuleList()
-        for i in range(len(self.layers) - 1):
-            if i == 1: # This is the second layer (indexing starts at 0)
-                self.sp_convs.append(DSpectralConv2d(self.layers[i], self.layers[i+1], self.modes1[i], self.modes2[i]))
-            else:
-                self.sp_convs.append(SpectralConv2d(self.layers[i], self.layers[i+1], self.modes1[i], self.modes2[i]))
-
-        self.ws = nn.ModuleList([nn.Conv1d(in_size, out_size, 1)
-                                 for in_size, out_size in zip(self.layers, self.layers[1:])])
+        # Hartley Layer
+        self.hartley = DSpectralConv2d(self.layers[0], self.layers[1])
+        
+        # 3 Fourier layers
+        self.sp_convs = nn.ModuleList([SpectralConv2d(in_size, out_size, mode1_num, mode2_num) 
+                                       for in_size, out_size, mode1_num, mode2_num 
+                                       in zip(self.layers[1:-1], self.layers[2:], self.modes1, self.modes2)])
+        
+        self.ws = nn.ModuleList([nn.Conv1d(in_size, out_size, 1) 
+                                 for in_size, out_size in zip(self.layers[1:-1], self.layers[2:])])
 
         self.fc1 = nn.Linear(layers[-1], fc_dim)
         self.fc2 = nn.Linear(fc_dim, out_dim)
 
-        if activation =='tanh':
+        if activation == 'tanh':
             self.activation = F.tanh
         elif activation == 'gelu':
             self.activation = F.gelu
         elif activation == 'relu':
-            self.activation == F.relu
+            self.activation = F.relu
         else:
             raise ValueError(f'{activation} is not supported')
 
     def forward(self, x):
-        '''
-        Args:
-            - x : (batch size, x_grid, y_grid, 2)
-        Returns:
-            - x: (batch size, x_grid, y_grid, 1)
-        '''
-        length = len(self.ws)
         batchsize = x.shape[0]
-        nx, ny = x.shape[1], x.shape[2] # original shape
+        nx, ny = x.shape[1], x.shape[2]
         x = F.pad(x, self.padding, "constant", 0)
         size_x, size_y = x.shape[1], x.shape[2]
 
         x = self.fc0(x)
         x = x.permute(0, 3, 1, 2)
 
+        # Apply Hartley Layer
+        x = self.hartley(x)
+        
+        # Apply the Fourier layers
         for i, (speconv, w) in enumerate(zip(self.sp_convs, self.ws)):
             x1 = speconv(x)
-            x2 = w(x.view(batchsize, self.layers[i], -1)).view(batchsize, self.layers[i+1], size_x, size_y)
+            x2 = w(x.view(batchsize, self.layers[i+1], -1)).view(batchsize, self.layers[i+2], size_x, size_y)
             x = x1 + x2
-            if i != length - 1:
+            if i != len(self.ws) - 1:
                 x = self.activation(x)
+                
         x = x.permute(0, 2, 3, 1)
         x = self.fc1(x)
         x = self.activation(x)
