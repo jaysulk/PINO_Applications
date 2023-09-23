@@ -150,6 +150,8 @@ class HartleyConv1d(nn.Module):
         out_ft[:, :, :self.modes1] = dcompl_mul1d(x_ft[:, :, :self.modes1], self.weights1)
         # Return to physical space
         x = idht(out_ft)
+
+        print(f"Output shape of HartleyConv2d: {x.shape}")
         return x
 
 
