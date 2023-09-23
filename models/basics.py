@@ -60,22 +60,25 @@ def dcompl_mul2d(a, b):
 
 
 def dcompl_mul3d(a, b): 
-    # Compute the DHT of both input signals a and b
-    a_dht = DiscreteHartleyTransform(a)
-    b_dht = DiscreteHartleyTransfrm(b)
+    """ Multiplies tensors a and b using the convolution theorem for the DHT.
+    Assumes hartley_transform and inverse_hartley_transform are defined.
+    """
+    X = dht(x)
+    Y = dht(y)
+    Xflip = torch.roll(torch.flip(x, [0, 1]), shifts=(1, 1), dims=(0, 1))
+    Yflip = torch.roll(torch.flip(y, [0, 1]), shifts=(1, 1), dims=(0, 1))
 
-    # Multiply the DHTs element-wise
-    product_dht = torch.einsum("bixyz,ioxyz->boxyz", a_dht, b_dht)
-
-    # Compute the inverse DHT of the result
-    convolution = InverseDiscreteHartleyTransform(product_dht)
-
-    return convolution
+    Yplus = y + Yflip
+    Yminus = y - Yflip
+    Z = torch.einsum("bixyz,ioxyz->boxyz", x, Yplus) + torch.einsum("bixyz,ioxyz->boxyz",  Xflip, Yminus)
+    Z *= 0.5
+    z = idht(Z)
+    
+    return z
 
 def compl_mul1d(a, b):
     # (batch, in_channel, x ), (in_channel, out_channel, x) -> (batch, out_channel, x)
     return torch.einsum("bix,iox->box", a, b)
-
 
 def compl_mul2d(a, b):
     # (batch, in_channel, x,y,t ), (in_channel, out_channel, x,y,t) -> (batch, out_channel, x,y,t)
