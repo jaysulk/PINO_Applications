@@ -43,31 +43,19 @@ def compl_mul1d(x, y):
     
     return z
 
-def dht2d(x: torch.Tensor):
-    X = torch.fft.rfft2(x, dim=(1, 2), norm="ortho")
-    X = X.real - X.imag
-    return X
-
-def idht2d(X: torch.Tensor):
-    dims = X.size()
-    n = torch.prod(torch.tensor(dims)).item()
-    X = dht2d(X)
-    x = X / n
-    return x
-
 def compl_mul2d(x, y):
     """ Multiplies tensors a and b using the convolution theorem for the DHT.
     Assumes hartley_transform and inverse_hartley_transform are defined.
     """
-    X = dht2d(x)
-    Y = dht2d(y)
+    X = dht(x)
+    Y = dht(y)
     Xflip = torch.roll(torch.flip(x, [0, 1]), shifts=(1, 1), dims=(0, 1))
     Yflip = torch.roll(torch.flip(y, [0, 1]), shifts=(1, 1), dims=(0, 1))
 
     Yplus = 0.5*(Y + Yflip)
     Yminus = 0.5*(Y - Yflip)
     Z = torch.einsum("bixy,ioxy->boxy", x, Yplus) + torch.einsum("bixy,ioxy->boxy",  Xflip, Yminus)
-    z = idht2d(Z)
+    z = idht(Z)
     
     return z
 
