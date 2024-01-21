@@ -18,18 +18,10 @@ def dht(x: torch.Tensor):
     return X
 
 def idht(X: torch.Tensor):
-    # Get the size of each dimension
     dims = X.size()
-    
-    # Calculate the normalization factor
     n = torch.prod(torch.tensor(dims)).item()
-    
-    # Compute the DHT
     X = dht(X)
-    
-    # Element-wise division for normalization
     x = X / n
-    
     return x
 
 #def flip_periodic(x: torch.Tensor):
@@ -44,10 +36,9 @@ def compl_mul1d(x, y):
     Y = dht(y)
     Xflip = torch.roll(torch.flip(x, [0]), 1, dims=0)
     Yflip = torch.roll(torch.flip(y, [0]), 1, dims=0)
-    Yplus = Y + Yflip
-    Yminus = Y - Yflip
+    Yplus = 0.5*(Y + Yflip)
+    Yminus = 0.5*(Y - Yflip)
     Z = torch.einsum("bix,iox->box", X, Yplus) + torch.einsum("bix,iox->box", Xflip, Yminus)
-    Z *= 0.5
     z = idht(Z)
     
     return z
@@ -61,10 +52,9 @@ def compl_mul2d(x, y):
     Xflip = torch.roll(torch.flip(x, [0, 1]), shifts=(1, 1), dims=(0, 1))
     Yflip = torch.roll(torch.flip(y, [0, 1]), shifts=(1, 1), dims=(0, 1))
 
-    Yplus = y + Yflip
-    Yminus = y - Yflip
+    Yplus = 0.5*(Y + Yflip)
+    Yminus = 0.5*(Y - Yflip)
     Z = torch.einsum("bixy,ioxy->boxy", x, Yplus) + torch.einsum("bixy,ioxy->boxy",  Xflip, Yminus)
-    Z *= 0.5
     z = idht(Z)
     
     return z
@@ -78,10 +68,9 @@ def compl_mul3d(x, y):
     Xflip = torch.roll(torch.flip(x, [0, 1, 2]), shifts=(1, 1, 1), dims=(0, 1, 2))
     Yflip = torch.roll(torch.flip(y, [0, 1, 2]), shifts=(1, 1, 1), dims=(0, 1, 2))
 
-    Yplus = y + Yflip
-    Yminus = y - Yflip
+    Yplus = 0.5*(Y + Yflip)
+    Yminus = 0.5*(Y - Yflip)
     Z = torch.einsum("bixyz,ioxyz->boxyz", x, Yplus) + torch.einsum("bixyz,ioxyz->boxyz",  Xflip, Yminus)
-    Z *= 0.5
     z = idht(Z)
     
     return z
