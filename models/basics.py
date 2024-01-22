@@ -13,7 +13,7 @@ import torch
 import torch
 
 def dht(x: torch.Tensor):
-    X = torch.fft.fft(x)
+    X = torch.fft.rfft(x)
     X = X.real - X.imag
     return X
 
