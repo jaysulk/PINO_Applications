@@ -24,6 +24,11 @@ def idht(X: torch.Tensor):
     x = X / n
     return x
 
+#def flip_periodic(x: torch.Tensor):
+#    flipped_x = torch.cat((x[..., 0:1], torch.flip(x[..., 1:], dims=[-1])), dim=-1)
+#    flipped_x = torch.cat((flipped_x[..., 0:1, :], torch.flip(flipped_x[..., 1:, :], dims=[-2])), dim=-2)
+#    return flipped_x
+
 def compl_mul1d(x, y):
     # (batch, in_channel, x ), (in_channel, out_channel, x) -> (batch, out_channel, x)
     #return torch.einsum("bix,iox->box", a, b)
