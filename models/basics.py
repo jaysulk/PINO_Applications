@@ -13,7 +13,7 @@ import torch
 import torch
 
 def dht(x: torch.Tensor):
-    X = torch.fft.rfft(x)
+    X = torch.fft.fft(x)
     X = X.real - X.imag
     return X
 
@@ -36,9 +36,10 @@ def compl_mul1d(x, y):
     Y = dht(y)
     Xflip = torch.roll(torch.flip(x, [0]), 1, dims=0)
     Yflip = torch.roll(torch.flip(y, [0]), 1, dims=0)
-    Yplus = 0.5*(Y + Yflip)
-    Yminus = 0.5*(Y - Yflip)
+    Yplus = Y + Yflip
+    Yminus = Y - Yflip
     Z = torch.einsum("bix,iox->box", X, Yplus) + torch.einsum("bix,iox->box", Xflip, Yminus)
+    Z *= 0.5
     z = idht(Z)
     
     return z
@@ -52,9 +53,10 @@ def compl_mul2d(x, y):
     Xflip = torch.roll(torch.flip(x, [0, 1]), shifts=(1, 1), dims=(0, 1))
     Yflip = torch.roll(torch.flip(y, [0, 1]), shifts=(1, 1), dims=(0, 1))
 
-    Yplus = 0.5*(Y + Yflip)
-    Yminus = 0.5*(Y - Yflip)
+    Yplus = Y + Yflip
+    Yminus = Y - Yflip
     Z = torch.einsum("bixy,ioxy->boxy", x, Yplus) + torch.einsum("bixy,ioxy->boxy",  Xflip, Yminus)
+    Z *= 0.5
     z = idht(Z)
     
     return z
@@ -68,9 +70,10 @@ def compl_mul3d(x, y):
     Xflip = torch.roll(torch.flip(x, [0, 1, 2]), shifts=(1, 1, 1), dims=(0, 1, 2))
     Yflip = torch.roll(torch.flip(y, [0, 1, 2]), shifts=(1, 1, 1), dims=(0, 1, 2))
 
-    Yplus = 0.5*(Y + Yflip)
-    Yminus = 0.5*(Y - Yflip)
+    Yplus = Y + Yflip
+    Yminus = Y - Yflip
     Z = torch.einsum("bixyz,ioxyz->boxyz", x, Yplus) + torch.einsum("bixyz,ioxyz->boxyz",  Xflip, Yminus)
+    Z *= 0.5
     z = idht(Z)
     
     return z
