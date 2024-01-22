@@ -12,29 +12,8 @@ import torch
 
 import torch
 
-def pad_tensor(x, target_size, dim):
-    # Compute the padding size
-    pad_size = target_size - x.size(dim)
-
-    # Check if padding is necessary
-    if pad_size <= 0:
-        return x
-
-    # Create a padding configuration
-    # pad has the form (pad_left, pad_right, pad_top, pad_bottom, ...)
-    pad_config = [0] * (2 * x.dim())
-    pad_config[2 * dim] = pad_size // 2  # Pad before the dimension
-    pad_config[2 * dim + 1] = pad_size - pad_size // 2  # Pad after the dimension
-
-    # Apply padding
-    return torch.nn.functional.pad(x, pad_config, mode='constant', value=0)
-
 def dht(x: torch.Tensor):
-    dims = x.size()
-    n = torch.prod(torch.tensor(dims)).item()
-    target_size = n  # Target size for the last dimension
-    x_padded = pad_tensor(x, target_size, dim=3)
-    X = torch.fft.rfft(x_padded,norm="ortho")
+    X = torch.fft.rfft(x,norm="forward")
     X = X.real - X.imag
     return X
 
