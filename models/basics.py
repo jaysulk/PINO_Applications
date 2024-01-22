@@ -40,9 +40,9 @@ def compl_mul1d(x, y):
     Yminus = Y - Yflip
     Z = torch.einsum("bix,iox->box", X, Yplus) + torch.einsum("bix,iox->box", Xflip, Yminus)
     Z *= 0.5
-    z = idht(Z)
+    #z = idht(Z)
     
-    return z
+    return Z
 
 def compl_mul2d(x, y):
     """ Multiplies tensors a and b using the convolution theorem for the DHT.
@@ -57,9 +57,9 @@ def compl_mul2d(x, y):
     Yminus = Y - Yflip
     Z = torch.einsum("bixy,ioxy->boxy", x, Yplus) + torch.einsum("bixy,ioxy->boxy",  Xflip, Yminus)
     Z *= 0.5
-    z = idht(Z)
+    #z = idht(Z)
     
-    return z
+    return Z
 
 def compl_mul3d(x, y): 
     """ Multiplies tensors a and b using the convolution theorem for the DHT.
@@ -74,9 +74,9 @@ def compl_mul3d(x, y):
     Yminus = Y - Yflip
     Z = torch.einsum("bixyz,ioxyz->boxyz", x, Yplus) + torch.einsum("bixyz,ioxyz->boxyz",  Xflip, Yminus)
     Z *= 0.5
-    z = idht(Z)
+    #z = idht(Z)
     
-    return z
+    return Z
 
 ################################################################
 # 1d fourier layer
