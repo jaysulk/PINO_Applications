@@ -11,7 +11,6 @@ import torch.nn as nn
 class FNN2d(nn.Module):
     def __init__(self, modes1, modes2,
                  width=64, fc_dim=128,
-                 layers=None,
                  in_dim=3, out_dim=1,
                  activation='tanh',
                  pad_x=0, pad_y=0):
@@ -23,29 +22,23 @@ class FNN2d(nn.Module):
         self.in_dim = in_dim
         self.out_dim = out_dim
         self.padding = (0, 0, 0, pad_y, 0, pad_x)
-        if layers is None:
-            self.layers = [width] * 4
-        else:
-            self.layers = layers
-        self.fc0 = nn.Linear(in_dim, layers[0])
 
-        # First layer will be Hartley, the next 3 will be Fourier
-        self.sp_convs = nn.ModuleList([HartleyConv2d(self.layers[0], self.layers[1], modes1[0], modes2[0])])
-        #for i in range(1, 4):  # Total of 4 layers (1 Hartley and 3 Fourier)
-        #    self.sp_convs.append(SpectralConv2d(
-        #        self.layers[i], self.layers[i+1], modes1[i], modes2[i]))
+        self.fc0 = nn.Linear(in_dim, width)
 
-        self.ws = nn.ModuleList([nn.Conv1d(in_size, out_size, 1)
-                                 for in_size, out_size in zip(self.layers, self.layers[1:])])
+        # Only one Hartley layer
+        self.hartley_conv = HartleyConv2d(width, width, modes1, modes2)
 
-        self.fc1 = nn.Linear(layers[-1], fc_dim)
+        # Adjust dimensions as needed
+        self.fc1 = nn.Linear(width, fc_dim)
         self.fc2 = nn.Linear(fc_dim, out_dim)
-        if activation =='tanh':
+
+        # Activation function
+        if activation == 'tanh':
             self.activation = F.tanh
         elif activation == 'gelu':
             self.activation = F.gelu
         elif activation == 'relu':
-            self.activation == F.relu
+            self.activation = F.relu
         elif activation == 'swish':
             self.activation = self.swish
         elif activation == 'sinc':
@@ -59,39 +52,27 @@ class FNN2d(nn.Module):
 
     @staticmethod
     def sinc(x):
-        # Condition for handling the case when x is zero
+        # Handling the case when x is zero
         condition = torch.eq(x, 0.0)
-    
         return torch.where(condition, torch.ones_like(x), torch.sin(x) / x)
 
-
     def forward(self, x):
-        '''
-        Args:
-            - x : (batch size, x_grid, y_grid, 2)
-        Returns:
-            - x: (batch size, x_grid, y_grid, 1)
-        '''
-        length = len(self.ws)
         batchsize = x.shape[0]
-        nx, ny = x.shape[1], x.shape[2] # original shape
+        nx, ny = x.shape[1], x.shape[2]  # Original shape
         x = F.pad(x, self.padding, "constant", 0)
-        size_x, size_y = x.shape[1], x.shape[2]
 
         x = self.fc0(x)
         x = x.permute(0, 3, 1, 2)
 
-        for i, (speconv, w) in enumerate(zip(self.sp_convs, self.ws)):
-            x1 = speconv(x)
-            x2 = w(x.view(batchsize, self.layers[i], -1)).view(batchsize, self.layers[i+1], size_x, size_y)
-            x = x1 + x2
-            if i != length - 1:
-                x = self.activation(x)
+        x = self.hartley_conv(x)
+        x = self.activation(x)
+
         x = x.permute(0, 2, 3, 1)
         x = self.fc1(x)
         x = self.activation(x)
         x = self.fc2(x)
-        x = x.reshape(batchsize, size_x, size_y, self.out_dim)
+
+        x = x.reshape(batchsize, x.shape[1], x.shape[2], self.out_dim)
         x = x[..., :nx, :ny, :]
         return x
 
