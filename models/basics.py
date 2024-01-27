@@ -14,7 +14,7 @@ import torch
 
 def dht(x: torch.Tensor):
     # Compute the 2D FFT
-    fft = torch.fft.fft2(x, dim=(1, 2), norm="ortho")
+    fft = torch.fft.fft(x, norm="ortho")
 
     # Calculate the Discrete Hartley Transform using the real and imaginary parts of the FFT
     H = fft.real + fft.imag
@@ -24,7 +24,7 @@ def dht(x: torch.Tensor):
 def idht(H: torch.Tensor):
     # The inverse DHT is similar to the forward DHT
     # Compute the 2D inverse FFT
-    ifft = torch.fft.ifft2(H, dim=(1, 2), norm="ortho")
+    ifft = torch.fft.ifft2(H, norm="ortho")
 
     # Calculate the inverse Discrete Hartley Transform using the real and imaginary parts of the inverse FFT
     x_reconstructed = ifft.real + ifft.imag
