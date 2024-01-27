@@ -35,63 +35,18 @@ def idht2d(H: torch.Tensor):
 
     return x_reconstructed
 
-#def flip_periodic(x: torch.Tensor):
-#    flipped_x = torch.cat((x[..., 0:1], torch.flip(x[..., 1:], dims=[-1])), dim=-1)
-#    flipped_x = torch.cat((flipped_x[..., 0:1, :], torch.flip(flipped_x[..., 1:, :], dims=[-2])), dim=-2)
-#    return flipped_x
-
-def compl_mul1d(x, y):
+def compl_mul1d(a, b):
     # (batch, in_channel, x ), (in_channel, out_channel, x) -> (batch, out_channel, x)
-    #return torch.einsum("bix,iox->box", a, b)
-    #X = dht(x)
-    #Y = dht(y)
-    X = x
-    Y = y
-    Xflip = torch.roll(torch.flip(x, [0]), 1, dims=0)
-    Yflip = torch.roll(torch.flip(y, [0]), 1, dims=0)
-    Yplus = Y + Yflip
-    Yminus = Y - Yflip
-    Z = torch.einsum("bix,iox->box", X, Yplus) + torch.einsum("bix,iox->box", Xflip, Yminus)
-    Z *= 0.5
-    #z = idht(Z)
-    
-    return Z
+    return torch.einsum("bix,iox->box", a, b)
 
-def compl_mul2d(x, y):
-    """ Multiplies tensors a and b using the convolution theorem for the DHT.
-    Assumes hartley_transform and inverse_hartley_transform are defined.
-    """
-    #X = dht(x)
-    #Y = dht(y)
-    X = x
-    Y = y
-    Xflip = torch.roll(torch.flip(x, [0, 1]), shifts=(1, 1), dims=(0, 1))
-    Yflip = torch.roll(torch.flip(y, [0, 1]), shifts=(1, 1), dims=(0, 1))
 
-    Yplus = Y + Yflip
-    Yminus = Y - Yflip
-    Z = torch.einsum("bixy,ioxy->boxy", x, Yplus) + torch.einsum("bixy,ioxy->boxy",  Xflip, Yminus)
-    Z *= 0.5
-    #z = idht(Z)
-    
-    return Z
+def compl_mul2d(a, b):
+    # (batch, in_channel, x,y,t ), (in_channel, out_channel, x,y,t) -> (batch, out_channel, x,y,t)
+    return torch.einsum("bixy,ioxy->boxy", a, b)
 
-def compl_mul3d(x, y): 
-    """ Multiplies tensors a and b using the convolution theorem for the DHT.
-    Assumes hartley_transform and inverse_hartley_transform are defined.
-    """
-    X = dht(x)
-    Y = dht(y)
-    Xflip = torch.roll(torch.flip(x, [0, 1, 2]), shifts=(1, 1, 1), dims=(0, 1, 2))
-    Yflip = torch.roll(torch.flip(y, [0, 1, 2]), shifts=(1, 1, 1), dims=(0, 1, 2))
 
-    Yplus = Y + Yflip
-    Yminus = Y - Yflip
-    Z = torch.einsum("bixyz,ioxyz->boxyz", x, Yplus) + torch.einsum("bixyz,ioxyz->boxyz",  Xflip, Yminus)
-    Z *= 0.5
-    #z = idht(Z)
-    
-    return Z
+def compl_mul3d(a, b):
+    return torch.einsum("bixyz,ioxyz->boxyz", a, b)
 
 ################################################################
 # 1d fourier layer
