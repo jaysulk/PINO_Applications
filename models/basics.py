@@ -12,7 +12,7 @@ import torch
 
 import torch
 
-def dht2d(x: torch.Tensor):
+def dht(x: torch.Tensor):
     # Compute the 2D FFT
     fft = torch.fft.fft2(x, dim=(1, 2), norm="ortho")
 
@@ -21,7 +21,7 @@ def dht2d(x: torch.Tensor):
 
     return H
 
-def idht2d(H: torch.Tensor):
+def idht(H: torch.Tensor):
     # The inverse DHT is similar to the forward DHT
     # Compute the 2D inverse FFT
     ifft = torch.fft.ifft2(H, dim=(1, 2), norm="ortho")
