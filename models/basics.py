@@ -12,17 +12,28 @@ import torch
 
 import torch
 
-def dht(x: torch.Tensor):
-    X = torch.fft.fft(x)
-    X = X.real - X.imag
-    return X
+def dht2d(x: torch.Tensor):
+    # Compute the 2D FFT
+    fft = torch.fft.fft2(x, dim=(1, 2), norm="ortho")
 
-def idht(X: torch.Tensor):
-    dims = X.size()
-    n = torch.prod(torch.tensor(dims)).item()
-    X = dht(X)
-    x = X / n
-    return x
+    # Calculate the Discrete Hartley Transform using the real and imaginary parts of the FFT
+    H = fft.real + fft.imag
+
+    return H
+
+def idht2d(H: torch.Tensor):
+    # The inverse DHT is similar to the forward DHT
+    # Compute the 2D inverse FFT
+    ifft = torch.fft.ifft2(H, dim=(1, 2), norm="ortho")
+
+    # Calculate the inverse Discrete Hartley Transform using the real and imaginary parts of the inverse FFT
+    x_reconstructed = ifft.real + ifft.imag
+
+    # Normalization: Divide by the total number of elements
+    # This step is already handled by the 'ortho' normalization in ifft2
+    # x_reconstructed /= (H.size(-2) * H.size(-1))
+
+    return x_reconstructed
 
 #def flip_periodic(x: torch.Tensor):
 #    flipped_x = torch.cat((x[..., 0:1], torch.flip(x[..., 1:], dims=[-1])), dim=-1)
