@@ -17,23 +17,18 @@ def dht(x: torch.Tensor):
     fft = torch.fft.fft(x, norm="ortho")
 
     # Calculate the Discrete Hartley Transform using the real and imaginary parts of the FFT
-    H = fft.real + fft.imag
+    H = fft.real - fft.imag
 
     return H
 
-def idht(H: torch.Tensor):
-    # The inverse DHT is similar to the forward DHT
-    # Compute the 2D inverse FFT
-    ifft = torch.fft.ifft(H, norm="ortho")
-
-    # Calculate the inverse Discrete Hartley Transform using the real and imaginary parts of the inverse FFT
-    x_reconstructed = ifft.real + ifft.imag
-
-    # Normalization: Divide by the total number of elements
-    # This step is already handled by the 'ortho' normalization in ifft2
-    # x_reconstructed /= (H.size(-2) * H.size(-1))
-
-    return x_reconstructed
+def idht2d(x):
+    # Assume that dht2d is already defined for NumPy
+    # Get the dimensions of X
+    dims = x.shape
+    n = np.prod(dims)
+    dht = dht2d(x)
+    H = dht / n
+    return H
 
 def compl_mul1d(a, b):
     # (batch, in_channel, x ), (in_channel, out_channel, x) -> (batch, out_channel, x)
