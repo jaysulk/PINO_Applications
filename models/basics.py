@@ -50,8 +50,7 @@ def compl_mul2d(a, b):
 def compl_mul3d(a, b):
     a_fft = torch.fft.fft2(a)
     b_fft = torch.fft.fft2(b)
-    result_fft =
-    return torch.einsum("bixyz,ioxyz->boxyz", a, b)
+    result_fft = torch.einsum("bixyz,ioxyz->boxyz", a, b)
     result = torch.fft.ifft2(result_fft)
     return result.real
 
