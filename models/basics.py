@@ -22,12 +22,10 @@ def dht(x: torch.Tensor):
     return H
 
 def idht(x: torch.Tensor):
-    # Assume that dht2d is already defined for NumPy
-    # Get the dimensions of X
     dims = x.shape
     n = np.prod(dims)
-    dht = dht(x)
-    H = dht / n
+    X = dht(x)
+    H = X / n
     return H
 
 def compl_mul1d(a, b):
