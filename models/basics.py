@@ -22,8 +22,8 @@ def dht(x: torch.Tensor):
     return H
 
 def idht(x: torch.Tensor):
-    dims = x.shape
-    n = np.prod(dims)
+    dims = x.size()
+    n = torch.prod(torch.tensor(dims)).item()
     X = dht(x)
     H = X / n
     return H
