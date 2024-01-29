@@ -26,7 +26,7 @@ def idht(x: torch.Tensor):
     # Get the dimensions of X
     dims = x.shape
     n = np.prod(dims)
-    dht = dht2d(x)
+    dht = dht(x)
     H = dht / n
     return H
 
