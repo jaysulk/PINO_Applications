@@ -47,7 +47,7 @@ class FNN2d(nn.Module):
             raise ValueError(f'{activation} is not supported')
 
         # Initialize AFNO2D module
-        self.afno = AFNO2D(afno_hidden_size, num_blocks, sparsity_threshold, hard_thresholding_fraction, hidden_size_factor)
+        self.afno = AFNO1D(afno_hidden_size, num_blocks, sparsity_threshold, hard_thresholding_fraction, hidden_size_factor)
 
     @staticmethod
     def swish(x):
