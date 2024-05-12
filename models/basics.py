@@ -12,14 +12,17 @@ import torch
 
 import torch
 
-def dht(x: torch.Tensor):
-    # Compute the 2D FFT
-    fft = torch.fft.fft(x, norm="ortho")
-
-    # Calculate the Discrete Hartley Transform using the real and imaginary parts of the FFT
-    H = fft.real - fft.imag
-
-    return H
+def dht(input_tensor: torch.Tensor):
+    N = input_tensor.shape[0]
+    n = torch.arange(N).reshape(-1, 1)  # Column vector of indices [0, 1, ..., N-1]
+    k = torch.arange(N).reshape(1, -1)  # Row vector of indices [0, 1, ..., N-1]
+    # Calculate the argument for cosine and sine
+    arg = 2 * torch.pi * k * n / N
+    # Compute the Hartley kernel
+    H_kernel = torch.cos(arg) - torch.sin(arg)
+    # Perform matrix multiplication to get the DHT
+    output = torch.matmul(H_kernel, input_tensor)
+    return output
 
 def idht(x: torch.Tensor):
     dims = x.size()
