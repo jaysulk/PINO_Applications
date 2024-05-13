@@ -12,17 +12,30 @@ import torch
 
 import torch
 
-def dht(input_tensor: torch.Tensor):
-    N = input_tensor.shape[0]
-    n = torch.arange(N).reshape(-1, 1)  # Column vector of indices [0, 1, ..., N-1]
-    k = torch.arange(N).reshape(1, -1)  # Row vector of indices [0, 1, ..., N-1]
-    # Calculate the argument for cosine and sine
-    arg = 2 * torch.pi * k * n / N
-    # Compute the Hartley kernel
-    H_kernel = torch.cos(arg) - torch.sin(arg)
-    # Perform matrix multiplication to get the DHT
-    output = torch.matmul(H_kernel, input_tensor)
-    return output
+def dht(x: torch.Tensor) -> torch.Tensor:
+    """
+    Computes the Discrete Hartley Transform (DHT) of a 1D signal using radix-8.
+    
+    Args:
+        x (torch.Tensor): Input signal (1D tensor).
+    
+    Returns:
+        torch.Tensor: DHT coefficients (1D tensor).
+    """
+    N = len(x)
+    omega = torch.exp(-2j * np.pi / N)
+    omega_radix8 = omega ** 8
+
+    # Initialize the output tensor for DHT coefficients
+    H = torch.zeros(N, dtype=torch.complex64)
+
+    # Compute the DHT coefficients
+    for k in range(N):
+        H[k] = torch.sum(x * (torch.cos(2 * np.pi * k * torch.arange(N) / N) + torch.sin(2 * np.pi * k * torch.arange(N) / N)))
+
+    H *= 1 / torch.sqrt(torch.tensor(N, dtype=torch.float32))
+
+    return H.real
 
 def idht(x: torch.Tensor):
     dims = x.size()
