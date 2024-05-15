@@ -37,12 +37,6 @@ def dht(x: torch.Tensor) -> torch.Tensor:
     
     return X
 
-# Example usage
-x = torch.tensor([1.0, 2.0, 3.0, 4.0], dtype=torch.float32)  # Example input
-X = discrete_hartley_transform(x)
-print(X)
-
-
 def idht(x: torch.Tensor):
     dims = x.size()
     n = torch.prod(torch.tensor(dims)).item()
