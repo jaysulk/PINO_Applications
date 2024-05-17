@@ -33,7 +33,7 @@ def dht(x: torch.Tensor) -> torch.Tensor:
     kernel = cos_term + sin_term  # Shape (N, N)
     
     # Compute the DHT
-    X = torch.matmul(kernel, x)  # Shape (N,)
+    X = torch.matmul(kernel, x.unsqueeze(1)).squeeze(1)  # Shape (N,)
     
     return X
 
