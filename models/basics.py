@@ -12,30 +12,30 @@ import torch
 
 import torch
 
-def FHT(x: torch.Tensor) -> torch.Tensor:
+def dht(x: torch.Tensor) -> torch.Tensor:
     N = x.size(0)
     if N <= 1:
         return x
 
-    even = FHT(x[0::2])
-    odd = FHT(x[1::2])
+    even = dht(x[0::2])
+    odd = dht(x[1::2])
 
     factor = torch.exp(-2j * torch.pi * torch.arange(N // 2) / N)
     combined = torch.cat([even + odd * factor, even - odd * factor])
 
     return combined.real + combined.imag
 
-def iFHT(x: torch.Tensor):
+def idht(x: torch.Tensor):
     dims = x.size()
     n = torch.prod(torch.tensor(dims)).item()
-    X = FHT(x)
+    X = dht(x)
     H = X / n
     return H
 
 def compl_mul1d(x, y):
     # (batch, in_channel, x), (in_channel, out_channel, x) -> (batch, out_channel, x)
-    X = FHT(x)
-    Y = FHT(y)
+    X = dht(x)
+    Y = dht(y)
 
     Xflip = torch.roll(torch.flip(X, [0]), 1, dims=0)
     Yflip = torch.roll(torch.flip(Y, [0]), 1, dims=0)
@@ -46,7 +46,7 @@ def compl_mul1d(x, y):
     Z = torch.einsum("bix,iox->box", X, Yplus) + torch.einsum("bix,iox->box", Xflip, Yminus)
     Z *= 0.5
 
-    z = IFHT(Z)
+    z = Idht(Z)
     
     return z
 
