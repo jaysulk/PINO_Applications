@@ -46,7 +46,7 @@ def compl_mul1d(x, y):
     Z = torch.einsum("bix,iox->box", X, Yplus) + torch.einsum("bix,iox->box", Xflip, Yminus)
     Z *= 0.5
 
-    z = Idht(Z)
+    z = idht(Z)
     
     return z
 
