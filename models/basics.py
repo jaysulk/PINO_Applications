@@ -12,35 +12,23 @@ import torch
 
 import torch
 
-def dht(x: torch.Tensor) -> torch.Tensor:
-    """
-    Compute the Discrete Hartley Transform (DHT) of a 1D tensor x.
+def FHT(x: torch.Tensor) -> torch.Tensor:
+    N = x.size(0)
+    if N <= 1:
+        return x
 
-    Parameters:
-    x (torch.Tensor): Input tensor of shape (N,)
+    even = FHT(x[0::2])
+    odd = FHT(x[1::2])
 
-    Returns:
-    torch.Tensor: The DHT of the input tensor
-    """
-    N = x.shape[0]
-    k = torch.arange(N, dtype=torch.float32, device=x.device)
-    n = torch.arange(N, dtype=torch.float32, device=x.device).unsqueeze(1)
-    
-    # Compute the DHT kernel
-    factor = (2 * torch.pi * k / N).unsqueeze(0)  # Shape (1, N)
-    cos_term = torch.cos(factor * n)  # Shape (N, N)
-    sin_term = torch.sin(factor * n)  # Shape (N, N)
-    kernel = cos_term + sin_term  # Shape (N, N)
-    
-    # Compute the DHT
-    X = torch.matmul(kernel, x.unsqueeze(1)).squeeze(1)  # Shape (N,)
-    
-    return X
+    factor = torch.exp(-2j * torch.pi * torch.arange(N // 2) / N)
+    combined = torch.cat([even + odd * factor, even - odd * factor])
 
-def idht(x: torch.Tensor):
+    return combined.real + combined.imag
+
+def iFHT(x: torch.Tensor):
     dims = x.size()
     n = torch.prod(torch.tensor(dims)).item()
-    X = dht(x)
+    X = FHT(x)
     H = X / n
     return H
 
