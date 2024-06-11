@@ -32,13 +32,23 @@ def iFHT(x: torch.Tensor):
     H = X / n
     return H
 
-def compl_mul1d(a, b):
-    # (batch, in_channel, x ), (in_channel, out_channel, x) -> (batch, out_channel, x)
-    a_fft = dht(a)
-    b_fft = dht(b)
-    result_fft =torch.einsum("bix,iox->box", a, b)
-    result = idht(result_fft)
-    return result
+def compl_mul1d(x, y):
+    # (batch, in_channel, x), (in_channel, out_channel, x) -> (batch, out_channel, x)
+    X = FHT(x)
+    Y = FHT(y)
+
+    Xflip = torch.roll(torch.flip(X, [0]), 1, dims=0)
+    Yflip = torch.roll(torch.flip(Y, [0]), 1, dims=0)
+
+    Yplus = Y + Yflip
+    Yminus = Y - Yflip
+
+    Z = torch.einsum("bix,iox->box", X, Yplus) + torch.einsum("bix,iox->box", Xflip, Yminus)
+    Z *= 0.5
+
+    z = IFHT(Z)
+    
+    return z
 
 
 def compl_mul2d(a, b):
