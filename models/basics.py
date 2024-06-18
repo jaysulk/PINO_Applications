@@ -21,8 +21,8 @@ def dht(x: torch.Tensor) -> torch.Tensor:
     odd = dht(x[..., 1::2])
 
     factor = torch.arange(N // 2, device=x.device) * 2 * torch.pi / N
-    cos_factor = torch.cos(factor)
-    sin_factor = torch.sin(factor)
+    cos_factor = torch.cos(factor).unsqueeze(0).unsqueeze(0)
+    sin_factor = torch.sin(factor).unsqueeze(0).unsqueeze(0)
 
     even_part = even + torch.einsum('...i,...i->...i', odd, cos_factor) - torch.einsum('...i,...i->...i', odd, sin_factor)
     odd_part = even - torch.einsum('...i,...i->...i', odd, cos_factor) + torch.einsum('...i,...i->...i', odd, sin_factor)
