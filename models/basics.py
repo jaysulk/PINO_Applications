@@ -13,21 +13,21 @@ import torch
 import torch
 
 def dht(x: torch.Tensor) -> torch.Tensor:
-    N = x.size(0)
+    N = x.size(-1)
     if N <= 1:
         return x
 
-    even = dht(x[0::2])
-    odd = dht(x[1::2])
+    even = dht(x[..., 0::2])
+    odd = dht(x[..., 1::2])
 
     factor = torch.arange(N // 2, device=x.device) * 2 * torch.pi / N
     cos_factor = torch.cos(factor)
     sin_factor = torch.sin(factor)
-    
-    even_part = even + odd * cos_factor - odd * sin_factor
-    odd_part = even - odd * cos_factor + odd * sin_factor
 
-    combined = torch.cat([even_part, odd_part])
+    even_part = even + torch.einsum('...i,...i->...i', odd, cos_factor) - torch.einsum('...i,...i->...i', odd, sin_factor)
+    odd_part = even - torch.einsum('...i,...i->...i', odd, cos_factor) + torch.einsum('...i,...i->...i', odd, sin_factor)
+
+    combined = torch.cat([even_part, odd_part], dim=-1)
     return combined
 
 def idht(x: torch.Tensor):
