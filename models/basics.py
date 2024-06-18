@@ -20,7 +20,7 @@ def dht(x: torch.Tensor) -> torch.Tensor:
     even = dht(x[0::2])
     odd = dht(x[1::2])
 
-    factor = torch.exp(-2j * torch.pi * torch.arange(N // 2) / N)
+    factor = torch.exp(-2j * torch.pi * torch.arange(N // 2, device=x.device) / N)
     combined = torch.cat([even + odd * factor, even - odd * factor])
 
     return combined.real + combined.imag
