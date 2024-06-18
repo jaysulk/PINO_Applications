@@ -17,11 +17,19 @@ def dht(x: torch.Tensor) -> torch.Tensor:
     if N <= 1:
         return x
 
-    even = dht(x[0::2])
-    odd = dht(x[1::2])
+    even = FHT(x[0::2])
+    odd = FHT(x[1::2])
 
-    factor = torch.exp(-2j * torch.pi * torch.arange(N // 2, device=x.device) / N)
-    combined = torch.cat([even + odd * factor, even - odd * factor])
+    factor = torch.arange(N // 2, device=x.device) * 2 * torch.pi / N
+    cos_factor = torch.cos(factor)
+    sin_factor = torch.sin(factor)
+    
+    even_part = even + odd * cos_factor - odd * sin_factor
+    odd_part = even - odd * cos_factor + odd * sin_factor
+
+    combined = torch.cat([even_part, odd_part])
+    return combined
+
 
     return combined.real + combined.imag
 
