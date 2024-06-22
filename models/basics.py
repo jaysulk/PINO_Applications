@@ -24,8 +24,23 @@ def dht(x: torch.Tensor) -> torch.Tensor:
     cos_factor = torch.cos(factor).unsqueeze(0).unsqueeze(0)
     sin_factor = torch.sin(factor).unsqueeze(0).unsqueeze(0)
 
-    even_part = even + torch.einsum('...j,...j->...j', odd, cos_factor) - torch.einsum('...j,...j->...j', odd, sin_factor)
-    odd_part = even - torch.einsum('...j,...j->...j', odd, cos_factor) + torch.einsum('...j,...j->...j', odd, sin_factor)
+def dht(x: torch.Tensor) -> torch.Tensor:
+    N = x.size(-1)
+    if N <= 1:
+        return x
+
+    even = dht(x[..., 0::2])
+    odd = dht(x[..., 1::2])
+
+    factor = torch.arange(N // 2, device=x.device) * 2 * torch.pi / N
+    cos_factor = torch.cos(factor).unsqueeze(0).unsqueeze(0)
+    sin_factor = torch.sin(factor).unsqueeze(0).unsqueeze(0)
+
+    even_part = even + torch.einsum('...j,...->...j', odd, cos_factor) - torch.einsum('...j,...->...j', odd, sin_factor)
+    odd_part = even - torch.einsum('...j,...->...j', odd, cos_factor) + torch.einsum('...j,...->...j', odd, sin_factor)
+
+    combined = torch.cat([even_part, odd_part], dim=-1)
+    return combined
 
     combined = torch.cat([even_part, odd_part], dim=-1)
     return combined
