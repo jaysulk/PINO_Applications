@@ -18,26 +18,12 @@ import torch
 
 def dht(x: torch.Tensor) -> torch.Tensor:
     N = x.size(-1)
-    if N <= 1:
-        return x
-
-    # Recursively compute DHT for even and odd parts
-    even = dht(x[..., 0::2])
-    odd = dht(x[..., 1::2])
-
-    # Compute factors
-    factor = torch.arange(N // 2, device=x.device) * 2 * torch.pi / N
-    cos_factor = torch.cos(factor).unsqueeze(0)
-    sin_factor = torch.sin(factor).unsqueeze(0)
-
-    # Apply DHT formula using einsum
-    even_part = even + torch.einsum('...j,j->...j', odd, cos_factor) - torch.einsum('...j,j->...j', odd, sin_factor)
-    odd_part = even - torch.einsum('...j,j->...j', odd, cos_factor) + torch.einsum('...j,j->...j', odd, sin_factor)
-
-    # Combine even and odd parts
-    combined = torch.cat([even_part, odd_part], dim=-1)
-    return combined
-
+    n = torch.arange(N, device=x.device)
+    k = n.view(-1, 1)
+    cas = torch.cos(2 * torch.pi * k * n / N) + torch.sin(2 * torch.pi * k * n / N)
+    
+    X = torch.matmul(x, cas)
+    return X
 
 def idht(x: torch.Tensor):
     dims = x.size()
