@@ -7,6 +7,10 @@ from functools import partial
 
 import torch.nn.functional as F
 
+def reverse(x: torch.Tensor) -> torch.Tensor:
+    N = x.size(-1)
+    return torch.roll(x.flip(-1), shifts=N+1, dims=-1)
+
 def dht(x: torch.Tensor) -> torch.Tensor:
     N = x.size(-1)
     n = torch.arange(N, device=x.device)
