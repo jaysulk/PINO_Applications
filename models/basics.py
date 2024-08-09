@@ -33,24 +33,28 @@ def idht(X: torch.Tensor) -> torch.Tensor:
     
     return x_reconstructed
 
-def compl_mul1d(x, y):
-    # (batch, in_channel, x), (in_channel, out_channel, x) -> (batch, out_channel, x)
-    X = dht(x)
-    Y = dht(y)
-
-    Xflip = torch.roll(torch.flip(X, [0]), 1, dims=0)
-    Yflip = torch.roll(torch.flip(Y, [0]), 1, dims=0)
-
-    Yplus = Y + Yflip
-    Yminus = Y - Yflip
-
-    Z = torch.einsum("bix,iox->box", X, Yplus) + torch.einsum("bix,iox->box", Xflip, Yminus)
-    Z *= 0.5
-
-    z = idht(Z)
+def compl_mul1d(p: torch.Tensor, q: torch.Tensor) -> torch.Tensor:
+    # Forward Hartley transforms of the input tensors
+    hp = dht(p)
+    hq = dht(q)
     
-    return z
-
+    # Reverse the Hartley transforms
+    rp = reverse(hp)
+    rq = reverse(hq)
+    
+    # Compute the multiplication terms using torch.einsum
+    term1 = torch.einsum("bix,iox->box", hp, hq)
+    term2 = torch.einsum("bix,iox->box", rp, hq)
+    term3 = torch.einsum("bix,iox->box", hp, rq)
+    term4 = torch.einsum("bix,iox->box", rp, rq)
+    
+    # Combine the terms according to the given formula
+    hz = (term1 + term2 + term3 - term4) / 2
+    
+    # Perform the inverse Hartley transform on the result
+    result = idht(hz)
+    
+    return result
 
 def compl_mul2d(a, b):
     # (batch, in_channel, x,y,t ), (in_channel, out_channel, x,y,t) -> (batch, out_channel, x,y,t)
