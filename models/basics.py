@@ -7,8 +7,6 @@ from functools import partial
 
 import torch.nn.functional as F
 
-import torch
-
 def dht(x: torch.Tensor) -> torch.Tensor:
     N = x.size(-1)
     n = torch.arange(N, device=x.device)
