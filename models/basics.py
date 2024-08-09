@@ -5,14 +5,7 @@ import torch.nn as nn
 
 from functools import partial
 
-import torch
 import torch.nn.functional as F
-
-import torch
-
-import torch
-
-import torch
 
 import torch
 
@@ -20,17 +13,25 @@ def dht(x: torch.Tensor) -> torch.Tensor:
     N = x.size(-1)
     n = torch.arange(N, device=x.device)
     k = n.view(-1, 1)
+    
+    # Calculate the Hartley kernel (cas function)
     cas = torch.cos(2 * torch.pi * k * n / N) + torch.sin(2 * torch.pi * k * n / N)
     
+    # Perform the matrix multiplication between input and the Hartley kernel
     X = torch.matmul(x, cas)
     return X
 
-def idht(x: torch.Tensor):
-    dims = x.size()
-    n = torch.prod(torch.tensor(dims)).item()
-    X = dht(x)
-    H = X / n
-    return H
+def idht(X: torch.Tensor) -> torch.Tensor:
+    N = X.size(-1)
+    n = torch.prod(torch.tensor(X.size())).item()
+    
+    # Perform the forward DHT on the input
+    x_reconstructed = dht(X)
+    
+    # Scale the result by the number of elements
+    x_reconstructed /= n
+    
+    return x_reconstructed
 
 def compl_mul1d(x, y):
     # (batch, in_channel, x), (in_channel, out_channel, x) -> (batch, out_channel, x)
