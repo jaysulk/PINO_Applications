@@ -36,25 +36,37 @@ def idht(X: torch.Tensor) -> torch.Tensor:
     return x_reconstructed
 
 def compl_mul1d(p: torch.Tensor, q: torch.Tensor) -> torch.Tensor:
-    # Forward Hartley transforms of the input tensors
-    hp = dht(p)
-    hq = dht(q)
+    """
+    Perform cyclic convolution of two signals using their DHTs.
     
-    # Reverse the Hartley transforms
-    rp = reverse(hp)
-    rq = reverse(hq)
+    Parameters:
+    x1 (torch.Tensor): First input signal tensor.
+    x2 (torch.Tensor): Second input signal tensor.
     
-    # Compute the multiplication terms using torch.einsum
-    term1 = torch.einsum("bix,iox->box", hp, hq)
-    term2 = torch.einsum("bix,iox->box", rp, hq)
-    term3 = torch.einsum("bix,iox->box", hp, rq)
-    term4 = torch.einsum("bix,iox->box", rp, rq)
+    Returns:
+    torch.Tensor: The cyclic convolution of the two signals.
+    """
+    # Compute the DHT of both signals
+    X1_H = dht(p)
+    X2_H = dht(q)
     
-    # Combine the terms according to the given formula
-    hz = (term1 + term2 + term3 - term4) / 2
+    # Compute the cyclic convolution in the Hartley domain
+    N = x1.size(0)
+    k = torch.arange(N)
+    X1_H_k = X1_H
+    X2_H_k = X2_H
+    X1_H_neg_k = X1_H.flip(0)
+    X2_H_neg_k = X2_H.flip(0)
+
+    term1 = torch.einsum("bix,iox->box",X1_H_k,X2_H_k)  
+    term2 = torch.einsum("bix,iox->box",X1_H_neg_k,X2_H_neg_k)
+    term3 = torch.einsum("bix,iox->box",X1_H_k,X2_H_neg_k)
+    term4 = torch.einsum("bix,iox->box",X1_H_neg_k,X2_H_k)
     
-    # Perform the inverse Hartley transform on the result
-    result = idht(hz)
+    conv_H = 0.5 * (term1 - term2 + term3 + term4)
+    
+    # Inverse DHT to get the time-domain result
+    result = idht(conv_H)
     
     return result
 
