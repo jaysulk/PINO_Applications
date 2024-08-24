@@ -35,37 +35,33 @@ def idht(X: torch.Tensor) -> torch.Tensor:
     
     return x_reconstructed
 
-def compl_mul1d(p: torch.Tensor, q: torch.Tensor) -> torch.Tensor:
-    """
-    Perform cyclic convolution of two signals using their DHTs.
-    
-    Parameters:
-    x1 (torch.Tensor): First input signal tensor.
-    x2 (torch.Tensor): Second input signal tensor.
-    
-    Returns:
-    torch.Tensor: The cyclic convolution of the two signals.
-    """
+def compl_mul1d(p: torch.Tensor, q: torch.Tensor, alpha: float = 0.1, beta: float = 0.1) -> torch.Tensor:
     # Compute the DHT of both signals
     X1_H = dht(p)
     X2_H = dht(q)
     
     # Compute the cyclic convolution in the Hartley domain
-    N = x1.size(0)
     X1_H_k = X1_H
     X2_H_k = X2_H
     X1_H_neg_k = reverse(X1_H)
     X2_H_neg_k = reverse(X2_H)
 
-    term1 = torch.einsum("bix,iox->box",X1_H_k,X2_H_k)  
-    term2 = torch.einsum("bix,iox->box",X1_H_neg_k,X2_H_neg_k)
-    term3 = torch.einsum("bix,iox->box",X1_H_k,X2_H_neg_k)
-    term4 = torch.einsum("bix,iox->box",X1_H_neg_k,X2_H_k)
+    term1 = torch.einsum("bix,iox->box", X1_H_k, X2_H_k)
+    term2 = torch.einsum("bix,iox->box", X1_H_neg_k, X2_H_neg_k)
+    term3 = torch.einsum("bix,iox->box", X1_H_k, X2_H_neg_k)
+    term4 = torch.einsum("bix,iox->box", X1_H_neg_k, X2_H_k)
     
     conv_H = 0.5 * (term1 - term2 + term3 + term4)
     
+    # Apply high-pass filter correction
+    N = p.size(-1)  # Assuming the last dimension is the time domain size
+    time_indices = torch.arange(N, dtype=p.dtype, device=p.device)
+    high_pass_filter = 1 - torch.exp(-beta * (time_indices ** 2))
+    correction = alpha * torch.einsum("box, x -> box", conv_H, high_pass_filter)
+    conv_H_corrected = conv_H + correction
+    
     # Inverse DHT to get the time-domain result
-    result = idht(conv_H)
+    result = idht(conv_H_corrected)
     
     return result
 
