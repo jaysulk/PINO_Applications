@@ -52,11 +52,10 @@ def compl_mul1d(p: torch.Tensor, q: torch.Tensor) -> torch.Tensor:
     
     # Compute the cyclic convolution in the Hartley domain
     N = x1.size(0)
-    k = torch.arange(N)
     X1_H_k = X1_H
     X2_H_k = X2_H
-    X1_H_neg_k = X1_H.flip(0)
-    X2_H_neg_k = X2_H.flip(0)
+    X1_H_neg_k = reverse(X1_H)
+    X2_H_neg_k = reverse(X2_H)
 
     term1 = torch.einsum("bix,iox->box",X1_H_k,X2_H_k)  
     term2 = torch.einsum("bix,iox->box",X1_H_neg_k,X2_H_neg_k)
