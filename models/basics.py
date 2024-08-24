@@ -35,7 +35,7 @@ def idht(X: torch.Tensor) -> torch.Tensor:
     
     return x_reconstructed
 
-def compl_mul1d(p: torch.Tensor, q: torch.Tensor, alpha: float = 0.1, beta: float = 0.1) -> torch.Tensor:
+def compl_mul1d(p: torch.Tensor, q: torch.Tensor, alpha: float = 0.1, beta: float = 0.5) -> torch.Tensor:
     # Compute the DHT of both signals
     X1_H = dht(p)
     X2_H = dht(q)
