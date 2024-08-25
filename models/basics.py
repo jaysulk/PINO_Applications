@@ -25,17 +25,11 @@ def dht(x: torch.Tensor) -> torch.Tensor:
 
 def idht(X: torch.Tensor) -> torch.Tensor:
     N = X.size(-1)
-    n = torch.arange(N, device=X.device)
-    k = n.view(-1, 1)
+    # Compute the DHT of X
+    X_transformed = dht(X)
     
-    # Calculate the Hartley kernel (cas function)
-    cas = torch.cos(2 * torch.pi * k * n / N) + torch.sin(2 * torch.pi * k * n / N)
-    
-    # Perform the matrix multiplication between transformed data and the Hartley kernel
-    x = torch.matmul(X, cas.T)
-    
-    # Normalize the result (optional depending on the definition)
-    x /= N
+    # Scale by 1/N to get the inverse DHT
+    x = X_transformed / N
     
     return x
 
