@@ -7,78 +7,71 @@ from functools import partial
 
 import torch.nn.functional as F
 
-def reverse(x: torch.Tensor) -> torch.Tensor:
-    N = x.size(-1)
-    return torch.roll(x.flip(-1), shifts=N+1, dims=-1)
-
-def dht(x: torch.Tensor) -> torch.Tensor:
-    N = x.size(-1)
-    n = torch.arange(N, device=x.device)
-    k = n.view(-1, 1)
-    
-    # Calculate the Hartley kernel (cas function)
-    cas = torch.cos(2 * torch.pi * k * n / N) + torch.sin(2 * torch.pi * k * n / N)
-    
-    # Perform the matrix multiplication between input and the Hartley kernel
-    X = torch.matmul(x, cas)
-    return X
-
-def idht(X: torch.Tensor) -> torch.Tensor:
-    N = X.size(-1)
-    n = torch.prod(torch.tensor(X.size())).item()
-    
-    # Perform the forward DHT on the input
-    x_reconstructed = dht(X)
-    
-    # Scale the result by the number of elements
-    x_reconstructed /= n
-    
-    return x_reconstructed
-
-def compl_mul1d(p: torch.Tensor, q: torch.Tensor, alpha: float = 0.1, beta: float = 0.5) -> torch.Tensor:
+def compl_mul1d(p: torch.Tensor, q: torch.Tensor) -> torch.Tensor:
     # Compute the DHT of both signals
-    X1_H = dht(p)
-    X2_H = dht(q)
+    X1_H = dht(p)  # Ensure dht is implemented correctly
+    X2_H = dht(q)  # Ensure dht is implemented correctly
     
-    # Compute the cyclic convolution in the Hartley domain
-    X1_H_k = X1_H
-    X2_H_k = X2_H
-    X1_H_neg_k = reverse(X1_H)
-    X2_H_neg_k = reverse(X2_H)
+    # Reverse the tensors along the last dimension
+    X1_H_neg_k = X1_H.flip(-1)
+    X2_H_neg_k = X2_H.flip(-1)
 
-    term1 = torch.einsum("bix,iox->box", X1_H_k, X2_H_k)
+    # Compute the cyclic convolution in the Hartley domain
+    term1 = torch.einsum("bix,iox->box", X1_H, X2_H)
     term2 = torch.einsum("bix,iox->box", X1_H_neg_k, X2_H_neg_k)
-    term3 = torch.einsum("bix,iox->box", X1_H_k, X2_H_neg_k)
-    term4 = torch.einsum("bix,iox->box", X1_H_neg_k, X2_H_k)
+    term3 = torch.einsum("bix,iox->box", X1_H, X2_H_neg_k)
+    term4 = torch.einsum("bix,iox->box", X1_H_neg_k, X2_H)
     
     conv_H = 0.5 * (term1 - term2 + term3 + term4)
     
-    # Apply high-pass filter correction
-    N = p.size(-1)  # Assuming the last dimension is the time domain size
-    time_indices = torch.arange(N, dtype=p.dtype, device=p.device)
-    high_pass_filter = 1 - torch.exp(-beta * (time_indices ** 2))
-    correction = alpha * torch.einsum("box, x -> box", conv_H, high_pass_filter)
-    conv_H_corrected = conv_H + correction
-    
     # Inverse DHT to get the time-domain result
-    result = idht(conv_H_corrected)
+    result = idht(conv_H)  # Ensure idht is implemented correctly
     
     return result
 
-def compl_mul2d(a, b):
-    # (batch, in_channel, x,y,t ), (in_channel, out_channel, x,y,t) -> (batch, out_channel, x,y,t)
-    a_fft = dht(a)
-    b_fft = dht(b)
-    result_fft = torch.einsum("bixy,ioxy->boxy", a, b)
-    result = idht(result_fft)
+def compl_mul2d(p: torch.Tensor, q: torch.Tensor) -> torch.Tensor:
+    # Compute the DHT of both signals
+    X1_H = dht(p)  # Ensure dht is implemented correctly
+    X2_H = dht(q)  # Ensure dht is implemented correctly
+    
+    # Reverse the tensors along the last dimension
+    X1_H_neg_k = X1_H.flip(-1)
+    X2_H_neg_k = X2_H.flip(-1)
+
+    # Compute the cyclic convolution in the Hartley domain
+    term1 = torch.einsum("bixy,ioxy->boxy", X1_H, X2_H)
+    term2 = torch.einsum("bixy,ioxy->boxy", X1_H_neg_k, X2_H_neg_k)
+    term3 = torch.einsum("bixy,ioxy->boxy", X1_H, X2_H_neg_k)
+    term4 = torch.einsum("bixy,ioxy->boxy", X1_H_neg_k, X2_H)
+    
+    conv_H = 0.5 * (term1 - term2 + term3 + term4)
+    
+    # Inverse DHT to get the time-domain result
+    result = idht(conv_H)  # Ensure idht is implemented correctly
+    
     return result
     
-def compl_mul3d(a, b):
-    a_fft = dht(a)
-    b_fft = dht(b)
-    result_fft = torch.einsum("bixyz,ioxyz->boxyz", a, b)
-    result = idht(result_fft)
-    return result.real
+def compl_mul3d(p: torch.Tensor, q: torch.Tensor) -> torch.Tensor:
+    # Compute the DHT of both signals
+    X1_H = dht(p)  # Ensure dht is implemented correctly
+    X2_H = dht(q)  # Ensure dht is implemented correctly
+    
+    # Reverse the tensors along the last dimension
+    X1_H_neg_k = X1_H.flip(-1)
+    X2_H_neg_k = X2_H.flip(-1)
+
+    # Compute the cyclic convolution in the Hartley domain
+    term1 = torch.einsum("bixyz,ioxyz->boxyz", X1_H, X2_H)
+    term2 = torch.einsum("bixyz,ioxyz->boxyz", X1_H_neg_k, X2_H_neg_k)
+    term3 = torch.einsum("bixyz,ioxyz->boxyz", X1_H, X2_H_neg_k)
+    term4 = torch.einsum("bixyz,ioxyz->boxyz", X1_H_neg_k, X2_H)
+    
+    conv_H = 0.5 * (term1 - term2 + term3 + term4)
+    
+    # Inverse DHT to get the time-domain result
+    result = idht(conv_H)  # Ensure idht is implemented correctly
+    
+    return result
 
 ################################################################
 # 1d fourier layer
