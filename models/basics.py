@@ -31,7 +31,7 @@ def idht(X: torch.Tensor) -> torch.Tensor:
     
     return x_reconstructed
 
-def compl_mul1d(p: torch.Tensor, q: torch.Tensor) -> torch.Tensor:
+def compl_mul1d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     # Compute the DHT of both signals
     X1_H = dht(p)  # Ensure dht is implemented correctly
     X2_H = dht(q)  # Ensure dht is implemented correctly
@@ -59,7 +59,7 @@ def compl_mul1d(p: torch.Tensor, q: torch.Tensor) -> torch.Tensor:
     result = inverse_dht(conv_H)
     return result
 
-def compl_mul2d(p: torch.Tensor, q: torch.Tensor) -> torch.Tensor:
+def compl_mul2d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     # Compute the DHT of both signals
     X1_H = dht(p)  # Ensure dht is implemented correctly
     X2_H = dht(q)  # Ensure dht is implemented correctly
@@ -87,7 +87,7 @@ def compl_mul2d(p: torch.Tensor, q: torch.Tensor) -> torch.Tensor:
     result = inverse_dht(conv_H)
     return result
     
-def compl_mul3d(p: torch.Tensor, q: torch.Tensor) -> torch.Tensor:
+def compl_mul3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     # Compute the DHT of both signals
     X1_H = dht(p)  # Ensure dht is implemented correctly
     X2_H = dht(q)  # Ensure dht is implemented correctly
