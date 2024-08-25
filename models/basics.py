@@ -8,20 +8,24 @@ from functools import partial
 import torch.nn.functional as F
 
 def dht(x: torch.Tensor) -> torch.Tensor:
-    N = x.size(-1)
-    n = torch.arange(N, device=x.device)
-    k = n.view(-1, 1)
+    # Ensure x is real-valued
+    if not torch.is_real(x):
+        raise ValueError("Input tensor must be real-valued.")
+
+    # Get dimensions
+    dims = x.shape
     
-    # Calculate the Hartley kernel (cas function)
-    cas = torch.cos(2 * torch.pi * k * n / N) + torch.sin(2 * torch.pi * k * n / N)
+    # Create a Hartley kernel
+    def hartley_kernel(n, N):
+        return torch.cos(2 * torch.pi * n / N) + torch.sin(2 * torch.pi * n / N)
     
-    # Perform the matrix multiplication between input and the Hartley kernel
-    X = torch.matmul(x, cas)
+    # Compute the Hartley Transform
+    result = torch.zeros_like(x, dtype=torch.complex64)
+    for i in range(dims[-1]):
+        kernel = hartley_kernel(i, dims[-1])
+        result[..., i] = torch.sum(x * kernel, dim=-1)
     
-    # Normalize the result (optional depending on the definition)
-    X /= N
-    
-    return X
+    return result
 
 def idht(X: torch.Tensor) -> torch.Tensor:
     N = X.size(-1)
