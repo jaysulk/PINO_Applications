@@ -17,19 +17,28 @@ def dht(x: torch.Tensor) -> torch.Tensor:
     
     # Perform the matrix multiplication between input and the Hartley kernel
     X = torch.matmul(x, cas)
+    
+    # Normalize the result (optional depending on the definition)
+    X /= N
+    
     return X
 
 def idht(X: torch.Tensor) -> torch.Tensor:
     N = X.size(-1)
-    n = torch.prod(torch.tensor(X.size())).item()
+    n = torch.arange(N, device=X.device)
+    k = n.view(-1, 1)
     
-    # Perform the forward DHT on the input
-    x_reconstructed = dht(X)
+    # Calculate the Hartley kernel (cas function)
+    cas = torch.cos(2 * torch.pi * k * n / N) + torch.sin(2 * torch.pi * k * n / N)
     
-    # Scale the result by the number of elements
-    x_reconstructed /= n
+    # Perform the matrix multiplication between transformed data and the Hartley kernel
+    x = torch.matmul(X, cas.T)
     
-    return x_reconstructed
+    # Normalize the result (optional depending on the definition)
+    x /= N
+    
+    return x
+
 
 def compl_mul1d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     # Compute the DHT of both signals
