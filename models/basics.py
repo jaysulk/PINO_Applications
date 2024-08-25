@@ -8,20 +8,27 @@ from functools import partial
 import torch.nn.functional as F
 
 def dht(x: torch.Tensor) -> torch.Tensor:
-    # Get dimensions
-    dims = x.shape
+    # Compute the Real FFT of the input tensor
+    X_rfft = torch.rfftn(x)
     
-    # Create a Hartley kernel
-    def hartley_kernel(n, N):
-        return torch.cos(2 * torch.pi * n / N) + torch.sin(2 * torch.pi * n / N)
+    # Convert the RFFT result to the corresponding Hartley transform
+    N = x.size(-1)
+    k = torch.arange(0, N // 2 + 1, dtype=torch.float32)
+    k = k / (N // 2)
+    k = k * (2 * torch.pi)
     
-    # Compute the Hartley Transform
-    result = torch.zeros_like(x, dtype=torch.complex64)
-    for i in range(dims[-1]):
-        kernel = hartley_kernel(i, dims[-1])
-        result[..., i] = torch.sum(x * kernel, dim=-1)
+    # Define the cosine and sine components for the Hartley Transform
+    cos_k = torch.cos(k)
+    sin_k = torch.sin(k)
     
-    return result
+    # Apply the Hartley Transform formula
+    real_part = torch.real(X_rfft)
+    imag_part = torch.imag(X_rfft)
+    
+    hartley_real = real_part * cos_k - imag_part * sin_k
+    hartley_imag = real_part * sin_k + imag_part * cos_k
+    
+    return hartley_real + 1j * hartley_imag
 
 def idht(X: torch.Tensor) -> torch.Tensor:
     N = X.size(-1)
