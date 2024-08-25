@@ -7,6 +7,10 @@ from functools import partial
 
 import torch.nn.functional as F
 
+def cas(x):
+    """Compute the cosine-sine function for the DHT."""
+    return torch.cos(x) + torch.sin(x)
+
 def dht(x: torch.Tensor) -> torch.Tensor:
     """Compute the Discrete Hartley Transform (DHT) of a 1D tensor."""
     N = x.size(0)
