@@ -33,8 +33,8 @@ def idht(X: torch.Tensor) -> torch.Tensor:
 
 def compl_mul1d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     # Compute the DHT of both signals
-    X1_H = dht(p)  # Ensure dht is implemented correctly
-    X2_H = dht(q)  # Ensure dht is implemented correctly
+    X1_H = dht(x1)  # Ensure dht is implemented correctly
+    X2_H = dht(x2)  # Ensure dht is implemented correctly
     N = x1.size(0)
 
     # Prepare the tensors for einsum
@@ -61,8 +61,8 @@ def compl_mul1d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
 
 def compl_mul2d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     # Compute the DHT of both signals
-    X1_H = dht(p)  # Ensure dht is implemented correctly
-    X2_H = dht(q)  # Ensure dht is implemented correctly
+    X1_H = dht(x1)  # Ensure dht is implemented correctly
+    X2_H = dht(x2)  # Ensure dht is implemented correctly
     N = x1.size(0)
 
     # Prepare the tensors for einsum
@@ -89,8 +89,8 @@ def compl_mul2d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     
 def compl_mul3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     # Compute the DHT of both signals
-    X1_H = dht(p)  # Ensure dht is implemented correctly
-    X2_H = dht(q)  # Ensure dht is implemented correctly
+    X1_H = dht(x1)  # Ensure dht is implemented correctly
+    X2_H = dht(x2)  # Ensure dht is implemented correctly
     N = x1.size(0)
 
     # Prepare the tensors for einsum
