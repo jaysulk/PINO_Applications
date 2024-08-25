@@ -33,56 +33,47 @@ def idht(X: torch.Tensor) -> torch.Tensor:
 
 def compl_mul1d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     # Compute the DHT of both signals
-    X1_H = dht(x1)  # Ensure dht is implemented correctly
-    X2_H = dht(x2)  # Ensure dht is implemented correctly
-    X1_H_k = X1_H
-    X2_H_k = X2_H
+    X1_H_k = x1
+    X2_H_k = x2
     X1_H_neg_k = X1_H.flip(0)
     X2_H_neg_k = X2_H.flip(0)
     N = x1.size(0)
 
-    conv_H = 0.5 * (torch.einsum('bix,iox->box', X1_H_k, X2_H_k) - 
+    result = 0.5 * (torch.einsum('bix,iox->box', X1_H_k, X2_H_k) - 
                      torch.einsum('bix,iox->box', X1_H_neg_k, X2_H_neg_k) +
                      torch.einsum('bix,iox->box', X1_H_k, X2_H_neg_k) + 
                      torch.einsum('bix,iox->box', X1_H_neg_k, X2_H_k))
 
-    result = inverse_dht(conv_H)
     return result
 
 def compl_mul2d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     # Compute the DHT of both signals
-    X1_H = dht(x1)  # Ensure dht is implemented correctly
-    X2_H = dht(x2)  # Ensure dht is implemented correctly
-    X1_H_k = X1_H
-    X2_H_k = X2_H
+    X1_H_k = x1
+    X2_H_k = x2
     X1_H_neg_k = X1_H.flip(0)
     X2_H_neg_k = X2_H.flip(0)
     N = x1.size(0)
 
-    conv_H = 0.5 * (torch.einsum('bixy,ioxy->boxy', X1_H_k, X2_H_k) - 
+    result = 0.5 * (torch.einsum('bixy,ioxy->boxy', X1_H_k, X2_H_k) - 
                      torch.einsum('bixy,ioxy->boxy', X1_H_neg_k, X2_H_neg_k) +
                      torch.einsum('bixy,ioxy->boxy', X1_H_k, X2_H_neg_k) + 
                      torch.einsum('bixy,ioxy->boxy', X1_H_neg_k, X2_H_k))
 
-    result = inverse_dht(conv_H)
     return result
     
 def compl_mul3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     # Compute the DHT of both signals
-    X1_H = dht(x1)  # Ensure dht is implemented correctly
-    X2_H = dht(x2)  # Ensure dht is implemented correctly
-    X1_H_k = X1_H
-    X2_H_k = X2_H
+    X1_H_k = x1
+    X2_H_k = x2
     X1_H_neg_k = X1_H.flip(0)
     X2_H_neg_k = X2_H.flip(0)
     N = x1.size(0)
 
-    conv_H = 0.5 * (torch.einsum('bixyz,ioxyz->boxyz', X1_H_k, X2_H_k) - 
+    result = 0.5 * (torch.einsum('bixyz,ioxyz->boxyz', X1_H_k, X2_H_k) - 
                      torch.einsum('bixyz,ioxyz->boxyz', X1_H_neg_k, X2_H_neg_k) +
                      torch.einsum('bixyz,ioxyz->boxyz', X1_H_k, X2_H_neg_k) + 
                      torch.einsum('bixyz,ioxyz->boxyz', X1_H_neg_k, X2_H_k))
 
-    result = inverse_dht(conv_H)
     return result
 
 ################################################################
