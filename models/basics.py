@@ -8,10 +8,6 @@ from functools import partial
 import torch.nn.functional as F
 
 def dht(x: torch.Tensor) -> torch.Tensor:
-    # Ensure x is real-valued
-    if not torch.is_real(x):
-        raise ValueError("Input tensor must be real-valued.")
-
     # Get dimensions
     dims = x.shape
     
