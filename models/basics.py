@@ -47,10 +47,8 @@ def compl_mul2d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     # Compute the DHT of both signals
     X1_H_k = x1
     X2_H_k = x2
-    #X1_flipped = torch.flip(x1, dims=[0, 1])
-    #X2_flipped = torch.flip(x1, dims=[0, 1])
     X1_H_neg_k = torch.flip(x1, dims=[0, 1])
-    X2_H_neg_k = torch.flip(x1, dims=[0, 1])
+    X2_H_neg_k = torch.flip(x2, dims=[0, 1])
     N = x1.size(0)
 
     result = 0.5 * (torch.einsum('bixy,ioxy->boxy', X1_H_k, X2_H_k) - 
