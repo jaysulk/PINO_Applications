@@ -8,27 +8,18 @@ from functools import partial
 import torch.nn.functional as F
 
 def dht(x: torch.Tensor) -> torch.Tensor:
-    # Compute the Real FFT of the input tensor
-    X_rfft = torch.rfftn(x)
-    
-    # Convert the RFFT result to the corresponding Hartley transform
-    N = x.size(-1)
-    k = torch.arange(0, N // 2 + 1, dtype=torch.float32)
-    k = k / (N // 2)
-    k = k * (2 * torch.pi)
-    
-    # Define the cosine and sine components for the Hartley Transform
-    cos_k = torch.cos(k)
-    sin_k = torch.sin(k)
-    
-    # Apply the Hartley Transform formula
-    real_part = torch.real(X_rfft)
-    imag_part = torch.imag(X_rfft)
-    
-    hartley_real = real_part * cos_k - imag_part * sin_k
-    hartley_imag = real_part * sin_k + imag_part * cos_k
-    
-    return hartley_real + 1j * hartley_imag
+    """Compute the Discrete Hartley Transform (DHT) of a 1D tensor."""
+    N = x.size(0)
+    k = torch.arange(N, dtype=torch.float32).reshape(-1, 1)  # Column vector of k values
+    n = torch.arange(N, dtype=torch.float32).reshape(1, -1)  # Row vector of n values
+
+    # Calculate the cosine-sine matrix
+    theta = 2 * np.pi * n * k / N
+    cas_matrix = cas(torch.tensor(theta, dtype=torch.float32))
+
+    # Compute the DHT
+    X_H = (1 / torch.sqrt(torch.tensor(N, dtype=torch.float32))) * torch.matmul(cas_matrix, x)
+    return X_H
 
 def idht(X: torch.Tensor) -> torch.Tensor:
     N = X.size(-1)
@@ -39,7 +30,6 @@ def idht(X: torch.Tensor) -> torch.Tensor:
     x = X_transformed / N
     
     return x
-
 
 def compl_mul1d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     # Compute the DHT of both signals
