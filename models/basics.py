@@ -12,18 +12,20 @@ def cas(x):
     return torch.cos(x) + torch.sin(x)
 
 def dht(x: torch.Tensor) -> torch.Tensor:
-    """Compute the Discrete Hartley Transform (DHT) of a 1D tensor."""
+    device = x.device  # Get the device of the input tensor
     N = x.size(0)
-    k = torch.arange(N, dtype=torch.float32).reshape(-1, 1)  # Column vector of k values
-    n = torch.arange(N, dtype=torch.float32).reshape(1, -1)  # Row vector of n values
+    k = torch.arange(N, dtype=torch.float32, device=device).reshape(-1, 1)  # Column vector of k values
+    n = torch.arange(N, dtype=torch.float32, device=device).reshape(1, -1)  # Row vector of n values
 
     # Calculate the cosine-sine matrix
     theta = 2 * np.pi * n * k / N
-    cas_matrix = cas(torch.tensor(theta, dtype=torch.float32))
+    theta = torch.tensor(theta, dtype=torch.float32, device=device)  # Move theta to the same device
+    cas_matrix = cas(theta)
 
     # Compute the DHT
-    X_H = (1 / torch.sqrt(torch.tensor(N, dtype=torch.float32))) * torch.matmul(cas_matrix, x)
+    X_H = (1 / torch.sqrt(torch.tensor(N, dtype=torch.float32, device=device))) * torch.matmul(cas_matrix, x)
     return X_H
+
 
 def idht(X: torch.Tensor) -> torch.Tensor:
     N = X.size(-1)
