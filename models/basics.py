@@ -35,66 +35,84 @@ def compl_mul1d(p: torch.Tensor, q: torch.Tensor) -> torch.Tensor:
     # Compute the DHT of both signals
     X1_H = dht(p)  # Ensure dht is implemented correctly
     X2_H = dht(q)  # Ensure dht is implemented correctly
-    
-    # Reverse the tensors along the last dimension
-    X1_H_neg_k = X1_H.flip(-1)
-    X2_H_neg_k = X2_H.flip(-1)
+    N = x1.size(0)
 
-    # Compute the cyclic convolution in the Hartley domain
-    term1 = torch.einsum("bix,iox->box", X1_H, X2_H)
-    term2 = torch.einsum("bix,iox->box", X1_H_neg_k, X2_H_neg_k)
-    term3 = torch.einsum("bix,iox->box", X1_H, X2_H_neg_k)
-    term4 = torch.einsum("bix,iox->box", X1_H_neg_k, X2_H)
-    
-    conv_H = 0.5 * (term1 - term2 + term3 + term4)
-    
-    # Inverse DHT to get the time-domain result
-    result = idht(conv_H)  # Ensure idht is implemented correctly
-    
+    # Prepare the tensors for einsum
+    X1_H_expanded = torch.stack([X1_H, X1_H.flip(0)], dim=0)  # Shape: (2, N)
+    X2_H_expanded = torch.stack([X2_H, X2_H.flip(0)], dim=0)  # Shape: (2, N)
+
+    # Perform the multiplication using torch.einsum
+    # "bi,io->bo" notation:
+    #   b -> batch index (2 for the two components: [k] and [-k])
+    #   i -> input index (N)
+    #   o -> output index (N)
+    conv_H = 0.5 * torch.einsum(
+        "bix,iox->box",
+        X1_H_expanded,
+        torch.tensor([[1, 1], [1, -1]], dtype=torch.float32).expand(N, -1)
+    ) * torch.einsum(
+        "bix,iox->box",
+        X2_H_expanded,
+        torch.tensor([[1, -1], [1, 1]], dtype=torch.float32).expand(N, -1)
+    )
+
+    result = inverse_dht(conv_H)
     return result
 
 def compl_mul2d(p: torch.Tensor, q: torch.Tensor) -> torch.Tensor:
     # Compute the DHT of both signals
     X1_H = dht(p)  # Ensure dht is implemented correctly
     X2_H = dht(q)  # Ensure dht is implemented correctly
-    
-    # Reverse the tensors along the last dimension
-    X1_H_neg_k = X1_H.flip(-1)
-    X2_H_neg_k = X2_H.flip(-1)
+    N = x1.size(0)
 
-    # Compute the cyclic convolution in the Hartley domain
-    term1 = torch.einsum("bixy,ioxy->boxy", X1_H, X2_H)
-    term2 = torch.einsum("bixy,ioxy->boxy", X1_H_neg_k, X2_H_neg_k)
-    term3 = torch.einsum("bixy,ioxy->boxy", X1_H, X2_H_neg_k)
-    term4 = torch.einsum("bixy,ioxy->boxy", X1_H_neg_k, X2_H)
-    
-    conv_H = 0.5 * (term1 - term2 + term3 + term4)
-    
-    # Inverse DHT to get the time-domain result
-    result = idht(conv_H)  # Ensure idht is implemented correctly
-    
+    # Prepare the tensors for einsum
+    X1_H_expanded = torch.stack([X1_H, X1_H.flip(0)], dim=0)  # Shape: (2, N)
+    X2_H_expanded = torch.stack([X2_H, X2_H.flip(0)], dim=0)  # Shape: (2, N)
+
+    # Perform the multiplication using torch.einsum
+    # "bi,io->bo" notation:
+    #   b -> batch index (2 for the two components: [k] and [-k])
+    #   i -> input index (N)
+    #   o -> output index (N)
+    conv_H = 0.5 * torch.einsum(
+        "bixy,ioxy->boxy",
+        X1_H_expanded,
+        torch.tensor([[1, 1], [1, -1]], dtype=torch.float32).expand(N, -1)
+    ) * torch.einsum(
+        "bixy,ioxy->boxy",
+        X2_H_expanded,
+        torch.tensor([[1, -1], [1, 1]], dtype=torch.float32).expand(N, -1)
+    )
+
+    result = inverse_dht(conv_H)
     return result
     
 def compl_mul3d(p: torch.Tensor, q: torch.Tensor) -> torch.Tensor:
     # Compute the DHT of both signals
     X1_H = dht(p)  # Ensure dht is implemented correctly
     X2_H = dht(q)  # Ensure dht is implemented correctly
-    
-    # Reverse the tensors along the last dimension
-    X1_H_neg_k = X1_H.flip(-1)
-    X2_H_neg_k = X2_H.flip(-1)
+    N = x1.size(0)
 
-    # Compute the cyclic convolution in the Hartley domain
-    term1 = torch.einsum("bixyz,ioxyz->boxyz", X1_H, X2_H)
-    term2 = torch.einsum("bixyz,ioxyz->boxyz", X1_H_neg_k, X2_H_neg_k)
-    term3 = torch.einsum("bixyz,ioxyz->boxyz", X1_H, X2_H_neg_k)
-    term4 = torch.einsum("bixyz,ioxyz->boxyz", X1_H_neg_k, X2_H)
-    
-    conv_H = 0.5 * (term1 - term2 + term3 + term4)
-    
-    # Inverse DHT to get the time-domain result
-    result = idht(conv_H)  # Ensure idht is implemented correctly
-    
+    # Prepare the tensors for einsum
+    X1_H_expanded = torch.stack([X1_H, X1_H.flip(0)], dim=0)  # Shape: (2, N)
+    X2_H_expanded = torch.stack([X2_H, X2_H.flip(0)], dim=0)  # Shape: (2, N)
+
+    # Perform the multiplication using torch.einsum
+    # "bi,io->bo" notation:
+    #   b -> batch index (2 for the two components: [k] and [-k])
+    #   i -> input index (N)
+    #   o -> output index (N)
+    conv_H = 0.5 * torch.einsum(
+        "bixyz,ioxyz->boxyz",
+        X1_H_expanded,
+        torch.tensor([[1, 1], [1, -1]], dtype=torch.float32).expand(N, -1)
+    ) * torch.einsum(
+        "bixyz,ioxyz->boxyz",
+        X2_H_expanded,
+        torch.tensor([[1, -1], [1, 1]], dtype=torch.float32).expand(N, -1)
+    )
+
+    result = inverse_dht(conv_H)
     return result
 
 ################################################################
