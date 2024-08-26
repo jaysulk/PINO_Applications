@@ -8,24 +8,33 @@ from functools import partial
 import torch.nn.functional as F
 
 def cas(x):
-    """Compute the cosine-sine function for the DHT."""
-    return torch.cos(x) + torch.sin(x)
+    return x + x.flip(-1)  # Cosine and Sine in Hartley transform
 
 def dht(x: torch.Tensor) -> torch.Tensor:
-    device = x.device  # Get the device of the input tensor
-    N = x.size(0)
-    k = torch.arange(N, dtype=torch.float32, device=device).reshape(-1, 1)  # Column vector of k values
-    n = torch.arange(N, dtype=torch.float32, device=device).reshape(1, -1)  # Row vector of n values
-
-    # Calculate the cosine-sine matrix
-    theta = 2 * np.pi * n * k / N
-    theta = torch.tensor(theta, dtype=torch.float32, device=device)  # Move theta to the same device
-    cas_matrix = cas(theta)
-
-    # Compute the DHT
-    X_H = (1 / torch.sqrt(torch.tensor(N, dtype=torch.float32, device=device))) * torch.matmul(cas_matrix, x)
-    return X_H
-
+    n = x.shape[-1]
+    
+    if n <= 4:  # Base case, compute FHT directly for small sizes
+        return cas(x)
+    
+    # Reshape for radix-4 decomposition
+    n4 = n // 4
+    x = x.view(-1, 4, n4)
+    
+    # Perform FHT on smaller chunks recursively
+    f0 = radix4_fht(x[:, 0, :])
+    f1 = radix4_fht(x[:, 1, :])
+    f2 = radix4_fht(x[:, 2, :])
+    f3 = radix4_fht(x[:, 3, :])
+    
+    # Combine results using Radix-4 butterfly
+    t0 = f0 + f2
+    t1 = f0 - f2
+    t2 = f1 + f3
+    t3 = f1 - f3
+    
+    output = torch.cat((t0 + t2, t1 + t3, t0 - t2, t1 - t3), dim=-1)
+    
+    return output
 
 def idht(X: torch.Tensor) -> torch.Tensor:
     N = X.size(-1)
