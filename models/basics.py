@@ -13,14 +13,17 @@ def cas(x):
 def dht(x: torch.Tensor) -> torch.Tensor:
     n = x.shape[-1]
     
-    if n <= 4:  # Base case, compute FHT directly for small sizes
+    if n <= 4:  # Base case, compute DHT directly for small sizes
         return cas(x)
     
     # Reshape for radix-4 decomposition
     n4 = n // 4
-    x = x.reshape(-1, 4, n4)
+    if x.dim() == 1:  # If x is 1D
+        x = x.reshape(1, 4, n4)
+    elif x.dim() == 2:  # If x is 2D
+        x = x.reshape(-1, 4, n4)
     
-    # Perform FHT on smaller chunks recursively
+    # Perform DHT on smaller chunks recursively
     f0 = dht(x[:, 0, :])
     f1 = dht(x[:, 1, :])
     f2 = dht(x[:, 2, :])
@@ -35,6 +38,7 @@ def dht(x: torch.Tensor) -> torch.Tensor:
     output = torch.cat((t0 + t2, t1 + t3, t0 - t2, t1 - t3), dim=-1)
     
     return output
+
 
 def idht(X: torch.Tensor) -> torch.Tensor:
     N = X.size(-1)
