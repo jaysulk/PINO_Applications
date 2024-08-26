@@ -18,7 +18,7 @@ def dht(x: torch.Tensor) -> torch.Tensor:
     
     # Reshape for radix-4 decomposition
     n4 = n // 4
-    x = x.view(-1, 4, n4)
+    x = x.reshape(-1, 4, n4)
     
     # Perform FHT on smaller chunks recursively
     f0 = radix4_fht(x[:, 0, :])
