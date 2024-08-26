@@ -21,10 +21,10 @@ def dht(x: torch.Tensor) -> torch.Tensor:
     x = x.reshape(-1, 4, n4)
     
     # Perform FHT on smaller chunks recursively
-    f0 = radix4_fht(x[:, 0, :])
-    f1 = radix4_fht(x[:, 1, :])
-    f2 = radix4_fht(x[:, 2, :])
-    f3 = radix4_fht(x[:, 3, :])
+    f0 = dht(x[:, 0, :])
+    f1 = dht(x[:, 1, :])
+    f2 = dht(x[:, 2, :])
+    f3 = dht(x[:, 3, :])
     
     # Combine results using Radix-4 butterfly
     t0 = f0 + f2
