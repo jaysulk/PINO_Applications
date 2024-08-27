@@ -49,11 +49,9 @@ def compl_mul2d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     X1_H_neg_k = x1.flip(0)
     X2_H_neg_k = x2.flip(0)
     
-    # Find the max dimension size for padding
-    max_dim1 = max(X1_H_k.size(1), X2_H_k.size(1))
-    max_dim2 = max(X1_H_k.size(2), X2_H_k.size(2))
+    # Ensure the dimensions are compatible
+    min_dim = min(X1_H_k.size(1), X2_H_k.size(1))
     
-    # Pad the tensors to match dimensions
     X1_H_k = X1_H_k[:, :min_dim, :]
     X2_H_k = X2_H_k[:, :min_dim, :]
     X1_H_neg_k = X1_H_neg_k[:, :min_dim, :]
