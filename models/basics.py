@@ -46,16 +46,20 @@ def compl_mul2d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     # Compute the DHT of both signals
     X1_H_k = x1
     X2_H_k = x2
-    X1_H_neg_k = torch.roll(torch.flip(x1, dims=[-2, -1]), shifts=(1, 1), dims=[-2, -1])
-    X2_H_neg_k = torch.roll(torch.flip(x2, dims=[-2, -1]), shifts=(1, 1), dims=[-2, -1])
+    X1_H_neg_k = x1.flip(0)
+    X2_H_neg_k = x2.flip(0)
     N = x1.size(0)
 
     result = 0.5 * (torch.einsum('bixy,ioxy->boxy', X1_H_k, X2_H_k) - 
                      torch.einsum('bixy,ioxy->boxy', X1_H_neg_k, X2_H_neg_k) +
                      torch.einsum('bixy,ioxy->boxy', X1_H_k, X2_H_neg_k) + 
                      torch.einsum('bixy,ioxy->boxy', X1_H_neg_k, X2_H_k))
-
-    return result
+    
+    # Calculate phase information using arctan2 approximation
+    phase = torch.atan2(X2_H_k - X2_H_neg_k, X1_H_k - X1_H_neg_k)
+    
+    # Optionally, you can combine this phase information with the result
+    return result + 1j*phase
     
 def compl_mul3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     # Compute the DHT of both signals
