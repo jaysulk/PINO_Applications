@@ -60,10 +60,10 @@ def compl_mul2d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     d = F.pad(X2_H_neg_k, (0, max_dim2 - X2_H_neg_k.size(2), 0, max_dim1 - X2_H_neg_k.size(1)))
     
     # Perform the convolution using DHT components
-    result = 0.5 * (torch.einsum('bix,iox->box', X1_H_k, X2_H_k) - 
-                     torch.einsum('bix,iox->box', X1_H_neg_k, X2_H_neg_k) +
-                     torch.einsum('bix,iox->box', X1_H_k, X2_H_neg_k) + 
-                     torch.einsum('bix,iox->box', X1_H_neg_k, X2_H_k))
+    result = 0.5 * (torch.einsum('bixy,ioxy->boxy', X1_H_k, X2_H_k) - 
+                     torch.einsum('bixy,ioxy->boxy', X1_H_neg_k, X2_H_neg_k) +
+                     torch.einsum('bixy,ioxy->boxy', X1_H_k, X2_H_neg_k) + 
+                     torch.einsum('bixy,ioxy->boxy', X1_H_neg_k, X2_H_k))
 
     # Calculate phase information using arctan2 with padded tensors
     phase = torch.atan2(b - d, a - c)
