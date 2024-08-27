@@ -48,26 +48,19 @@ def compl_mul2d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     X2_H_k = x2
     X1_H_neg_k = x1.flip(0)
     X2_H_neg_k = x2.flip(0)
-          
-    # Perform the convolution using DHT components
-    result = 0.5 * (torch.einsum('bixy,ioxy->boxy', X1_H_k, X2_H_k) - 
-                    torch.einsum('bixy,ioxy->boxy', X1_H_neg_k, X2_H_neg_k) +
-                    torch.einsum('bixy,ioxy->boxy', X1_H_k, X2_H_neg_k) + 
-                    torch.einsum('bixy,ioxy->boxy', X1_H_neg_k, X2_H_k))
-
-    # Find the max dimension sizes for padding in both dimensions
-    max_dim1 = max(X1_H_k.size(1), X2_H_k.size(1), X1_H_neg_k.size(1), X2_H_neg_k.size(1))
-    max_dim2 = max(X1_H_k.size(2), X2_H_k.size(2), X1_H_neg_k.size(2), X2_H_neg_k.size(2))
     
-    # Ensure consistent padding for all tensors to match max dimensions
-    a = F.pad(X1_H_k, (0, max_dim2 - X1_H_k.size(2), 0, max_dim1 - X1_H_k.size(1)))
-    b = F.pad(X2_H_k, (0, max_dim2 - X2_H_k.size(2), 0, max_dim1 - X2_H_k.size(1)))
-    c = F.pad(X1_H_neg_k, (0, max_dim2 - X1_H_neg_k.size(2), 0, max_dim1 - X1_H_neg_k.size(1)))
-    d = F.pad(X2_H_neg_k, (0, max_dim2 - X2_H_neg_k.size(2), 0, max_dim1 - X2_H_neg_k.size(1)))
-
-    # Ensure that all padded tensors have the same shape
-    assert a.size() == b.size() == c.size() == d.size(), "Tensors must have the same shape after padding"
-
+    # Find the maximum sizes across all dimensions for padding
+    max_batch = max(X1_H_k.size(0), X2_H_k.size(0), X1_H_neg_k.size(0), X2_H_neg_k.size(0))
+    max_channels = max(X1_H_k.size(1), X2_H_k.size(1), X1_H_neg_k.size(1), X2_H_neg_k.size(1))
+    max_dim1 = max(X1_H_k.size(2), X2_H_k.size(2), X1_H_neg_k.size(2), X2_H_neg_k.size(2))
+    max_dim2 = max(X1_H_k.size(3), X2_H_k.size(3), X1_H_neg_k.size(3), X2_H_neg_k.size(3))
+    
+    # Pad all tensors to the maximum size across all dimensions
+    a = F.pad(X1_H_k, (0, max_dim2 - X1_H_k.size(3), 0, max_dim1 - X1_H_k.size(2), 0, max_channels - X1_H_k.size(1), 0, max_batch - X1_H_k.size(0)))
+    b = F.pad(X2_H_k, (0, max_dim2 - X2_H_k.size(3), 0, max_dim1 - X2_H_k.size(2), 0, max_channels - X2_H_k.size(1), 0, max_batch - X2_H_k.size(0)))
+    c = F.pad(X1_H_neg_k, (0, max_dim2 - X1_H_neg_k.size(3), 0, max_dim1 - X1_H_neg_k.size(2), 0, max_channels - X1_H_neg_k.size(1), 0, max_batch - X1_H_neg_k.size(0)))
+    d = F.pad(X2_H_neg_k, (0, max_dim2 - X2_H_neg_k.size(3), 0, max_dim1 - X2_H_neg_k.size(2), 0, max_channels - X2_H_neg_k.size(1), 0, max_batch - X2_H_neg_k.size(0)))
+    
     # Calculate phase information using arctan2 with padded tensors
     phase = torch.atan2(b - d, a - c)
     
@@ -75,6 +68,7 @@ def compl_mul2d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     combined_result = result + phase
     
     return combined_result
+
     
 def compl_mul3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     # Compute the DHT of both signals
