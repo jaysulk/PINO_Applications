@@ -43,21 +43,29 @@ def compl_mul1d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     return result
 
 def compl_mul2d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
-    # Compute the DHT of both signals
+   # Compute the DHT of both signals
     X1_H_k = x1
     X2_H_k = x2
     X1_H_neg_k = x1.flip(0)
     X2_H_neg_k = x2.flip(0)
-    N = x1.size(0)
-
-    result = 0.5 * (torch.einsum('bixy,ioxy->boxy', X1_H_k, X2_H_k) - 
-                     torch.einsum('bixy,ioxy->boxy', X1_H_neg_k, X2_H_neg_k) +
-                     torch.einsum('bixy,ioxy->boxy', X1_H_k, X2_H_neg_k) + 
-                     torch.einsum('bixy,ioxy->boxy', X1_H_neg_k, X2_H_k))
     
-    # Calculate phase information using arctan2 approximation
+    # Ensure the dimensions are compatible
+    min_dim = min(X1_H_k.size(1), X2_H_k.size(1))
+    
+    X1_H_k = X1_H_k[:, :min_dim, :]
+    X2_H_k = X2_H_k[:, :min_dim, :]
+    X1_H_neg_k = X1_H_neg_k[:, :min_dim, :]
+    X2_H_neg_k = X2_H_neg_k[:, :min_dim, :]
+    
+    # Perform the convolution using DHT components
+    result = 0.5 * (torch.einsum('bix,iox->box', X1_H_k, X2_H_k) - 
+                     torch.einsum('bix,iox->box', X1_H_neg_k, X2_H_neg_k) +
+                     torch.einsum('bix,iox->box', X1_H_k, X2_H_neg_k) + 
+                     torch.einsum('bix,iox->box', X1_H_neg_k, X2_H_k))
+    
+    # Calculate phase information using arctan2 with matched dimensions
     phase = torch.atan2(X2_H_k - X2_H_neg_k, X1_H_k - X1_H_neg_k)
-    
+       
     # Optionally, you can combine this phase information with the result
     return result + 1j*phase
     
