@@ -43,31 +43,35 @@ def compl_mul1d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     return result
 
 def compl_mul2d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
-   # Compute the DHT of both signals
+    # Compute the DHT of both signals
     X1_H_k = x1
     X2_H_k = x2
     X1_H_neg_k = x1.flip(0)
     X2_H_neg_k = x2.flip(0)
-         
+    
+    # Find the max dimension size for padding
+    max_dim1 = max(X1_H_k.size(1), X2_H_k.size(1))
+    max_dim2 = max(X1_H_k.size(2), X2_H_k.size(2))
+    
+    # Pad the tensors to match dimensions
+    a = F.pad(X1_H_k, (0, max_dim2 - X1_H_k.size(2), 0, max_dim1 - X1_H_k.size(1)))
+    b = F.pad(X2_H_k, (0, max_dim2 - X2_H_k.size(2), 0, max_dim1 - X2_H_k.size(1)))
+    c = F.pad(X1_H_neg_k, (0, max_dim2 - X1_H_neg_k.size(2), 0, max_dim1 - X1_H_neg_k.size(1)))
+    d = F.pad(X2_H_neg_k, (0, max_dim2 - X2_H_neg_k.size(2), 0, max_dim1 - X2_H_neg_k.size(1)))
+    
     # Perform the convolution using DHT components
     result = 0.5 * (torch.einsum('bix,iox->box', X1_H_k, X2_H_k) - 
                      torch.einsum('bix,iox->box', X1_H_neg_k, X2_H_neg_k) +
                      torch.einsum('bix,iox->box', X1_H_k, X2_H_neg_k) + 
                      torch.einsum('bix,iox->box', X1_H_neg_k, X2_H_k))
 
-    # Ensure the dimensions are compatible
-    min_dim = min(X1_H_k.size(1), X2_H_k.size(1))
-
-    a = X1_H_k[:, :min_dim, :]
-    b = X2_H_k[:, :min_dim, :]
-    c = X1_H_neg_k[:, :min_dim, :]
-    d = X2_H_neg_k[:, :min_dim, :]
-    
-    # Calculate phase information using arctan2 with matched dimensions
+    # Calculate phase information using arctan2 with padded tensors
     phase = torch.atan2(b - d, a - c)
-       
-    # Optionally, you can combine this phase information with the result
-    return result + 1j*phase
+    
+    # Combine phase information with the result (you can decide how to combine them)
+    combined_result = result + phase
+    
+    return combined_result
     
 def compl_mul3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     # Compute the DHT of both signals
