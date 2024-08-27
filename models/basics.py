@@ -60,10 +60,10 @@ def compl_mul2d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     max_batch, max_channels, max_dim1, max_dim2 = result_shape
     
     # Pad all tensors to match the dimensions of the result tensor
-    a = F.pad(X1_H_k, (0, max_dim2 - X1_H_k.size(3), 0, max_dim1 - X1_H_k.size(2), 0, max_channels - X1_H_k.size(1), 0, max_batch - X1_H_k.size(0)))
-    b = F.pad(X2_H_k, (0, max_dim2 - X2_H_k.size(3), 0, max_dim1 - X2_H_k.size(2), 0, max_channels - X2_H_k.size(1), 0, max_batch - X2_H_k.size(0)))
-    c = F.pad(X1_H_neg_k, (0, max_dim2 - X1_H_neg_k.size(3), 0, max_dim1 - X1_H_neg_k.size(2), 0, max_channels - X1_H_neg_k.size(1), 0, max_batch - X1_H_neg_k.size(0)))
-    d = F.pad(X2_H_neg_k, (0, max_dim2 - X2_H_neg_k.size(3), 0, max_dim1 - X2_H_neg_k.size(2), 0, max_channels - X2_H_neg_k.size(1), 0, max_batch - X2_H_neg_k.size(0)))
+    a = F.pad(X1_H_k, (0, max_dim2 - X1_H_k.size(3), 0, max_dim1 - X1_H_k.size(2), 0, max_channels - X1_H_k.size(1), 0, max_batch - X1_H_k.size(0)), 0)
+    b = F.pad(X2_H_k, (0, max_dim2 - X2_H_k.size(3), 0, max_dim1 - X2_H_k.size(2), 0, max_channels - X2_H_k.size(1), 0, max_batch - X2_H_k.size(0)), 0)
+    c = F.pad(X1_H_neg_k, (0, max_dim2 - X1_H_neg_k.size(3), 0, max_dim1 - X1_H_neg_k.size(2), 0, max_channels - X1_H_neg_k.size(1), 0, max_batch - X1_H_neg_k.size(0)), 0)
+    d = F.pad(X2_H_neg_k, (0, max_dim2 - X2_H_neg_k.size(3), 0, max_dim1 - X2_H_neg_k.size(2), 0, max_channels - X2_H_neg_k.size(1), 0, max_batch - X2_H_neg_k.size(0)), 0)
     
     # Calculate phase information using arctan2 with padded tensors
     phase = torch.atan2(b - d, a - c)
