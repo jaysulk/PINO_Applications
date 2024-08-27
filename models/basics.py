@@ -64,6 +64,12 @@ def compl_mul2d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
                      torch.einsum('bixy,ioxy->boxy', X1_H_neg_k, X2_H_neg_k) +
                      torch.einsum('bixy,ioxy->boxy', X1_H_k, X2_H_neg_k) + 
                      torch.einsum('bixy,ioxy->boxy', X1_H_neg_k, X2_H_k))
+    
+    # Calculate phase information using arctan2 approximation
+    phase = torch.atan2(X2_H_k - X2_H_neg_k, X1_H_k - X1_H_neg_k)
+    
+    # Optionally, you can combine this phase information with the result
+    return result + 1j*phase
 
     return result
     
