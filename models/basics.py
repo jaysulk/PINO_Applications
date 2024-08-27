@@ -56,8 +56,8 @@ def compl_mul2d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
                      torch.einsum('bixy,ioxy->boxy', X1_H_neg_k, X2_H_k))
 
     # Find the max dimension size for padding
-    max_dim1 = max(X1_H_k.size(1), X2_H_k.size(1))
-    max_dim2 = max(X1_H_k.size(2), X2_H_k.size(2))
+    max_dim1 = max(X1_H_k.size(1), X2_H_k.size(1), X1_H_neg_k.size(1), X2_H_neg_k.size(1))
+    max_dim2 = max(X1_H_k.size(2), X2_H_k.size(2), X1_H_neg_k.size(2), X2_H_neg_k.size(2))
     
     # Pad the tensors to match dimensions
     a = F.pad(X1_H_k, (0, max_dim2 - X1_H_k.size(2), 0, max_dim1 - X1_H_k.size(1)))
