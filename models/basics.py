@@ -58,13 +58,13 @@ def compl_mul2d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     # Ensure the dimensions are compatible
     min_dim = min(X1_H_k.size(1), X2_H_k.size(1))
 
-    X1_H_k = X1_H_k[:, :min_dim, :]
-    X2_H_k = X2_H_k[:, :min_dim, :]
-    X1_H_neg_k = X1_H_neg_k[:, :min_dim, :]
-    X2_H_neg_k = X2_H_neg_k[:, :min_dim, :]
+    a = X1_H_k[:, :min_dim, :]
+    b = X2_H_k[:, :min_dim, :]
+    c = X1_H_neg_k[:, :min_dim, :]
+    d = X2_H_neg_k[:, :min_dim, :]
     
     # Calculate phase information using arctan2 with matched dimensions
-    phase = torch.atan2(X2_H_k - X2_H_neg_k, X1_H_k - X1_H_neg_k)
+    phase = torch.atan2(b - d, a - c)
        
     # Optionally, you can combine this phase information with the result
     return result + 1j*phase
