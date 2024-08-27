@@ -46,16 +46,20 @@ def compl_mul2d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     # Compute the DHT of both signals
     X1_H_k = x1
     X2_H_k = x2
-    X1_H_neg_k = x1.flip(0)
-    X2_H_neg_k = x2.flip(0)
+    X1_H_neg_k = torch.roll(torch.flip(x1, dims=[-1, -2]), shifts=(1, 1), dims=[-1, -2])
+    X2_H_neg_k = torch.roll(torch.flip(x2, dims=[-1, -2]), shifts=(1, 1), dims=[-1, -2])
     
-    # Find the maximum sizes across all dimensions for padding
-    max_batch = max(X1_H_k.size(0), X2_H_k.size(0), X1_H_neg_k.size(0), X2_H_neg_k.size(0))
-    max_channels = max(X1_H_k.size(1), X2_H_k.size(1), X1_H_neg_k.size(1), X2_H_neg_k.size(1))
-    max_dim1 = max(X1_H_k.size(2), X2_H_k.size(2), X1_H_neg_k.size(2), X2_H_neg_k.size(2))
-    max_dim2 = max(X1_H_k.size(3), X2_H_k.size(3), X1_H_neg_k.size(3), X2_H_neg_k.size(3))
+    # Perform the convolution using DHT components
+    result = 0.5 * (torch.einsum('bixy,ioxy->boxy', X1_H_k, X2_H_k) - 
+                    torch.einsum('bixy,ioxy->boxy', X1_H_neg_k, X2_H_neg_k) +
+                    torch.einsum('bixy,ioxy->boxy', X1_H_k, X2_H_neg_k) + 
+                    torch.einsum('bixy,ioxy->boxy', X1_H_neg_k, X2_H_k))
     
-    # Pad all tensors to the maximum size across all dimensions
+    # Get the dimensions of the result tensor
+    result_shape = result.size()
+    max_batch, max_channels, max_dim1, max_dim2 = result_shape
+    
+    # Pad all tensors to match the dimensions of the result tensor
     a = F.pad(X1_H_k, (0, max_dim2 - X1_H_k.size(3), 0, max_dim1 - X1_H_k.size(2), 0, max_channels - X1_H_k.size(1), 0, max_batch - X1_H_k.size(0)))
     b = F.pad(X2_H_k, (0, max_dim2 - X2_H_k.size(3), 0, max_dim1 - X2_H_k.size(2), 0, max_channels - X2_H_k.size(1), 0, max_batch - X2_H_k.size(0)))
     c = F.pad(X1_H_neg_k, (0, max_dim2 - X1_H_neg_k.size(3), 0, max_dim1 - X1_H_neg_k.size(2), 0, max_channels - X1_H_neg_k.size(1), 0, max_batch - X1_H_neg_k.size(0)))
@@ -76,7 +80,6 @@ def compl_mul3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     X2_H_k = x2
     X1_H_neg_k = torch.roll(torch.flip(x1, dims=[-3, -2, -1]), shifts=(1, 1, 1), dims=[-3, -2, -1])
     X2_H_neg_k = torch.roll(torch.flip(x2, dims=[-3, -2, -1]), shifts=(1, 1, 1), dims=[-3, -2, -1])
-    N = x1.size(0)
 
     result = 0.5 * (torch.einsum('bixyz,ioxyz->boxyz', X1_H_k, X2_H_k) - 
                      torch.einsum('bixyz,ioxyz->boxyz', X1_H_neg_k, X2_H_neg_k) +
