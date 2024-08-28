@@ -1,41 +1,34 @@
 import numpy as np
-
 import torch
 import torch.nn as nn
-
 from functools import partial
-
-import torch
 import torch.nn.functional as F
-
-import torch
-
-import torch
 
 def dht(x: torch.Tensor) -> torch.Tensor:
     """
-    Computes the Discrete Hartley Transform (DHT) of an input tensor using the Real FFT (rfftn).
+    Computes the 2D Discrete Hartley Transform (DHT) of an input tensor using the Real FFT (rfftn).
     
     Args:
-    - x (torch.Tensor): The input tensor of arbitrary dimensions.
+    - x (torch.Tensor): The input 2D tensor (e.g., an image).
     
     Returns:
-    - torch.Tensor: The DHT of the input tensor.
+    - torch.Tensor: The 2D DHT of the input tensor.
     """
     # Compute the real FFT of the input tensor
-    X_rfftn = torch.fft.rfftn(x)
+    X_rfftn = torch.fft.rfftn(x, dim=(0, 1))
     
     # Compute the Hartley Transform using the real and imaginary parts of the FFT
     real_part = torch.real(X_rfftn)
     imag_part = torch.imag(X_rfftn)
+    
+    # Hartley Transform is real_part - imag_part
     cas_transform = real_part - imag_part
     
-    # Correct for any tensor size changes due to the rfftn
-    # Need to pad the result to match the input size along the last dimension
-    original_shape = x.shape
-    cas_padded = torch.fft.irfftn(cas_transform, s=original_shape)
+    # Apply the inverse FFT to the cas_transform
+    dht_result = torch.fft.irfftn(cas_transform, s=x.shape, dim=(0, 1))
     
-    return cas_padded
+    return dht_result
+
 
 def idht(x: torch.Tensor) -> torch.Tensor:
     dims = x.size()
