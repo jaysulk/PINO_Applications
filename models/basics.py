@@ -5,7 +5,7 @@ from functools import partial
 import torch.nn.functional as F
 
 def dht(x: torch.Tensor) -> torch.Tensor:
-    X = torch.fft.fft2(x)  # 2D FFT for 2D signals
+    X = torch.fft.fft2(x,norm="ortho")  # 2D FFT for 2D signals
     X = torch.real(X) - torch.imag(X)  # Hartley transform computation
     return X
 
