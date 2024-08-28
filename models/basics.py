@@ -25,9 +25,11 @@ def dht(x: torch.Tensor) -> torch.Tensor:
     cas_transform = real_part - imag_part
     
     # Apply the inverse FFT to the cas_transform
-    dht_result = torch.fft.irfftn(cas_transform, s=x.shape, dim=(0, 1))
+    # Use the shape of the first two dimensions only since those are the transformed dimensions
+    dht_result = torch.fft.irfftn(cas_transform, s=(x.shape[0], x.shape[1]), dim=(0, 1))
     
     return dht_result
+
 
 
 def idht(x: torch.Tensor) -> torch.Tensor:
