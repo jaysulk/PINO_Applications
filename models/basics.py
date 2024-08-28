@@ -5,39 +5,15 @@ from functools import partial
 import torch.nn.functional as F
 
 def dht(x: torch.Tensor) -> torch.Tensor:
-    """
-    Computes the 2D Discrete Hartley Transform (DHT) of an input tensor using the Real FFT (rfftn).
-    
-    Args:
-    - x (torch.Tensor): The input 2D tensor (e.g., an image).
-    
-    Returns:
-    - torch.Tensor: The 2D DHT of the input tensor.
-    """
-    # Compute the real FFT of the input tensor
-    X_rfftn = torch.fft.rfftn(x, dim=(0, 1))
-    
-    # Compute the Hartley Transform using the real and imaginary parts of the FFT
-    real_part = torch.real(X_rfftn)
-    imag_part = torch.imag(X_rfftn)
-    
-    # Hartley Transform is real_part - imag_part
-    cas_transform = real_part - imag_part
-    
-    # Apply the inverse FFT to the cas_transform
-    # Use the shape of the first two dimensions only since those are the transformed dimensions
-    dht_result = torch.fft.irfftn(cas_transform, s=(x.shape[0], x.shape[1]), dim=(0, 1))
-    
-    return dht_result
+    X = torch.fft.fft2(x)  # 2D FFT for 2D signals
+    X = torch.real(X) - torch.imag(X)  # Hartley transform computation
+    return X
 
-
-
-def idht(x: torch.Tensor) -> torch.Tensor:
-    dims = x.size()
-    n = torch.prod(torch.tensor(dims)).item()
-    X = dht(x)
-    H = X / n
-    return H
+def idht(X: torch.Tensor) -> torch.Tensor:
+    n = X.numel()  # Total number of elements in the 2D tensor
+    X = dht(X)  # Apply DHT
+    x = X / n  # Normalize by the total number of elements
+    return x
 
 def compl_mul1d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     # Compute the DHT of both signals
