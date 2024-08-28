@@ -71,24 +71,7 @@ def compl_mul2d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
                     torch.einsum('bixy,ioxy->boxy', X1_H_k, X2_H_neg_k) + 
                     torch.einsum('bixy,ioxy->boxy', X1_H_neg_k, X2_H_k))
     
-    # Get the dimensions of the result tensor
-    result_shape = result.size()
-    max_batch, max_channels, max_dim1, max_dim2 = result_shape
-    
-    # Pad all tensors to match the dimensions of the result tensor
-    a = F.pad(X1_H_k, (0, max_dim2 - X1_H_k.size(3), 0, max_dim1 - X1_H_k.size(2), 0, max_channels - X1_H_k.size(1), 0, max_batch - X1_H_k.size(0)))
-    b = F.pad(X2_H_k, (0, max_dim2 - X2_H_k.size(3), 0, max_dim1 - X2_H_k.size(2), 0, max_channels - X2_H_k.size(1), 0, max_batch - X2_H_k.size(0)))
-    c = F.pad(X1_H_neg_k, (0, max_dim2 - X1_H_neg_k.size(3), 0, max_dim1 - X1_H_neg_k.size(2), 0, max_channels - X1_H_neg_k.size(1), 0, max_batch - X1_H_neg_k.size(0)))
-    d = F.pad(X2_H_neg_k, (0, max_dim2 - X2_H_neg_k.size(3), 0, max_dim1 - X2_H_neg_k.size(2), 0, max_channels - X2_H_neg_k.size(1), 0, max_batch - X2_H_neg_k.size(0)))
-    
-    # Calculate phase information using arctan2 with padded tensors
-    epsilon = 1e-8
-    phase = torch.atan2(b - d + epsilon, a - c + epsilon)
-    
-    # Combine phase information with the result (you can decide how to combine them)
-    combined_result = result + phase
-    
-    return combined_result
+    return result
 
     
 def compl_mul3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
