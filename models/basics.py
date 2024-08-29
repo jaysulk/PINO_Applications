@@ -5,23 +5,16 @@ from functools import partial
 import torch.nn.functional as F
 
 def dht(x: torch.Tensor) -> torch.Tensor:
-    # Perform rfftn which gives an output of shape (M, N//2 + 1)
-    X = torch.fft.rfftn(x, dim=(0, 1))
+    # Perform rfftn on 2D input
+    X_rfft = torch.fft.rfftn(x, dim=(0, 1))
     
-    # Create a tensor that matches the original 2D size (M, N)
-    M, N = x.shape
-    X_full = torch.zeros((M, N), dtype=X.dtype, device=X.device)
-
-    # Fill in the real parts (up to N//2 + 1 columns)
-    X_full[:, :N//2 + 1] = X
-
-    # Fill in the remaining imaginary parts using symmetry for real-valued input
-    X_full[:, N//2 + 1:] = torch.flip(X[:, 1:N//2], dims=(1,))
-
-    # Compute the Hartley transform
-    X_hartley = torch.real(X_full) - torch.imag(X_full)
+    # Reconstruct the full 2D spectrum by appending the mirrored complex conjugate
+    X_rfft_full = torch.cat([X_rfft, X_rfft[:, -2:0:-1].conj()], dim=1)
     
-    return X_hartley
+    # Hartley transform computation
+    X = torch.real(X_rfft_full) - torch.imag(X_rfft_full)
+    
+    return X
 
 def idht(X: torch.Tensor) -> torch.Tensor:
     n = X.numel()  # Total number of elements in the 2D tensor
