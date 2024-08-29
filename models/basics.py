@@ -5,9 +5,10 @@ from functools import partial
 import torch.nn.functional as F
 
 def dht(x: torch.Tensor) -> torch.Tensor:
-    X = torch.fft.fft2(x)  # 2D FFT for 2D signals
+    X = torch.fft.rfftn(x, dim=(0, 1), norm="ortho")  # n-D FFT for real input for 2D signals
     X = torch.real(X) - torch.imag(X)  # Hartley transform computation
     return X
+
 
 def idht(X: torch.Tensor) -> torch.Tensor:
     n = X.numel()  # Total number of elements in the 2D tensor
