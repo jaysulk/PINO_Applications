@@ -7,6 +7,26 @@ from functools import partial
 
 import torch.nn.functional as F
 
+def hash_function(frequency, num_bins):
+    # Example of a simple hash function
+    return (frequency * 2654435761) % num_bins
+
+def hash_to_bins(signal, num_bins):
+    # Assuming the signal is 1D and its length is a power of 2
+    signal_length = signal.size(0)
+    hashed_signal = torch.zeros(num_bins, dtype=signal.dtype, device=signal.device)
+    
+    for freq in range(signal_length):
+        bin_index = hash_function(freq, num_bins)
+        hashed_signal[bin_index] += signal[freq]
+    
+    return hashed_signal
+
+def identify_significant_frequencies(hashed_signal, threshold):
+    # Identify bins with significant frequencies
+    significant_bins = torch.where(hashed_signal.abs() > threshold)[0]
+    return significant_bins
+
 def dht(x: torch.Tensor) -> torch.Tensor:
     M, N = x.size()
     m = torch.arange(M, device=x.device).float()
@@ -31,7 +51,7 @@ def dht(x: torch.Tensor) -> torch.Tensor:
 
 def idht(X: torch.Tensor) -> torch.Tensor:
     n = X.numel()  # Total number of elements in the 2D tensor
-    X = dht(X)  # Apply DHT
+    X = sparse_dht(X)  # Apply DHT
     x = X / n  # Normalize by the total number of elements
     return x
 
@@ -48,6 +68,28 @@ def compl_mul1d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
                      torch.einsum('bix,iox->box', X1_H_neg_k, X2_H_k))
 
     return result
+
+def sparse_dht(signal, num_bins=100, threshold=1e-10):
+    # Step 1: Hash to bins
+    hashed_signal = hash_to_bins(signal, num_bins)
+    
+    # Step 2: Identify significant frequencies
+    significant_frequencies = identify_significant_frequencies(hashed_signal, threshold)
+    
+    # Step 3: Reconstruct the signal from significant frequencies
+    recovered_signal = torch.zeros_like(signal)
+    for freq in significant_frequencies:
+        recovered_signal[freq] = signal[freq]
+    
+    # Perform inverse FFT on the recovered signal
+    return dht(recovered_signal)
+
+# Example usage:
+signal = torch.rand(1024)  # A random 1D signal
+num_bins = 128  # Number of bins to hash into
+threshold = 0.1  # Threshold to identify significant frequencies
+
+sparse_fft_result = sparse_fft(signal, num_bins, threshold)
 
 def compl_mul2d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     # Compute the DHT of both signals
@@ -103,7 +145,7 @@ class SpectralConv1d(nn.Module):
     def forward(self, x):
         batchsize = x.shape[0]
         # Compute Hartley coefficients up to factor of h^(- something constant)
-        x_ht = dht(x)
+        x_ht = sparse_dht(x)
 
         # Multiply relevant Hartley modes
         out_ht = torch.zeros(batchsize, self.in_channels, x.size(-1)//2 + 1, device=x.device, dtype=torch.cfloat)
@@ -139,7 +181,7 @@ class SpectralConv2d(nn.Module):
         size2 = x.shape[-1]
         
         # Compute DHT
-        x_dht = dht(x)
+        x_dht = sparse_dht(x)
         
         # Multiply relevant Hartley modes
         out_dht = torch.zeros(batchsize, self.out_channels, size1, size2, device=x.device)
@@ -169,7 +211,7 @@ class SpectralConv3d(nn.Module):
     def forward(self, x):
         batchsize = x.shape[0]
         # Compute Hartley coefficients up to factor of h^(- something constant)
-        x_ft = torch.fft.rfftn(x, dim=[2, 3, 4])
+        x_ft = sparse_dht(x, dim=[2, 3, 4])
         x_ft_mirror = torch.fft.rfftn(x.flip(dims=[2, 3, 4]), dim=[2, 3, 4])  # F(-u)
         x_ht = x_ft + x_ft_mirror
 
