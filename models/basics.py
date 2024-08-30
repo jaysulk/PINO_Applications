@@ -7,25 +7,26 @@ from functools import partial
 
 import torch.nn.functional as F
 
-def cas(x):
-    """Compute the cosine-sine function for the DHT."""
-    return torch.cos(x) + torch.sin(x)
-
 def dht(x: torch.Tensor) -> torch.Tensor:
-    device = x.device  # Get the device of the input tensor
-    N = x.size(0)
-    k = torch.arange(N, dtype=torch.float32, device=device).reshape(-1, 1)  # Column vector of k values
-    n = torch.arange(N, dtype=torch.float32, device=device).reshape(1, -1)  # Row vector of n values
-
-    # Calculate the cosine-sine matrix
-    theta = 2 * np.pi * n * k / N
-    theta = torch.tensor(theta, dtype=torch.float32, device=device)  # Move theta to the same device
-    cas_matrix = cas(theta)
-
-    # Compute the DHT
-    X_H = (1 / torch.sqrt(torch.tensor(N, dtype=torch.float32, device=device))) * torch.matmul(cas_matrix, x)
-    return X_H
-
+    
+    M, N = x.size()
+    m = torch.arange(M, device=x.device)
+    n = torch.arange(N, device=x.device)
+    
+    # Create the Hartley kernel for rows and columns
+    k_row = m.view(-1, 1).expand(M, N)
+    k_col = n.view(1, -1).expand(M, N)
+    
+    cas_row = torch.cos(2 * torch.pi * k_row * m / M) + torch.sin(2 * torch.pi * k_row * m / M)
+    cas_col = torch.cos(2 * torch.pi * k_col * n / N) + torch.sin(2 * torch.pi * k_col * n / N)
+    
+    # Perform the matrix multiplication between input and the Hartley kernel for rows
+    intermediate = torch.matmul(x, cas_col)
+    
+    # Perform the matrix multiplication between the result and the Hartley kernel for columns
+    X = torch.matmul(cas_row, intermediate)
+    
+    return X
 
 def idht(X: torch.Tensor) -> torch.Tensor:
     N = X.size(-1)
