@@ -8,25 +8,26 @@ from functools import partial
 import torch.nn.functional as F
 
 def dht(x: torch.Tensor) -> torch.Tensor:
-    
     M, N = x.size()
-    m = torch.arange(M, device=x.device)
-    n = torch.arange(N, device=x.device)
-    
+    m = torch.arange(M, device=x.device).float()
+    n = torch.arange(N, device=x.device).float()
+
     # Create the Hartley kernel for rows and columns
     k_row = m.view(-1, 1).expand(M, N)
     k_col = n.view(1, -1).expand(M, N)
-    
+
+    # Hartley kernel computation
     cas_row = torch.cos(2 * torch.pi * k_row * m / M) + torch.sin(2 * torch.pi * k_row * m / M)
     cas_col = torch.cos(2 * torch.pi * k_col * n / N) + torch.sin(2 * torch.pi * k_col * n / N)
-    
+
     # Perform the matrix multiplication between input and the Hartley kernel for rows
     intermediate = torch.matmul(x, cas_col)
-    
+
     # Perform the matrix multiplication between the result and the Hartley kernel for columns
     X = torch.matmul(cas_row, intermediate)
-    
+
     return X
+
 
 def idht(X: torch.Tensor) -> torch.Tensor:
     N = X.size(-1)
