@@ -62,7 +62,7 @@ def compl_mul2d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
                     torch.einsum('bixy,ioxy->boxy', X1_H_k, X2_H_neg_k) + 
                     torch.einsum('bixy,ioxy->boxy', X1_H_neg_k, X2_H_k))
     
-    return result
+    return idht(result)
 
     
 def compl_mul3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
