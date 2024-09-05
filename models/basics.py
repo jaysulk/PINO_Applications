@@ -87,6 +87,29 @@ def match_size(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
     return a
 
 
+import torch
+
+def hilbert_transform(x: torch.Tensor) -> torch.Tensor:
+    """Compute the Hilbert transform to recover imaginary components."""
+    X_rfft = torch.fft.rfftn(x, dim=tuple(range(1, x.ndim)))
+    h = torch.zeros_like(X_rfft)
+    N = X_rfft.shape[-1]
+    if N % 2 == 0:  # if even, handle Nyquist frequency
+        h[..., 1:N//2] = 2
+        h[..., N//2] = 1
+    else:
+        h[..., 1:(N + 1)//2] = 2
+    return torch.fft.irfftn(h * X_rfft, s=x.shape[1:])
+
+def match_size(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
+    """Match the size of two tensors by padding/truncating the larger one."""
+    if a.shape[-1] > b.shape[-1]:
+        a = a[..., :b.shape[-1]]  # Truncate the larger tensor to match
+    elif a.shape[-1] < b.shape[-1]:
+        padding = b.shape[-1] - a.shape[-1]
+        a = torch.nn.functional.pad(a, (0, padding))  # Pad the smaller tensor
+    return a
+
 ################################################################
 # 1D Spectral Convolution Layer with DHT and Hilbert Recovery
 ################################################################
