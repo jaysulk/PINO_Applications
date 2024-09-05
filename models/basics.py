@@ -4,6 +4,18 @@ import torch.nn as nn
 from functools import partial
 import torch.nn.functional as F
 
+def hilbert_transform(x: torch.Tensor) -> torch.Tensor:
+    """Compute the Hilbert transform to recover imaginary components."""
+    X_rfft = torch.fft.rfftn(x, dim=tuple(range(1, x.ndim)))
+    h = torch.zeros_like(X_rfft)
+    N = X_rfft.shape[-1]
+    if N % 2 == 0:  # if even, handle Nyquist frequency
+        h[..., 1:N//2] = 2
+        h[..., N//2] = 1
+    else:
+        h[..., 1:(N + 1)//2] = 2
+    return torch.fft.irfftn(h * X_rfft, s=x.shape[1:])
+
 def dht(x: torch.Tensor) -> torch.Tensor:
     # Perform rfftn on input of any dimensionality
     X_rfft = torch.fft.rfftn(x, dim=tuple(range(1, x.ndim)))
@@ -61,8 +73,9 @@ def compl_mul3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
                      torch.einsum('bixyz,ioxyz->boxyz', X1_H_neg_k, X2_H_neg_k) +
                      torch.einsum('bixyz,ioxyz->boxyz', X1_H_k, X2_H_neg_k) + 
                      torch.einsum('bixyz,ioxyz->boxyz', X1_H_neg_k, X2_H_k))
-
+    
     return result
+
 
 ################################################################
 # 1d fourier layer
