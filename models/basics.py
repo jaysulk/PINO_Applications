@@ -78,7 +78,7 @@ def compl_mul3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
 
 
 ################################################################
-# 1d fourier layer
+# 1D Spectral Convolution Layer with DHT and Hilbert Recovery
 ################################################################
 
 class SpectralConv1d(nn.Module):
@@ -89,22 +89,31 @@ class SpectralConv1d(nn.Module):
         self.out_channels = out_channels
         self.modes1 = modes1
 
-        self.scale = (1 / (in_channels*out_channels))
+        self.scale = (1 / (in_channels * out_channels))
         self.weights1 = nn.Parameter(
-            self.scale * torch.rand(in_channels, out_channels, self.modes1, 2))
+            self.scale * torch.rand(in_channels, out_channels, self.modes1, 2)
+        )
 
     def forward(self, x):
         batchsize = x.shape[0]
+
+        # Apply Hartley and Hilbert transforms to recover full complex info
         x_ht = dht(x)
+        x_hilbert = hilbert_transform(x)
+        
+        # Combine real and imaginary parts to mimic Fourier
+        x_combined = x_ht + 1j * x_hilbert
 
-        out_ht = torch.zeros(batchsize, self.in_channels, x.size(-1)//2 + 1, device=x.device, dtype=torch.cfloat)
-        out_ht[:, :, :self.modes1] = compl_mul1d(x_ht[:, :, :self.modes1], self.weights1)
+        # Perform convolution in spectral (Hartley) space
+        out_ht = torch.zeros(batchsize, self.out_channels, x.size(-1) // 2 + 1, device=x.device, dtype=torch.cfloat)
+        out_ht[:, :, :self.modes1] = compl_mul1d(x_combined[:, :, :self.modes1], self.weights1)
 
-        x = idht(out_ht)
+        # Apply inverse DHT to recover the output in the time domain
+        x = idht(out_ht.real)  # Only the real part is used for the final result
         return x
 
 ################################################################
-# 2d fourier layer
+# 2D Spectral Convolution Layer with DHT and Hilbert Recovery
 ################################################################
 
 class SpectralConv2d(nn.Module):
@@ -117,27 +126,35 @@ class SpectralConv2d(nn.Module):
 
         self.scale = (1 / (in_channels * out_channels))
         self.weights1 = nn.Parameter(
-            self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2))
+            self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2)
+        )
         self.weights2 = nn.Parameter(
-            self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2))
+            self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2)
+        )
 
     def forward(self, x):
         batchsize = x.shape[0]
         size1 = x.shape[-2]
         size2 = x.shape[-1]
+
+        # Apply Hartley and Hilbert transforms for full complex recovery
+        x_ht = dht(x)
+        x_hilbert = hilbert_transform(x)
         
-        x_dht = dht(x)
-        
-        out_dht = torch.zeros(batchsize, self.out_channels, size1, size2, device=x.device)
-        out_dht[:, :, :self.modes1, :self.modes2] = compl_mul2d(x_dht[:, :, :self.modes1, :self.modes2], self.weights1)
-        out_dht[:, :, -self.modes1:, :self.modes2] = compl_mul2d(x_dht[:, :, -self.modes1:, :self.modes2], self.weights2)
-        
-        x = idht(out_dht)
-        
+        # Combine real and imaginary parts
+        x_combined = x_ht + 1j * x_hilbert
+
+        # Perform convolution in the Hartley space
+        out_ht = torch.zeros(batchsize, self.out_channels, size1, size2, device=x.device, dtype=torch.cfloat)
+        out_ht[:, :, :self.modes1, :self.modes2] = compl_mul2d(x_combined[:, :, :self.modes1, :self.modes2], self.weights1)
+        out_ht[:, :, -self.modes1:, :self.modes2] = compl_mul2d(x_combined[:, :, -self.modes1:, :self.modes2], self.weights2)
+
+        # Apply inverse DHT to recover the output in the time domain
+        x = idht(out_ht.real)  # Final result is real part
         return x
 
 ################################################################
-# 3d fourier layer
+# 3D Spectral Convolution Layer with DHT and Hilbert Recovery
 ################################################################
 
 class SpectralConv3d(nn.Module):
@@ -157,12 +174,24 @@ class SpectralConv3d(nn.Module):
 
     def forward(self, x):
         batchsize = x.shape[0]
-        x_ht = dht(x)
 
-        out_ht = torch.zeros(batchsize, self.out_channels, x.size(2), x.size(3), x.size(4)//2 + 1, device=x.device, dtype=torch.cfloat)
+        # Apply Hartley and Hilbert transforms for full complex recovery
+        x_ht = dht(x)
+        x_hilbert = hilbert_transform(x)
+        
+        # Combine real and imaginary parts
+        x_combined = x_ht + 1j * x_hilbert
+
+        # Perform convolution in Hartley space
+        out_ht = torch.zeros(batchsize, self.out_channels, x.size(2), x.size(3), x.size(4) // 2 + 1, device=x.device, dtype=torch.cfloat)
         out_ht[:, :, :self.modes1, :self.modes2, :self.modes3] = \
-            compl_mul3d(x_ht[:, :, :self.modes1, :self.modes2, :self.modes3], self.weights1)
+            compl_mul3d(x_combined[:, :, :self.modes1, :self.modes2, :self.modes3], self.weights1)
         out_ht[:, :, -self.modes1:, :self.modes2, :self.modes3] = \
-            compl_mul3d(x_ht[:, :, -self.modes1:, :self.modes2, :self.modes3], self.weights2)
+            compl_mul3d(x_combined[:, :, -self.modes1:, :self.modes2, :self.modes3], self.weights2)
         out_ht[:, :, :self.modes1, -self.modes2:, :self.modes3] = \
-            compl_mul3d(x_ht[:, :, :self
+            compl_mul3d(x_combined[:, :, :self.modes1, -self.modes2:, :self.modes3], self.weights3)
+
+        # Apply inverse DHT to recover the output in the time domain
+        x = idht(out_ht.real)  # Only the real part is used for the final result
+        return x
+
