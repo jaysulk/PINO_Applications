@@ -86,6 +86,7 @@ def match_size(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
         a = torch.nn.functional.pad(a, (0, padding))  # Pad the smaller tensor
     return a
 
+
 ################################################################
 # 1D Spectral Convolution Layer with DHT and Hilbert Recovery
 ################################################################
@@ -210,6 +211,8 @@ class SpectralConv3d(nn.Module):
         out_ht[:, :, -self.modes1:, :self.modes2, :self.modes3] = \
             compl_mul3d(x_combined[:, :, -self.modes1:, :self.modes2, :self.modes3], self.weights2)
         out_ht[:, :, :self.modes1, -self.modes2:, :self.modes3] = \
-            compl_mul3d(x_combined[:, :, :self.modes1, -self.modes2:,
+            compl_mul3d(x_combined[:, :, :self.modes1, -self.modes2:, :self.modes3], self.weights3)
 
-
+        # Apply inverse DHT to recover the output in the time domain
+        x = idht(out_ht.real)  # Only the real part is used for the final result
+        return x
