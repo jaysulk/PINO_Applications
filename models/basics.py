@@ -4,15 +4,23 @@ import torch.nn as nn
 from functools import partial
 import torch.nn.functional as F
 
+import torch
+
 def dht(x: torch.Tensor) -> torch.Tensor:
     # Perform rfftn on input of any dimensionality
-    X_rfft = torch.fft.rfftn(x, dim=tuple(range(1, x.ndim)))
+    X_rfft = torch.fft.rfftn(x, dim=tuple(range(x.ndim)))
+    
+    # Get the size of the last dimension
+    last_dim_size = X_rfft.size(-1)
     
     # Mirror the Fourier components and exclude the first column if the input size is even
-    mirrored_part = torch.flip(X_rfft, dims=[i + 1 for i in range(x.ndim - 1)]).conj()
+    mirrored_part = torch.flip(X_rfft, dims=[-1]).conj()
+    
+    if last_dim_size % 2 == 0:
+        mirrored_part = mirrored_part[..., 1:]  # Exclude the first column for even-sized input
     
     # Concatenate the original rfft result with the mirrored part
-    X_rfft_full = torch.cat([X_rfft, mirrored_part[..., 1:]], dim=-1)
+    X_rfft_full = torch.cat([X_rfft, mirrored_part], dim=-1)
     
     # Hartley transform computation
     X = torch.real(X_rfft_full) - torch.imag(X_rfft_full)
