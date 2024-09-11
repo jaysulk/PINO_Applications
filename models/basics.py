@@ -4,23 +4,15 @@ import torch.nn as nn
 from functools import partial
 import torch.nn.functional as F
 
-import torch
-
 def dht(x: torch.Tensor) -> torch.Tensor:
-    # Perform rfftn on input of any dimensionality
-    X_rfft = torch.fft.rfftn(x, dim=tuple(range(x.ndim)))
+    # Perform rfftn on 2D input
+    X_rfft = torch.fft.rfftn(x, dim=(0, 1))
     
-    # Get the size of the last dimension
-    last_dim_size = X_rfft.size(-1)
-    
-    # Mirror the Fourier components and exclude the first column if the input size is even
-    mirrored_part = torch.flip(X_rfft, dims=[-1]).conj()
-    
-    if last_dim_size % 2 == 0:
-        mirrored_part = mirrored_part[..., 1:]  # Exclude the first column for even-sized input
+    # Mirror the Fourier components and exclude the first column (axis 1) if the input size is even
+    mirrored_part = torch.flip(X_rfft[:, 1:-1], dims=[1]).conj()
     
     # Concatenate the original rfft result with the mirrored part
-    X_rfft_full = torch.cat([X_rfft, mirrored_part], dim=-1)
+    X_rfft_full = torch.cat([X_rfft, mirrored_part], dim=1)
     
     # Hartley transform computation
     X = torch.real(X_rfft_full) - torch.imag(X_rfft_full)
@@ -28,12 +20,13 @@ def dht(x: torch.Tensor) -> torch.Tensor:
     return X
 
 def idht(X: torch.Tensor) -> torch.Tensor:
-    n = X.numel()  # Total number of elements in the tensor
+    n = X.numel()  # Total number of elements in the 2D tensor
     X = dht(X)  # Apply DHT
     x = X / n  # Normalize by the total number of elements
     return x
 
 def compl_mul1d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
+    # Compute the DHT of both signals
     X1_H_k = x1
     X2_H_k = x2
     X1_H_neg_k = torch.roll(torch.flip(x1, dims=[-1]), shifts=1, dims=[-1])
@@ -47,11 +40,13 @@ def compl_mul1d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     return result
 
 def compl_mul2d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
+    # Compute the DHT of both signals
     X1_H_k = x1
     X2_H_k = x2
     X1_H_neg_k = torch.roll(torch.flip(x1, dims=[-1, -2]), shifts=(1, 1), dims=[-1, -2])
     X2_H_neg_k = torch.roll(torch.flip(x2, dims=[-1, -2]), shifts=(1, 1), dims=[-1, -2])
     
+    # Perform the convolution using DHT components
     result = 0.5 * (torch.einsum('bixy,ioxy->boxy', X1_H_k, X2_H_k) - 
                     torch.einsum('bixy,ioxy->boxy', X1_H_neg_k, X2_H_neg_k) +
                     torch.einsum('bixy,ioxy->boxy', X1_H_k, X2_H_neg_k) + 
@@ -59,7 +54,9 @@ def compl_mul2d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     
     return result
 
+    
 def compl_mul3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
+    # Compute the DHT of both signals
     X1_H_k = x1
     X2_H_k = x2
     X1_H_neg_k = torch.roll(torch.flip(x1, dims=[-3, -2, -1]), shifts=(1, 1, 1), dims=[-3, -2, -1])
@@ -105,6 +102,8 @@ class SpectralConv1d(nn.Module):
         # Return to physical space
         x = idht(out_ht)
         return x
+
+
 
 ################################################################
 # 2d fourier layer
