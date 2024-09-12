@@ -12,9 +12,19 @@ def dht_rfft(x: torch.Tensor, dim: torch.int32)-> torch.Tensor:
     # Compute the real and imaginary parts
     real_part = X_rfft.real
     imag_part = X_rfft.imag
-    
+
     # DHT is the sum of the real part and the negative of the imaginary part
-    return real_part - imag_part
+    dht_result = real_part - imag_part
+    
+    # Now we need to pad the result along the truncated dimensions to match the input size
+    for d in dim:
+        size_diff = x.size(d) - dht_result.size(d)
+        if size_diff > 0:
+            # Pad the missing part by reflecting the data along the truncated axis
+            padding = [(0, size_diff) if i == d else (0, 0) for i in range(dht_result.ndim)]
+            dht_result = torch.nn.functional.pad(dht_result, [p for dim_pad in padding for p in dim_pad])
+    
+    return dht_result
 
 def dht(x: torch.Tensor) -> torch.Tensor:
     if x.ndim == 3:  # For 1D DHT
