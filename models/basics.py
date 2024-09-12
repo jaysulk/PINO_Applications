@@ -5,9 +5,9 @@ from functools import partial
 import torch.nn.functional as F
 
 
-def dht_rfft(x: torch.Tensor, dims: int)-> torch.Tensor:
+def dht_rfft(x: torch.Tensor, dim: torch.int32)-> torch.Tensor:
     # Compute the real FFT of the input tensor over the specified dimensions
-    X_rfft = torch.fft.rfftn(x, dim=dims)
+    X_rfft = torch.fft.rfftn(x, dim=dim)
     
     # Compute the real and imaginary parts
     real_part = X_rfft.real
