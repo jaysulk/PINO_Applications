@@ -71,7 +71,7 @@ def dht(x: torch.Tensor) -> torch.Tensor:
         return X
 
     else:
-        raise ValueError("Input tensor must be 1D, 2D, or 3D.")
+        raise ValueError(f"Input tensor must be 1D, 2D, or 3D, but got {x.dim()}D with shape {x.shape}.")
 
 def idht(X: torch.Tensor) -> torch.Tensor:
     # Calculate the total number of elements in the tensor
