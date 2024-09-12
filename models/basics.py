@@ -7,33 +7,84 @@ from functools import partial
 
 import torch.nn.functional as F
 
+import torch
+
 def dht(x: torch.Tensor) -> torch.Tensor:
-    M, N = x.size()
-    m = torch.arange(M, device=x.device).float()
-    n = torch.arange(N, device=x.device).float()
+    if x.dim() == 1:
+        # 1D case
+        N = x.size(0)
+        n = torch.arange(N, device=x.device).float()
 
-    # Create the Hartley kernel for rows and columns
-    k_row = m.view(-1, 1).expand(M, N)
-    k_col = n.view(1, -1).expand(M, N)
+        # Hartley kernel for 1D
+        cas = torch.cos(2 * torch.pi * n * n / N) + torch.sin(2 * torch.pi * n * n / N)
 
-    # Hartley kernel computation
-    cas_row = torch.cos(2 * torch.pi * k_row * m / M) + torch.sin(2 * torch.pi * k_row * m / M)
-    cas_col = torch.cos(2 * torch.pi * k_col * n / N) + torch.sin(2 * torch.pi * k_col * n / N)
+        # Perform the DHT
+        X = torch.matmul(x, cas)
+        return X
 
-    # Perform the matrix multiplication between input and the Hartley kernel for rows
-    intermediate = torch.matmul(x, cas_col)
+    elif x.dim() == 2:
+        # 2D case
+        M, N = x.size()
+        m = torch.arange(M, device=x.device).float()
+        n = torch.arange(N, device=x.device).float()
 
-    # Perform the matrix multiplication between the result and the Hartley kernel for columns
-    X = torch.matmul(cas_row, intermediate)
+        # Create the Hartley kernel for rows and columns
+        k_row = m.view(-1, 1).expand(M, N)
+        k_col = n.view(1, -1).expand(M, N)
 
-    return X
+        # Hartley kernel computation
+        cas_row = torch.cos(2 * torch.pi * k_row * m / M) + torch.sin(2 * torch.pi * k_row * m / M)
+        cas_col = torch.cos(2 * torch.pi * k_col * n / N) + torch.sin(2 * torch.pi * k_col * n / N)
 
+        # Perform the matrix multiplication between input and the Hartley kernel for rows
+        intermediate = torch.matmul(x, cas_col)
+
+        # Perform the matrix multiplication between the result and the Hartley kernel for columns
+        X = torch.matmul(cas_row, intermediate)
+        return X
+
+    elif x.dim() == 3:
+        # 3D case
+        D, M, N = x.size()
+        d = torch.arange(D, device=x.device).float()
+        m = torch.arange(M, device=x.device).float()
+        n = torch.arange(N, device=x.device).float()
+
+        # Create the Hartley kernels for depth, rows, and columns
+        k_depth = d.view(-1, 1, 1).expand(D, M, N)
+        k_row = m.view(1, -1, 1).expand(D, M, N)
+        k_col = n.view(1, 1, -1).expand(D, M, N)
+
+        # Hartley kernel computation for 3D (depth, rows, and columns)
+        cas_depth = torch.cos(2 * torch.pi * k_depth * d / D) + torch.sin(2 * torch.pi * k_depth * d / D)
+        cas_row = torch.cos(2 * torch.pi * k_row * m / M) + torch.sin(2 * torch.pi * k_row * m / M)
+        cas_col = torch.cos(2 * torch.pi * k_col * n / N) + torch.sin(2 * torch.pi * k_col * n / N)
+
+        # Perform matrix multiplication along each dimension
+        # First multiply along the depth dimension
+        intermediate = torch.einsum('dmn,dmn->dmn', x, cas_col)
+
+        # Then multiply along the row and column dimensions
+        intermediate = torch.einsum('dmn,dmn->dmn', intermediate, cas_row)
+        X = torch.einsum('dmn,dmn->dmn', intermediate, cas_depth)
+
+        return X
+
+    else:
+        raise ValueError("Input tensor must be 1D, 2D, or 3D.")
 
 def idht(X: torch.Tensor) -> torch.Tensor:
-    n = X.numel()  # Total number of elements in the 2D tensor
-    X = dht(X)  # Apply DHT
-    x = X / n  # Normalize by the total number of elements
+    # Calculate the total number of elements in the tensor
+    n = X.numel()
+
+    # Apply the DHT (the inverse DHT is essentially the DHT again)
+    x = dht(X)
+
+    # Normalize by the total number of elements
+    x = x / n
+
     return x
+
 
 def compl_mul1d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     # Compute the DHT of both signals
