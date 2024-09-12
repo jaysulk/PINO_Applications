@@ -151,12 +151,20 @@ class PINO2d(nn.Module):
             if i != length - 1:
                 x1 = speconv(x)
                 x2 = w(x.view(batchsize, self.layers[i], -1))\
-                    .view(batchsize, self.layers[i+1], size_x, size_y)
+                .view(batchsize, self.layers[i+1], size_x, size_y)
+                if x1.shape[3] < x2.shape[3]:
+                    x1 = F.pad(x1, (0, x2.shape[3]-x1.shape[3], 0, 0, 0, 0))
+                else:
+                    x2 = F.pad(x2, (0, x1.shape[3]-x2.shape[3], 0, 0, 0, 0))
                 x = x1 + x2
                 x = F.selu(x)
             else:
                 x1 = speconv(x, y).reshape(batchsize, self.layers[-1], -1)
                 x2 = w(x, y).reshape(batchsize, self.layers[-1], -1)
+                if x1.shape[3] < x2.shape[3]:
+                    x1 = F.pad(x1, (0, x2.shape[3]-x1.shape[3], 0, 0, 0, 0))
+                else:
+                     x2 = F.pad(x2, (0, x1.shape[3]-x2.shape[3], 0, 0, 0, 0))
                 x = x1 + x2
         x = x.permute(0, 2, 1)
         x = self.fc1(x)
