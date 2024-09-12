@@ -4,20 +4,27 @@ import torch.nn as nn
 from functools import partial
 import torch.nn.functional as F
 
+
+def dht_rfft(x: torch.Tensor, dims: int)-> torch.Tensor:
+    # Compute the real FFT of the input tensor over the specified dimensions
+    X_rfft = torch.fft.rfftn(x, dim=dims)
+    
+    # Compute the real and imaginary parts
+    real_part = X_rfft.real
+    imag_part = X_rfft.imag
+    
+    # DHT is the sum of the real part and the negative of the imaginary part
+    return real_part - imag_part
+
 def dht(x: torch.Tensor) -> torch.Tensor:
-    # Perform rfftn on 2D input
-    X_rfft = torch.fft.rfftn(x, dim=(0, 1))
-    
-    # Mirror the Fourier components and exclude the first column (axis 1) if the input size is even
-    mirrored_part = torch.flip(X_rfft[:, 1:-1], dims=[1]).conj()
-    
-    # Concatenate the original rfft result with the mirrored part
-    X_rfft_full = torch.cat([X_rfft, mirrored_part], dim=1)
-    
-    # Hartley transform computation
-    X = torch.real(X_rfft_full) - torch.imag(X_rfft_full)
-    
-    return X
+    if x.ndim == 3:  # For 1D DHT
+        return dht_rfft(x, dim=[2])
+    elif x.ndim == 4:  # For 2D DHT
+        return dht_rfft(x, dim=[2, 3])
+    elif x.ndim == 5:  # For 3D DHT
+        return dht_rfft(x, dim=[2, 3, 4])
+    else:
+        raise ValueError("Only 1D (3D tensors), 2D (4D tensors), and 3D (5D tensors) tensors are supported.")
 
 def idht(X: torch.Tensor) -> torch.Tensor:
     n = X.numel()  # Total number of elements in the 2D tensor
