@@ -12,17 +12,21 @@ def dht_rfft(x: torch.Tensor, dim: torch.int32)-> torch.Tensor:
     # Compute the real and imaginary parts
     real_part = X_rfft.real
     imag_part = X_rfft.imag
-
+    
     # DHT is the sum of the real part and the negative of the imaginary part
     dht_result = real_part - imag_part
     
     # Now we need to pad the result along the truncated dimensions to match the input size
+    original_shape = list(x.shape)
+    
+    # For each dimension in dims, pad the result tensor to match the original shape
     for d in dim:
-        size_diff = x.size(d) - dht_result.size(d)
+        size_diff = original_shape[d] - dht_result.shape[d]
         if size_diff > 0:
-            # Pad the missing part by reflecting the data along the truncated axis
-            padding = [(0, size_diff) if i == d else (0, 0) for i in range(dht_result.ndim)]
-            dht_result = torch.nn.functional.pad(dht_result, [p for dim_pad in padding for p in dim_pad])
+            # Padding is applied at the end of the dimension (not both sides)
+            pad = [0] * (2 * len(dht_result.shape))  # Initialize no padding
+            pad[2 * (d + 1) - 1] = size_diff  # Set padding at the end of the dimension
+            dht_result = torch.nn.functional.pad(dht_result, pad)
     
     return dht_result
 
