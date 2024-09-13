@@ -62,59 +62,28 @@ def dht(x: torch.Tensor) -> torch.Tensor:
         raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
 
 
-import torch
-
 def idht(x: torch.Tensor) -> torch.Tensor:
+    # Compute the DHT
+    transformed = dht(x)
+    
+    # Determine normalization factor
     if x.ndim == 3:
-        # 1D case (input is a 3D tensor)
-        D, M, N = x.size()
-        N = M  # For 1D case, M and N should be the same size
-        n = torch.arange(N, device=x.device).float()
-
-        # Hartley kernel for 1D
-        cas = torch.cos(2 * torch.pi * n.view(-1, 1) * n / N) + torch.sin(2 * torch.pi * n.view(-1, 1) * n / N)
-
-        # Inverse DHT
-        X = torch.matmul(cas.T, x.reshape(N, -1))
-        return X.reshape(D, M, N) / N
-
+        # 1D case (3D tensor input)
+        N = x.size(1)  # N is the size of the last dimension
+        normalization_factor = N
     elif x.ndim == 4:
-        # 2D case (input is a 4D tensor)
-        B, D, M, N = x.size()
-        m = torch.arange(M, device=x.device).float()
-        n = torch.arange(N, device=x.device).float()
-
-        # Hartley kernels for rows and columns
-        cas_row = torch.cos(2 * torch.pi * m.view(-1, 1) * m / M) + torch.sin(2 * torch.pi * m.view(-1, 1) * m / M)
-        cas_col = torch.cos(2 * torch.pi * n.view(-1, 1) * n / N) + torch.sin(2 * torch.pi * n.view(-1, 1) * n / N)
-
-        # Inverse DHT
-        x_reshaped = x.reshape(B * D, M, N)
-        intermediate = torch.matmul(x_reshaped, cas_col.T)
-        X = torch.matmul(cas_row.T, intermediate)
-        return X.reshape(B, D, M, N) / (M * N)
-
+        # 2D case (4D tensor input)
+        M, N = x.size(2), x.size(3)
+        normalization_factor = M * N
     elif x.ndim == 5:
-        # 3D case (input is a 5D tensor)
-        B, C, D, M, N = x.size()
-        d = torch.arange(D, device=x.device).float()
-        m = torch.arange(M, device=x.device).float()
-        n = torch.arange(N, device=x.device).float()
-
-        # Hartley kernels for depth, rows, and columns
-        cas_depth = torch.cos(2 * torch.pi * d.view(-1, 1, 1) * d / D) + torch.sin(2 * torch.pi * d.view(-1, 1, 1) * d / D)
-        cas_row = torch.cos(2 * torch.pi * m.view(1, -1, 1) * m / M) + torch.sin(2 * torch.pi * m.view(1, -1, 1) * m / M)
-        cas_col = torch.cos(2 * torch.pi * n.view(1, 1, -1) * n / N) + torch.sin(2 * torch.pi * n.view(1, 1, -1) * n / N)
-
-        # Inverse DHT
-        x_reshaped = x.reshape(B * C, D, M, N)
-        intermediate = torch.einsum('bcde,cfde->bcfe', x_reshaped, cas_col.T)
-        intermediate = torch.einsum('bcfe,cfm->bcme', intermediate, cas_row.T)
-        X = torch.einsum('bcme,cfm->bcme', intermediate, cas_depth.T)
-        return X.reshape(B, C, D, M, N) / (D * M * N)
-
+        # 3D case (5D tensor input)
+        D, M, N = x.size(2), x.size(3), x.size(4)
+        normalization_factor = D * M * N
     else:
         raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
+
+    # Normalize the transformed result
+    return transformed / normalization_factor
 
 
 def compl_mul1d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
