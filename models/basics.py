@@ -10,68 +10,57 @@ import torch.nn.functional as F
 import torch
 
 def dht(x: torch.Tensor) -> torch.Tensor:
-    if x.dim() == 1:
-        # 1D case
-        N = x.size(0)
+    if x.ndim == 3:
+        # 1D case (input is a 3D tensor)
+        D, M, N = x.size()
+        N = M  # For 1D case, M and N should be the same size
         n = torch.arange(N, device=x.device).float()
 
         # Hartley kernel for 1D
-        cas = torch.cos(2 * torch.pi * n * n / N) + torch.sin(2 * torch.pi * n * n / N)
+        cas = torch.cos(2 * torch.pi * n.view(-1, 1) * n / N) + torch.sin(2 * torch.pi * n.view(-1, 1) * n / N)
 
         # Perform the DHT
-        X = torch.matmul(x, cas)
-        return X
+        X = torch.matmul(cas, x.view(N, -1))
+        return X.view(D, M, N)
 
-    elif x.dim() == 2:
-        # 2D case
-        M, N = x.size()
+    elif x.ndim == 4:
+        # 2D case (input is a 4D tensor)
+        B, D, M, N = x.size()
         m = torch.arange(M, device=x.device).float()
         n = torch.arange(N, device=x.device).float()
 
-        # Create the Hartley kernel for rows and columns
-        k_row = m.view(-1, 1).expand(M, N)
-        k_col = n.view(1, -1).expand(M, N)
+        # Hartley kernels for rows and columns
+        cas_row = torch.cos(2 * torch.pi * m.view(-1, 1) * m / M) + torch.sin(2 * torch.pi * m.view(-1, 1) * m / M)
+        cas_col = torch.cos(2 * torch.pi * n.view(-1, 1) * n / N) + torch.sin(2 * torch.pi * n.view(-1, 1) * n / N)
 
-        # Hartley kernel computation
-        cas_row = torch.cos(2 * torch.pi * k_row * m / M) + torch.sin(2 * torch.pi * k_row * m / M)
-        cas_col = torch.cos(2 * torch.pi * k_col * n / N) + torch.sin(2 * torch.pi * k_col * n / N)
-
-        # Perform the matrix multiplication between input and the Hartley kernel for rows
-        intermediate = torch.matmul(x, cas_col)
-
-        # Perform the matrix multiplication between the result and the Hartley kernel for columns
+        # Perform the DHT
+        x_reshaped = x.view(B * D, M, N)
+        intermediate = torch.matmul(x_reshaped, cas_col)
         X = torch.matmul(cas_row, intermediate)
-        return X
+        return X.view(B, D, M, N)
 
-    elif x.dim() == 3:
-        # 3D case
-        D, M, N = x.size()
+    elif x.ndim == 5:
+        # 3D case (input is a 5D tensor)
+        B, C, D, M, N = x.size()
         d = torch.arange(D, device=x.device).float()
         m = torch.arange(M, device=x.device).float()
         n = torch.arange(N, device=x.device).float()
 
-        # Create the Hartley kernels for depth, rows, and columns
-        k_depth = d.view(-1, 1, 1).expand(D, M, N)
-        k_row = m.view(1, -1, 1).expand(D, M, N)
-        k_col = n.view(1, 1, -1).expand(D, M, N)
+        # Hartley kernels for depth, rows, and columns
+        cas_depth = torch.cos(2 * torch.pi * d.view(-1, 1, 1) * d / D) + torch.sin(2 * torch.pi * d.view(-1, 1, 1) * d / D)
+        cas_row = torch.cos(2 * torch.pi * m.view(1, -1, 1) * m / M) + torch.sin(2 * torch.pi * m.view(1, -1, 1) * m / M)
+        cas_col = torch.cos(2 * torch.pi * n.view(1, 1, -1) * n / N) + torch.sin(2 * torch.pi * n.view(1, 1, -1) * n / N)
 
-        # Hartley kernel computation for 3D (depth, rows, and columns)
-        cas_depth = torch.cos(2 * torch.pi * k_depth * d / D) + torch.sin(2 * torch.pi * k_depth * d / D)
-        cas_row = torch.cos(2 * torch.pi * k_row * m / M) + torch.sin(2 * torch.pi * k_row * m / M)
-        cas_col = torch.cos(2 * torch.pi * k_col * n / N) + torch.sin(2 * torch.pi * k_col * n / N)
-
-        # Perform matrix multiplication along each dimension
-        # First multiply along the depth dimension
-        intermediate = torch.einsum('dmn,dmn->dmn', x, cas_col)
-
-        # Then multiply along the row and column dimensions
-        intermediate = torch.einsum('dmn,dmn->dmn', intermediate, cas_row)
-        X = torch.einsum('dmn,dmn->dmn', intermediate, cas_depth)
-
-        return X
+        # Perform the DHT
+        x_reshaped = x.view(B * C, D, M, N)
+        intermediate = torch.einsum('bcde,cfde->bcfe', x_reshaped, cas_col)
+        intermediate = torch.einsum('bcfe,cfm->bcme', intermediate, cas_row)
+        X = torch.einsum('bcme,cfm->bcme', intermediate, cas_depth)
+        return X.view(B, C, D, M, N)
 
     else:
-        raise ValueError(f"Input tensor must be 1D, 2D, or 3D, but got {x.dim()}D with shape {x.shape}.")
+        raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
+
 
 def idht(X: torch.Tensor) -> torch.Tensor:
     # Calculate the total number of elements in the tensor
