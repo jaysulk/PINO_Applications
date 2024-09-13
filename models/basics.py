@@ -20,8 +20,8 @@ def dht(x: torch.Tensor) -> torch.Tensor:
         cas = torch.cos(2 * torch.pi * n.view(-1, 1) * n / N) + torch.sin(2 * torch.pi * n.view(-1, 1) * n / N)
 
         # Perform the DHT
-        X = torch.matmul(cas, x.view(N, -1))
-        return X.view(D, M, N)
+        X = torch.matmul(cas, x.reshape(N, -1))
+        return X.reshape(D, M, N)
 
     elif x.ndim == 4:
         # 2D case (input is a 4D tensor)
@@ -34,10 +34,10 @@ def dht(x: torch.Tensor) -> torch.Tensor:
         cas_col = torch.cos(2 * torch.pi * n.view(-1, 1) * n / N) + torch.sin(2 * torch.pi * n.view(-1, 1) * n / N)
 
         # Perform the DHT
-        x_reshaped = x.view(B * D, M, N)
+        x_reshaped = x.reshape(B * D, M, N)
         intermediate = torch.matmul(x_reshaped, cas_col)
         X = torch.matmul(cas_row, intermediate)
-        return X.view(B, D, M, N)
+        return X.reshape(B, D, M, N)
 
     elif x.ndim == 5:
         # 3D case (input is a 5D tensor)
@@ -52,11 +52,11 @@ def dht(x: torch.Tensor) -> torch.Tensor:
         cas_col = torch.cos(2 * torch.pi * n.view(1, 1, -1) * n / N) + torch.sin(2 * torch.pi * n.view(1, 1, -1) * n / N)
 
         # Perform the DHT
-        x_reshaped = x.view(B * C, D, M, N)
+        x_reshaped = x.reshape(B * C, D, M, N)
         intermediate = torch.einsum('bcde,cfde->bcfe', x_reshaped, cas_col)
         intermediate = torch.einsum('bcfe,cfm->bcme', intermediate, cas_row)
         X = torch.einsum('bcme,cfm->bcme', intermediate, cas_depth)
-        return X.view(B, C, D, M, N)
+        return X.reshape(B, C, D, M, N)
 
     else:
         raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
