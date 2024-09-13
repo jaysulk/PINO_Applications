@@ -4,8 +4,7 @@ import torch.nn as nn
 from functools import partial
 import torch.nn.functional as F
 
-
-def dht_rfft(x: torch.Tensor, dim: torch.int32)-> torch.Tensor:
+def dht_rfft(x: torch.Tensor, dim: torch.Tensor) -> torch.Tensor:
     # Compute the real FFT of the input tensor over the specified dimensions
     X_rfft = torch.fft.rfftn(x, dim=dim)
     
@@ -16,19 +15,22 @@ def dht_rfft(x: torch.Tensor, dim: torch.int32)-> torch.Tensor:
     # DHT is the sum of the real part and the negative of the imaginary part
     dht_result = real_part - imag_part
     
-    # Now we need to pad the result along the truncated dimensions to match the input size
-    original_shape = list(x.shape)
+    # Compute the shape needed to match the input tensor's shape
+    input_shape = x.shape
     
-    # For each dimension in dims, pad the result tensor to match the original shape
-    for d in dim:
-        size_diff = original_shape[d] - dht_result.shape[d]
-        if size_diff > 0:
-            # Padding is applied at the end of the dimension (not both sides)
-            pad = [0] * (2 * len(dht_result.shape))  # Initialize no padding
-            pad[2 * (d + 1) - 1] = size_diff  # Set padding at the end of the dimension
-            dht_result = torch.nn.functional.pad(dht_result, pad)
-    
-    return dht_result
+    # Adjust the shape of dht_result to match input_shape
+    # Use padding if needed
+    if dht_result.shape != input_shape:
+        # Create an output tensor with the same shape as the input
+        dht_adjusted = torch.zeros_like(x)
+        
+        # Calculate slices to insert the dht_result into the padded tensor
+        slices = tuple(slice(0, s) for s in dht_result.shape)
+        dht_adjusted[slices] = dht_result
+        
+        return dht_adjusted
+    else:
+        return dht_result
 
 def dht(x: torch.Tensor) -> torch.Tensor:
     if x.ndim == 3:  # For 1D DHT
