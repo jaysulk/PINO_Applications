@@ -42,11 +42,28 @@ def dht(x: torch.Tensor) -> torch.Tensor:
     else:
         raise ValueError("Only 1D (3D tensors), 2D (4D tensors), and 3D (5D tensors) tensors are supported.")
 
-def idht(X: torch.Tensor) -> torch.Tensor:
-    n = X.numel()  # Total number of elements in the 2D tensor
-    X = dht(X)  # Apply DHT
-    x = X / n  # Normalize by the total number of elements
-    return x
+def idht(x: torch.Tensor) -> torch.Tensor:
+    # Compute the DHT
+    transformed = dht(x)
+    
+    # Determine normalization factor
+    if x.ndim == 3:
+        # 1D case (3D tensor input)
+        N = x.size(1)  # N is the size of the last dimension
+        normalization_factor = N
+    elif x.ndim == 4:
+        # 2D case (4D tensor input)
+        M, N = x.size(2), x.size(3)
+        normalization_factor = M * N
+    elif x.ndim == 5:
+        # 3D case (5D tensor input)
+        D, M, N = x.size(2), x.size(3), x.size(4)
+        normalization_factor = D * M * N
+    else:
+        raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
+
+    # Normalize the transformed result
+    return transformed / normalization_factor
 
 def compl_mul1d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     # Compute the DHT of both signals
