@@ -7,9 +7,40 @@ from functools import partial
 
 import torch.nn.functional as F
 
-import torch
 
-def dht(x: torch.Tensor) -> torch.Tensor:
+def low_pass_filter(hartley_coeffs: torch.Tensor, threshold: float) -> torch.Tensor:
+    """
+    Apply a low-pass filter to the Hartley coefficients.
+    Zero out or attenuate frequencies above the threshold.
+    
+    Parameters:
+    hartley_coeffs (torch.Tensor): Hartley coefficients after DHT.
+    threshold (float): Fraction of frequencies to keep (0 < threshold <= 1).
+    
+    Returns:
+    torch.Tensor: Filtered Hartley coefficients.
+    """
+    assert 0 < threshold <= 1, "Threshold must be a value between 0 and 1."
+
+    # Get the number of frequencies
+    N = hartley_coeffs.shape[-1]
+    freq_cutoff = int(N * threshold)
+
+    # Zero out or attenuate high frequencies
+    hartley_coeffs[..., freq_cutoff:] = 0.0
+    return hartley_coeffs
+
+def dht(x: torch.Tensor, threshold: float = 1.0) -> torch.Tensor:
+    """
+    Compute the Discrete Hartley Transform (DHT) with an optional low-pass filter.
+
+    Parameters:
+    x (torch.Tensor): Input tensor (3D, 4D, or 5D).
+    threshold (float): Fraction of frequencies to keep after DHT (0 < threshold <= 1).
+
+    Returns:
+    torch.Tensor: DHT of the input tensor with optional low-pass filtering.
+    """
     if x.ndim == 3:
         # 1D case (input is a 3D tensor)
         D, M, N = x.size()
@@ -20,8 +51,11 @@ def dht(x: torch.Tensor) -> torch.Tensor:
         cas = torch.cos(2 * torch.pi * n.view(-1, 1) * n / N) + torch.sin(2 * torch.pi * n.view(-1, 1) * n / N)
 
         # Perform the DHT
-        X = torch.matmul(cas, x.reshape(N, -1))
-        return X.reshape(D, M, N)
+        X = torch.matmul(cas, x.reshape(N, -1)).reshape(D, M, N)
+
+        # Apply low-pass filter
+        X = low_pass_filter(X, threshold)
+        return X
 
     elif x.ndim == 4:
         # 2D case (input is a 4D tensor)
@@ -36,8 +70,11 @@ def dht(x: torch.Tensor) -> torch.Tensor:
         # Perform the DHT
         x_reshaped = x.reshape(B * D, M, N)
         intermediate = torch.matmul(x_reshaped, cas_col)
-        X = torch.matmul(cas_row, intermediate)
-        return X.reshape(B, D, M, N)
+        X = torch.matmul(cas_row, intermediate).reshape(B, D, M, N)
+
+        # Apply low-pass filter
+        X = low_pass_filter(X, threshold)
+        return X
 
     elif x.ndim == 5:
         # 3D case (input is a 5D tensor)
@@ -55,12 +92,14 @@ def dht(x: torch.Tensor) -> torch.Tensor:
         x_reshaped = x.reshape(B * C, D, M, N)
         intermediate = torch.einsum('bcde,cfde->bcfe', x_reshaped, cas_col)
         intermediate = torch.einsum('bcfe,cfm->bcme', intermediate, cas_row)
-        X = torch.einsum('bcme,cfm->bcme', intermediate, cas_depth)
-        return X.reshape(B, C, D, M, N)
+        X = torch.einsum('bcme,cfm->bcme', intermediate, cas_depth).reshape(B, C, D, M, N)
+
+        # Apply low-pass filter
+        X = low_pass_filter(X, threshold)
+        return X
 
     else:
         raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
-
 
 def idht(x: torch.Tensor) -> torch.Tensor:
     # Compute the DHT
