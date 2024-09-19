@@ -74,10 +74,51 @@ def rfht_butterfly(x: torch.Tensor) -> torch.Tensor:
     
     return result
 
+def iterative_rfht(x: torch.Tensor) -> torch.Tensor:
+    """
+    Iterative butterfly structure for the Regularized Fast Hartley Transform (RFHT).
+    Dynamically handles odd-sized inputs by padding and unpadding them.
+    
+    Parameters:
+    x (torch.Tensor): Input tensor for the RFHT.
+    
+    Returns:
+    torch.Tensor: Transformed tensor after applying the butterfly equations, unpadded if needed.
+    """
+    N = x.shape[-1]
+    padded = False
+
+    # Check if input size is odd and pad if necessary
+    if N % 2 != 0:
+        x = torch.nn.functional.pad(x, (0, 1), mode='constant', value=0)
+        padded = True
+        N += 1
+
+    # Initialize the butterfly structure
+    for stage in range(int(torch.log2(torch.tensor(N)).item())):
+        step = 2 ** stage
+        factor = torch.exp(-2j * torch.pi * torch.arange(N // (2 * step), device=x.device) / (N // step))
+
+        # Combine even and odd parts using butterfly operations
+        for i in range(0, N, 2 * step):
+            even_part = x[..., i:i+step]
+            odd_part = x[..., i+step:i+2*step] * factor
+            x[..., i:i+step] = even_part + odd_part
+            x[..., i+step:i+2*step] = even_part - odd_part
+
+    # Concatenate the real and imaginary parts
+    result = torch.cat([x.real, x.imag], dim=-1)
+
+    # Unpad the result to the original size if padding was applied
+    if padded:
+        result = result[..., :-1]
+    
+    return result
+
 def dht(x: torch.Tensor, threshold: float = 1.0) -> torch.Tensor:
     """
     Compute the Discrete Hartley Transform (DHT) with an optional low-pass filter
-    using the recursive butterfly structure for RFHT.
+    using the iterative butterfly structure for RFHT.
     
     Parameters:
     x (torch.Tensor): Input tensor (3D, 4D, or 5D).
@@ -90,8 +131,8 @@ def dht(x: torch.Tensor, threshold: float = 1.0) -> torch.Tensor:
         # 1D case (input is a 3D tensor)
         D, M, N = x.size()
 
-        # Apply RFHT recursively and unpad before returning
-        X = rfht_butterfly(x)
+        # Apply RFHT iteratively and unpad before returning
+        X = iterative_rfht(x)
 
         # Apply low-pass filter
         X = low_pass_filter(X, threshold)
@@ -101,8 +142,8 @@ def dht(x: torch.Tensor, threshold: float = 1.0) -> torch.Tensor:
         # 2D case (input is a 4D tensor)
         B, D, M, N = x.size()
 
-        # Apply RFHT recursively along each dimension and unpad
-        X = rfht_butterfly(x.reshape(B * D, M, N))
+        # Apply RFHT iteratively along each dimension and unpad
+        X = iterative_rfht(x.reshape(B * D, M, N))
 
         # Reshape back to original tensor dimensions
         X = X.reshape(B, D, M, N)
@@ -115,8 +156,8 @@ def dht(x: torch.Tensor, threshold: float = 1.0) -> torch.Tensor:
         # 3D case (input is a 5D tensor)
         B, C, D, M, N = x.size()
 
-        # Apply RFHT recursively along each dimension and unpad
-        X = rfht_butterfly(x.reshape(B * C, D, M, N))
+        # Apply RFHT iteratively along each dimension and unpad
+        X = iterative_rfht(x.reshape(B * C, D, M, N))
 
         # Reshape back to original tensor dimensions
         X = X.reshape(B, C, D, M, N)
