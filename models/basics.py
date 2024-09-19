@@ -9,35 +9,41 @@ import torch.nn.functional as F
 
 import torch
 
-def recursive_fht(x: torch.Tensor) -> torch.Tensor:
+def recursive_fht(x: torch.Tensor, original_size: int = None) -> torch.Tensor:
     """
-    Recursive Fast Hartley Transform using butterfly equations with proper handling of odd sizes.
+    Recursive Fast Hartley Transform using butterfly equations.
     
     Parameters:
     x (torch.Tensor): Input tensor for the FHT (assumed to be 1D for each recursive step).
+    original_size (int): The original size of the input tensor (before any padding).
     
     Returns:
     torch.Tensor: Hartley transform of the input using recursive butterfly equations.
     """
     N = x.shape[-1]
     
+    # Keep track of the original size
+    if original_size is None:
+        original_size = N
+    
     if N == 1:
         return x  # Base case for recursion, N = 1
     else:
-        # If N is odd, pad to the next even size
+        # Handle the case where N is odd
         if N % 2 != 0:
+            # Pad the input with one extra element to make N even
             x = torch.nn.functional.pad(x, (0, 1), mode='constant', value=0)
             N += 1
         
-        # Split into even and odd indices
+        # Split the input into even and odd parts
         x_even = x[..., ::2]
         x_odd = x[..., 1::2]
         
-        # Recursively apply FHT to both even and odd parts
-        FHT_even = recursive_fht(x_even)
-        FHT_odd = recursive_fht(x_odd)
+        # Recursively apply FHT to both parts
+        FHT_even = recursive_fht(x_even, original_size)
+        FHT_odd = recursive_fht(x_odd, original_size)
         
-        # Compute butterfly combination using Hartley terms
+        # Butterfly combination using Hartley terms (cos + sin)
         n = torch.arange(N // 2, device=x.device).float()
         twiddle_factors = torch.cos(2 * torch.pi * n / N) + torch.sin(2 * torch.pi * n / N)
         
@@ -45,9 +51,12 @@ def recursive_fht(x: torch.Tensor) -> torch.Tensor:
         combined_top = FHT_even + twiddle_factors * FHT_odd
         combined_bottom = FHT_even - twiddle_factors * FHT_odd
         
-        # Remove padding if it was added
+        # Concatenate the combined results
         combined = torch.cat([combined_top, combined_bottom], dim=-1)
-        return combined[..., :x.shape[-1]]  # Trim back to original size
+        
+        # Remove any extra padding before returning the result
+        return combined[..., :original_size]
+
 
 def low_pass_filter(hartley_coeffs: torch.Tensor, threshold: float) -> torch.Tensor:
     """
