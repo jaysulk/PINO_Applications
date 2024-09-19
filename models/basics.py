@@ -20,9 +20,16 @@ def recursive_fht(x: torch.Tensor) -> torch.Tensor:
     torch.Tensor: Hartley transform of the input using recursive butterfly equations.
     """
     N = x.shape[-1]
+    
     if N == 1:
         return x  # Base case for recursion, N = 1
     else:
+        # Handle the case where N is odd
+        if N % 2 != 0:
+            # Pad the input with one extra element to make N even
+            x = torch.nn.functional.pad(x, (0, 1), mode='constant', value=0)
+            N += 1
+        
         # Split the input into even and odd parts
         x_even = x[..., ::2]
         x_odd = x[..., 1::2]
@@ -39,7 +46,10 @@ def recursive_fht(x: torch.Tensor) -> torch.Tensor:
         combined_top = FHT_even + twiddle_factors * FHT_odd
         combined_bottom = FHT_even - twiddle_factors * FHT_odd
         
-        return torch.cat([combined_top, combined_bottom], dim=-1)
+        # Remove any extra padding before returning the result
+        combined = torch.cat([combined_top, combined_bottom], dim=-1)
+        return combined[..., :x.shape[-1]]  # Ensure output matches original size
+
 
 def low_pass_filter(hartley_coeffs: torch.Tensor, threshold: float) -> torch.Tensor:
     """
