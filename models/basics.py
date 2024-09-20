@@ -72,14 +72,11 @@ def iterative_rfht(x: torch.Tensor) -> torch.Tensor:
             x[..., i:i+step] = even_part + odd_part
             x[..., i+step:i+2*step] = even_part - odd_part
 
-    # Concatenate the real and imaginary parts
-    result = torch.cat([x.real, x.imag], dim=-1)
-
     # Unpad the result to the original size if padding was applied
     if padded:
-        result = result[..., :-1]
+        x = x[..., :-1]
     
-    return result
+    return x
 
 def dht(x: torch.Tensor, threshold: float = 1.0) -> torch.Tensor:
     """
