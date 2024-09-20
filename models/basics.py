@@ -9,8 +9,6 @@ import torch.nn.functional as F
 
 import torch
 
-import torch
-
 def low_pass_filter(hartley_coeffs: torch.Tensor, threshold: float) -> torch.Tensor:
     """
     Apply a low-pass filter to the Hartley coefficients.
@@ -57,7 +55,7 @@ def iterative_rfht(x: torch.Tensor) -> torch.Tensor:
     num_stages = int(torch.log2(torch.tensor(N)).item())
     for stage in range(num_stages):
         step = 2 ** stage
-        factor = torch.exp(-2j * torch.pi * torch.arange(N // (2 * step), device=x.device) / (N // step))
+        factor = torch.exp(-2j * torch.pi * torch.arange(step, device=x.device) / (2 * step))
 
         # Broadcasting the factor across the necessary dimensions
         factor = factor.view([1] * (x.ndim - 1) + [-1])  # Adjust broadcasting shape
@@ -68,7 +66,7 @@ def iterative_rfht(x: torch.Tensor) -> torch.Tensor:
             odd_part = x[..., i+step:i+2*step]
 
             # Ensure the sizes match by broadcasting the factor properly
-            odd_part = odd_part * factor[..., :odd_part.size(-1)]
+            odd_part = odd_part * factor
 
             # Apply the butterfly combination
             x[..., i:i+step] = even_part + odd_part
