@@ -9,8 +9,6 @@ import torch.nn.functional as F
 
 import torch
 
-import torch
-
 def low_pass_filter(hartley_coeffs: torch.Tensor, threshold: float) -> torch.Tensor:
     """
     Apply a low-pass filter to the Hartley coefficients.
@@ -33,47 +31,6 @@ def low_pass_filter(hartley_coeffs: torch.Tensor, threshold: float) -> torch.Ten
     hartley_coeffs[..., freq_cutoff:] = 0.0
     return hartley_coeffs
 
-def rfht_butterfly(x: torch.Tensor) -> torch.Tensor:
-    """
-    Recursive butterfly structure for the Regularized Fast Hartley Transform (RFHT).
-    Dynamically handles odd-sized inputs by padding and unpadding them.
-    
-    Parameters:
-    x (torch.Tensor): Input tensor for the RFHT.
-    
-    Returns:
-    torch.Tensor: Transformed tensor after applying the butterfly equations, unpadded if needed.
-    """
-    N = x.shape[-1]
-    padded = False
-
-    # Check if input size is odd and pad if necessary
-    if N % 2 != 0:
-        x = torch.nn.functional.pad(x, (0, 1), mode='constant', value=0)
-        padded = True
-        N += 1
-
-    # Base case for recursion
-    if N == 1:
-        return x
-
-    # Split the tensor into even and odd parts
-    even_part = rfht_butterfly(x[..., ::2])
-    odd_part = rfht_butterfly(x[..., 1::2])
-
-    # Recursive butterfly combination
-    factor = torch.exp(-2j * torch.pi * torch.arange(N // 2, device=x.device) / N)
-    combined = even_part + factor * odd_part
-
-    # Concatenate the real and imaginary parts
-    result = torch.cat([combined.real, combined.imag], dim=-1)
-
-    # Unpad the result to the original size if padding was applied
-    if padded:
-        result = result[..., :-1]
-    
-    return result
-
 def iterative_rfht(x: torch.Tensor) -> torch.Tensor:
     """
     Iterative butterfly structure for the Regularized Fast Hartley Transform (RFHT).
@@ -94,15 +51,21 @@ def iterative_rfht(x: torch.Tensor) -> torch.Tensor:
         padded = True
         N += 1
 
-    # Initialize the butterfly structure
-    for stage in range(int(torch.log2(torch.tensor(N)).item())):
+    # Initialize the butterfly structure (Iterative)
+    num_stages = int(torch.log2(torch.tensor(N)).item())
+    for stage in range(num_stages):
         step = 2 ** stage
         factor = torch.exp(-2j * torch.pi * torch.arange(N // (2 * step), device=x.device) / (N // step))
+
+        # Broadcasting the factor across all dimensions correctly
+        factor = factor.unsqueeze(-1)  # Adjust for broadcasting over the last dimension of x
 
         # Combine even and odd parts using butterfly operations
         for i in range(0, N, 2 * step):
             even_part = x[..., i:i+step]
             odd_part = x[..., i+step:i+2*step] * factor
+
+            # Apply the butterfly combination
             x[..., i:i+step] = even_part + odd_part
             x[..., i+step:i+2*step] = even_part - odd_part
 
