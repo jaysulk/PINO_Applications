@@ -9,9 +9,7 @@ import torch.nn.functional as F
 
 import torch
 
-import torch
-
-def dht_split(x: torch.Tensor) -> torch.Tensor:
+def dht(x: torch.Tensor) -> torch.Tensor:
     """
     Compute the separated cosine and sine versions of the DHT and sum them to retain the original tensor size.
     This is done for 1D, 2D, and 3D cases.
