@@ -11,20 +11,20 @@ import torch
 
 def dht(x: torch.Tensor) -> torch.Tensor:
     if x.ndim == 3:
-        # 1D DHT
+        # 1D DHT: input is (batch_size, channels, length)
         n = x.size(-1)
         k = torch.arange(n, device=x.device).float()
         theta = 2 * torch.pi * k / n
-        cos_theta = torch.cos(theta).unsqueeze(0).unsqueeze(0)
-        sin_theta = torch.sin(theta).unsqueeze(0).unsqueeze(0)
+        cos_theta = torch.cos(theta).unsqueeze(0).unsqueeze(0)  # (1, 1, length)
+        sin_theta = torch.sin(theta).unsqueeze(0).unsqueeze(0)  # (1, 1, length)
         
-        x_cos = torch.einsum('bcl,cl->bcl', x, cos_theta)
-        x_sin = torch.einsum('bcl,cl->bcl', x, sin_theta)
+        x_cos = torch.einsum('bcl,cl->bcl', x, cos_theta.squeeze(0))  # Remove batch and channel from cos_theta
+        x_sin = torch.einsum('bcl,cl->bcl', x, sin_theta.squeeze(0))
         
         return x_cos - x_sin
 
     elif x.ndim == 4:
-        # 2D DHT
+        # 2D DHT: input is (batch_size, channels, height, width)
         n1, n2 = x.size(-2), x.size(-1)
         k1 = torch.arange(n1, device=x.device).float()
         k2 = torch.arange(n2, device=x.device).float()
@@ -32,22 +32,22 @@ def dht(x: torch.Tensor) -> torch.Tensor:
         theta1 = 2 * torch.pi * k1 / n1
         theta2 = 2 * torch.pi * k2 / n2
         
-        cos_theta1 = torch.cos(theta1).unsqueeze(0).unsqueeze(0).unsqueeze(-1)
-        sin_theta1 = torch.sin(theta1).unsqueeze(0).unsqueeze(0).unsqueeze(-1)
+        cos_theta1 = torch.cos(theta1).unsqueeze(0).unsqueeze(0).unsqueeze(-1)  # (1, 1, height, 1)
+        sin_theta1 = torch.sin(theta1).unsqueeze(0).unsqueeze(0).unsqueeze(-1)  # (1, 1, height, 1)
         
-        cos_theta2 = torch.cos(theta2).unsqueeze(0).unsqueeze(0)
-        sin_theta2 = torch.sin(theta2).unsqueeze(0).unsqueeze(0)
+        cos_theta2 = torch.cos(theta2).unsqueeze(0).unsqueeze(0)  # (1, 1, width)
+        sin_theta2 = torch.sin(theta2).unsqueeze(0).unsqueeze(0)  # (1, 1, width)
         
-        x_cos1 = torch.einsum('bchw,ch->bchw', x, cos_theta1.squeeze(-1))
-        x_sin1 = torch.einsum('bchw,ch->bchw', x, sin_theta1.squeeze(-1))
+        x_cos1 = torch.einsum('bchw,chh->bchw', x, cos_theta1)  # Apply cosine in the height dimension
+        x_sin1 = torch.einsum('bchw,chh->bchw', x, sin_theta1)  # Apply sine in the height dimension
         
-        x_cos2 = torch.einsum('bchw,cw->bchw', x_cos1 - x_sin1, cos_theta2)
-        x_sin2 = torch.einsum('bchw,cw->bchw', x_cos1 - x_sin1, sin_theta2)
+        x_cos2 = torch.einsum('bchw,cww->bchw', x_cos1 - x_sin1, cos_theta2)  # Apply cosine in the width dimension
+        x_sin2 = torch.einsum('bchw,cww->bchw', x_cos1 - x_sin1, sin_theta2)  # Apply sine in the width dimension
         
         return x_cos2 - x_sin2
 
     elif x.ndim == 5:
-        # 3D DHT
+        # 3D DHT: input is (batch_size, channels, depth, height, width)
         n1, n2, n3 = x.size(-3), x.size(-2), x.size(-1)
         k1 = torch.arange(n1, device=x.device).float()
         k2 = torch.arange(n2, device=x.device).float()
@@ -57,23 +57,23 @@ def dht(x: torch.Tensor) -> torch.Tensor:
         theta2 = 2 * torch.pi * k2 / n2
         theta3 = 2 * torch.pi * k3 / n3
         
-        cos_theta1 = torch.cos(theta1).unsqueeze(0).unsqueeze(0).unsqueeze(-1).unsqueeze(-1)
-        sin_theta1 = torch.sin(theta1).unsqueeze(0).unsqueeze(0).unsqueeze(-1).unsqueeze(-1)
+        cos_theta1 = torch.cos(theta1).unsqueeze(0).unsqueeze(0).unsqueeze(-1).unsqueeze(-1)  # (1, 1, depth, 1, 1)
+        sin_theta1 = torch.sin(theta1).unsqueeze(0).unsqueeze(0).unsqueeze(-1).unsqueeze(-1)  # (1, 1, depth, 1, 1)
         
-        cos_theta2 = torch.cos(theta2).unsqueeze(0).unsqueeze(0).unsqueeze(-1)
-        sin_theta2 = torch.sin(theta2).unsqueeze(0).unsqueeze(0).unsqueeze(-1)
+        cos_theta2 = torch.cos(theta2).unsqueeze(0).unsqueeze(0).unsqueeze(-1)  # (1, 1, height, 1)
+        sin_theta2 = torch.sin(theta2).unsqueeze(0).unsqueeze(0).unsqueeze(-1)  # (1, 1, height, 1)
         
-        cos_theta3 = torch.cos(theta3).unsqueeze(0).unsqueeze(0)
-        sin_theta3 = torch.sin(theta3).unsqueeze(0).unsqueeze(0)
+        cos_theta3 = torch.cos(theta3).unsqueeze(0).unsqueeze(0)  # (1, 1, width)
+        sin_theta3 = torch.sin(theta3).unsqueeze(0).unsqueeze(0)  # (1, 1, width)
         
-        x_cos1 = torch.einsum('bcdhw,cd->bcdhw', x, cos_theta1.squeeze(-1).squeeze(-1))
-        x_sin1 = torch.einsum('bcdhw,cd->bcdhw', x, sin_theta1.squeeze(-1).squeeze(-1))
+        x_cos1 = torch.einsum('bcdhw,cdc->bcdhw', x, cos_theta1.squeeze(-1).squeeze(-1))  # Apply cosine in depth
+        x_sin1 = torch.einsum('bcdhw,cdc->bcdhw', x, sin_theta1.squeeze(-1).squeeze(-1))  # Apply sine in depth
         
-        x_cos2 = torch.einsum('bcdhw,ch->bcdhw', x_cos1 - x_sin1, cos_theta2.squeeze(-1))
-        x_sin2 = torch.einsum('bcdhw,ch->bcdhw', x_cos1 - x_sin1, sin_theta2.squeeze(-1))
+        x_cos2 = torch.einsum('bcdhw,ccd->bcdhw', x_cos1 - x_sin1, cos_theta2.squeeze(-1))  # Apply cosine in height
+        x_sin2 = torch.einsum('bcdhw,ccd->bcdhw', x_cos1 - x_sin1, sin_theta2.squeeze(-1))  # Apply sine in height
         
-        x_cos3 = torch.einsum('bcdhw,cw->bcdhw', x_cos2 - x_sin2, cos_theta3)
-        x_sin3 = torch.einsum('bcdhw,cw->bcdhw', x_cos2 - x_sin2, sin_theta3)
+        x_cos3 = torch.einsum('bcdhw,ccw->bcdhw', x_cos2 - x_sin2, cos_theta3)  # Apply cosine in width
+        x_sin3 = torch.einsum('bcdhw,ccw->bcdhw', x_cos2 - x_sin2, sin_theta3)  # Apply sine in width
         
         return x_cos3 - x_sin3
 
