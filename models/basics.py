@@ -71,8 +71,22 @@ def idht(x: torch.Tensor) -> torch.Tensor:
     # Compute the DHT (Direct Hartley Transform again, since DHT is self-inverse)
     transformed = dht(x)
     
-    # Normalize the result to undo the scaling effect of the DHT
-    return transformed 
+    # Determine normalization factor
+    if x.ndim == 3:
+        # 1D case (3D tensor input)
+        N = x.size(1)  # N is the size of the last dimension
+        normalization_factor = N 
+    elif x.ndim == 4:
+        # 2D case (4D tensor input)
+        M, N = x.size(1), x.size(2)
+        normalization_factor = M * N
+    elif x.ndim == 5:
+        # 3D case (5D tensor input)
+        D, M, N = x.size(1), x.size(2), x.size(3)
+        normalization_factor = D * M * N
+    else:
+        raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
+    
 
 def compl_mul1d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     # Compute the DHT of both signals
