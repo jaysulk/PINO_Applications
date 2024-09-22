@@ -4,13 +4,15 @@ import torch.nn as nn
 from functools import partial
 import torch.nn.functional as F
 
-def dht_rfft(x: torch.Tensor, dim: torch.Tensor) -> torch.Tensor:
-    # Compute the real FFT of the input tensor over the specified dimensions
-    X_rfft = torch.fft.rfftn(x, dim=dim)
+import torch
+
+def dht_fftn(x: torch.Tensor, dim: list) -> torch.Tensor:
+    # Compute the FFT of the input tensor over the specified dimensions
+    X_fftn = torch.fft.fftn(x, dim=dim)
     
     # Compute the real and imaginary parts
-    real_part = X_rfft.real
-    imag_part = X_rfft.imag
+    real_part = X_fftn.real
+    imag_part = X_fftn.imag
     
     # DHT is the sum of the real part and the negative of the imaginary part
     dht_result = real_part - imag_part
@@ -18,8 +20,7 @@ def dht_rfft(x: torch.Tensor, dim: torch.Tensor) -> torch.Tensor:
     # Compute the shape needed to match the input tensor's shape
     input_shape = x.shape
     
-    # Adjust the shape of dht_result to match input_shape
-    # Use padding if needed
+    # Adjust the shape of dht_result to match input_shape if needed
     if dht_result.shape != input_shape:
         # Create an output tensor with the same shape as the input
         dht_adjusted = torch.zeros_like(x)
@@ -34,11 +35,11 @@ def dht_rfft(x: torch.Tensor, dim: torch.Tensor) -> torch.Tensor:
 
 def dht(x: torch.Tensor) -> torch.Tensor:
     if x.ndim == 3:  # For 1D DHT
-        return dht_rfft(x, dim=[2])
+        return dht_fftn(x, dim=[2])
     elif x.ndim == 4:  # For 2D DHT
-        return dht_rfft(x, dim=[2, 3])
+        return dht_fftn(x, dim=[2, 3])
     elif x.ndim == 5:  # For 3D DHT
-        return dht_rfft(x, dim=[2, 3, 4])
+        return dht_fftn(x, dim=[2, 3, 4])
     else:
         raise ValueError("Only 1D (3D tensors), 2D (4D tensors), and 3D (5D tensors) tensors are supported.")
 
