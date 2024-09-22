@@ -67,9 +67,8 @@ def dht(x: torch.Tensor) -> torch.Tensor:
     else:
         raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
 
-
 def idht(x: torch.Tensor) -> torch.Tensor:
-    # Compute the DHT (Direct Hartley Transform)
+    # Compute the DHT (Direct Hartley Transform again, since DHT is self-inverse)
     transformed = dht(x)
     
     # Determine normalization factor
@@ -87,7 +86,7 @@ def idht(x: torch.Tensor) -> torch.Tensor:
         normalization_factor = D * M * N
     else:
         raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
-
+    
     # Normalize the result to undo the scaling effect of the DHT
     return transformed / normalization_factor
 
