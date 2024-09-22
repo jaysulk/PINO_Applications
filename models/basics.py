@@ -9,8 +9,6 @@ import torch.nn.functional as F
 
 import torch
 
-import torch
-
 def dht(x: torch.Tensor) -> torch.Tensor:
     """
     Compute the separated cosine and sine versions of the DHT to mimic the complex-valued Fourier Transform.
@@ -56,17 +54,17 @@ def dht(x: torch.Tensor) -> torch.Tensor:
         sin_col = torch.sin(2 * torch.pi * n.view(-1, 1) * n / N)
 
         # Perform the Cosine Transform
-        x_reshaped = x.reshape(B * D, M, N)
-        intermediate_cos = torch.matmul(x_reshaped, cos_col.T)
-        X_cos = torch.matmul(cos_row.T, intermediate_cos)
+        x_reshaped = x.reshape(B * D, M, N)  # (B*D, M, N)
+        intermediate_cos = torch.matmul(x_reshaped, cos_col.T)  # (B*D, M, N) @ (N, N) -> (B*D, M, N)
+        X_cos = torch.matmul(cos_row.T, intermediate_cos)  # (M, M) @ (B*D, M, N) -> (B*D, M, N)
         X_cos = X_cos.reshape(B, D, M, N)
 
         # Perform the Sine Transform
-        intermediate_sin = torch.matmul(x_reshaped, sin_col.T)
-        X_sin = torch.matmul(sin_row.T, intermediate_sin)
+        intermediate_sin = torch.matmul(x_reshaped, sin_col.T)  # (B*D, M, N) @ (N, N) -> (B*D, M, N)
+        X_sin = torch.matmul(sin_row.T, intermediate_sin)  # (M, M) @ (B*D, M, N) -> (B*D, M, N)
         X_sin = X_sin.reshape(B, D, M, N)
 
-        # Concatenate cosine and sine parts along the second dimension (axis 2)
+        # Concatenate cosine and sine parts along the third dimension (along M)
         return torch.cat([X_cos, X_sin], dim=2)
 
     elif x.ndim == 5:
@@ -99,12 +97,11 @@ def dht(x: torch.Tensor) -> torch.Tensor:
         X_sin = torch.einsum('bcme,cfm->bcme', intermediate_sin, sin_depth)
         X_sin = X_sin.reshape(B, C, D, M, N)
 
-        # Concatenate cosine and sine parts along the second dimension (axis 2)
+        # Concatenate cosine and sine parts along the third dimension (along M)
         return torch.cat([X_cos, X_sin], dim=2)
 
     else:
         raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
-
 
 def idht(x: torch.Tensor) -> torch.Tensor:
     # Compute the DHT (Direct Hartley Transform again, since DHT is self-inverse)
