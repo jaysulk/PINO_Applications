@@ -9,85 +9,68 @@ import torch.nn.functional as F
 
 import torch
 
+import torch
+
 def dht(x: torch.Tensor) -> torch.Tensor:
     if x.ndim == 3:
-        # 1D DHT: input is (batch_size, channels, length)
-        n = x.size(-1)
-        k = torch.arange(n, device=x.device).float()
-        theta = 2 * torch.pi * k / n
-        cos_theta = torch.cos(theta).unsqueeze(0).unsqueeze(0)  # (1, 1, length)
-        sin_theta = torch.sin(theta).unsqueeze(0).unsqueeze(0)  # (1, 1, length)
-        
-        x_cos = torch.einsum('bcl,cl->bcl', x, cos_theta.squeeze(0))  # Remove batch and channel from cos_theta
-        x_sin = torch.einsum('bcl,cl->bcl', x, sin_theta.squeeze(0))
-        
-        return x_cos - x_sin
+        # 1D case (input is a 3D tensor)
+        D, M, N = x.size()
+        n = torch.arange(N, device=x.device).float()
+
+        # Hartley kernel for 1D
+        cas = torch.cos(2 * torch.pi * n.view(-1, 1) * n / N) + torch.sin(2 * torch.pi * n.view(-1, 1) * n / N)
+
+        # Perform the DHT
+        X = torch.matmul(cas, x.view(D, N, M).permute(1, 0, 2).reshape(N, -1))
+        return X.reshape(N, D, M).permute(1, 2, 0)
 
     elif x.ndim == 4:
-        # 2D DHT: input is (batch_size, channels, height, width)
-        n1, n2 = x.size(-2), x.size(-1)
-        k1 = torch.arange(n1, device=x.device).float()
-        k2 = torch.arange(n2, device=x.device).float()
-        
-        theta1 = 2 * torch.pi * k1 / n1
-        theta2 = 2 * torch.pi * k2 / n2
-        
-        cos_theta1 = torch.cos(theta1).unsqueeze(0).unsqueeze(0).unsqueeze(-1)  # (1, 1, height, 1)
-        sin_theta1 = torch.sin(theta1).unsqueeze(0).unsqueeze(0).unsqueeze(-1)  # (1, 1, height, 1)
-        
-        cos_theta2 = torch.cos(theta2).unsqueeze(0).unsqueeze(0)  # (1, 1, width)
-        sin_theta2 = torch.sin(theta2).unsqueeze(0).unsqueeze(0)  # (1, 1, width)
-        
-        x_cos1 = torch.einsum('bchw,chh->bchw', x, cos_theta1)  # Apply cosine in the height dimension
-        x_sin1 = torch.einsum('bchw,chh->bchw', x, sin_theta1)  # Apply sine in the height dimension
-        
-        x_cos2 = torch.einsum('bchw,cww->bchw', x_cos1 - x_sin1, cos_theta2)  # Apply cosine in the width dimension
-        x_sin2 = torch.einsum('bchw,cww->bchw', x_cos1 - x_sin1, sin_theta2)  # Apply sine in the width dimension
-        
-        return x_cos2 - x_sin2
+        # 2D case (input is a 4D tensor)
+        B, D, M, N = x.size()
+        m = torch.arange(M, device=x.device).float()
+        n = torch.arange(N, device=x.device).float()
+
+        # Hartley kernels for rows and columns
+        cas_row = torch.cos(2 * torch.pi * m.view(-1, 1) * m / M) + torch.sin(2 * torch.pi * m.view(-1, 1) * m / M)
+        cas_col = torch.cos(2 * torch.pi * n.view(-1, 1) * n / N) + torch.sin(2 * torch.pi * n.view(-1, 1) * n / N)
+
+        # Perform the DHT
+        x_reshaped = x.reshape(B * D, M, N)
+        intermediate = torch.matmul(cas_col, x_reshaped)
+        X = torch.matmul(cas_row, intermediate)
+        return X.reshape(B, D, M, N)
 
     elif x.ndim == 5:
-        # 3D DHT: input is (batch_size, channels, depth, height, width)
-        n1, n2, n3 = x.size(-3), x.size(-2), x.size(-1)
-        k1 = torch.arange(n1, device=x.device).float()
-        k2 = torch.arange(n2, device=x.device).float()
-        k3 = torch.arange(n3, device=x.device).float()
-        
-        theta1 = 2 * torch.pi * k1 / n1
-        theta2 = 2 * torch.pi * k2 / n2
-        theta3 = 2 * torch.pi * k3 / n3
-        
-        cos_theta1 = torch.cos(theta1).unsqueeze(0).unsqueeze(0).unsqueeze(-1).unsqueeze(-1)  # (1, 1, depth, 1, 1)
-        sin_theta1 = torch.sin(theta1).unsqueeze(0).unsqueeze(0).unsqueeze(-1).unsqueeze(-1)  # (1, 1, depth, 1, 1)
-        
-        cos_theta2 = torch.cos(theta2).unsqueeze(0).unsqueeze(0).unsqueeze(-1)  # (1, 1, height, 1)
-        sin_theta2 = torch.sin(theta2).unsqueeze(0).unsqueeze(0).unsqueeze(-1)  # (1, 1, height, 1)
-        
-        cos_theta3 = torch.cos(theta3).unsqueeze(0).unsqueeze(0)  # (1, 1, width)
-        sin_theta3 = torch.sin(theta3).unsqueeze(0).unsqueeze(0)  # (1, 1, width)
-        
-        x_cos1 = torch.einsum('bcdhw,cdc->bcdhw', x, cos_theta1.squeeze(-1).squeeze(-1))  # Apply cosine in depth
-        x_sin1 = torch.einsum('bcdhw,cdc->bcdhw', x, sin_theta1.squeeze(-1).squeeze(-1))  # Apply sine in depth
-        
-        x_cos2 = torch.einsum('bcdhw,ccd->bcdhw', x_cos1 - x_sin1, cos_theta2.squeeze(-1))  # Apply cosine in height
-        x_sin2 = torch.einsum('bcdhw,ccd->bcdhw', x_cos1 - x_sin1, sin_theta2.squeeze(-1))  # Apply sine in height
-        
-        x_cos3 = torch.einsum('bcdhw,ccw->bcdhw', x_cos2 - x_sin2, cos_theta3)  # Apply cosine in width
-        x_sin3 = torch.einsum('bcdhw,ccw->bcdhw', x_cos2 - x_sin2, sin_theta3)  # Apply sine in width
-        
-        return x_cos3 - x_sin3
+        # 3D case (input is a 5D tensor)
+        B, C, D, M, N = x.size()
+        d = torch.arange(D, device=x.device).float()
+        m = torch.arange(M, device=x.device).float()
+        n = torch.arange(N, device=x.device).float()
+
+        # Hartley kernels for depth, rows, and columns
+        cas_depth = torch.cos(2 * torch.pi * d.view(-1, 1, 1) * d / D) + torch.sin(2 * torch.pi * d.view(-1, 1, 1) * d / D)
+        cas_row = torch.cos(2 * torch.pi * m.view(-1, 1) * m / M) + torch.sin(2 * torch.pi * m.view(-1, 1) * m / M)
+        cas_col = torch.cos(2 * torch.pi * n.view(-1, 1) * n / N) + torch.sin(2 * torch.pi * n.view(-1, 1) * n / N)
+
+        # Perform the DHT
+        x_reshaped = x.reshape(B * C, D, M, N)
+        intermediate = torch.einsum('bcde,cfde->bcfe', x_reshaped, cas_col)
+        intermediate = torch.einsum('bcfe,cfm->bcme', intermediate, cas_row)
+        X = torch.einsum('bcme,cfm->bcme', intermediate, cas_depth)
+        return X.reshape(B, C, D, M, N)
 
     else:
-        raise ValueError(f"Unsupported input dimensions: {x.ndim}")
+        raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
+
 
 def idht(x: torch.Tensor) -> torch.Tensor:
-    # Compute the DHT
+    # Compute the DHT (Direct Hartley Transform)
     transformed = dht(x)
     
     # Determine normalization factor
     if x.ndim == 3:
         # 1D case (3D tensor input)
-        N = x.size(1)  # N is the size of the last dimension
+        N = x.size(2)  # N is the size of the last dimension
         normalization_factor = N
     elif x.ndim == 4:
         # 2D case (4D tensor input)
@@ -100,9 +83,8 @@ def idht(x: torch.Tensor) -> torch.Tensor:
     else:
         raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
 
-    # Normalize the transformed result
+    # Normalize the result to undo the scaling effect of the DHT
     return transformed / normalization_factor
-
 
 def compl_mul1d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     # Compute the DHT of both signals
