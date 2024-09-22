@@ -9,16 +9,18 @@ import torch.nn.functional as F
 
 import torch
 
-def dht(x: torch.Tensor) -> torch.Tensor:
+import torch
+
+def dht_split(x: torch.Tensor) -> torch.Tensor:
     """
-    Compute the separated cosine and sine versions of the DHT to mimic the complex-valued Fourier Transform.
+    Compute the separated cosine and sine versions of the DHT and sum them to retain the original tensor size.
     This is done for 1D, 2D, and 3D cases.
     
     Args:
         x: Input tensor (3D for 1D case, 4D for 2D case, 5D for 3D case)
 
     Returns:
-        Tensor with concatenated cosine and sine components.
+        Tensor with the same size as the input, combining cosine and sine components.
     """
     if x.ndim == 3:
         # 1D case (input is a 3D tensor)
@@ -37,8 +39,8 @@ def dht(x: torch.Tensor) -> torch.Tensor:
         X_sin = torch.matmul(sin_part, x.view(D, N, M).permute(1, 0, 2).reshape(N, -1))
         X_sin = X_sin.reshape(N, D, M).permute(1, 2, 0)
 
-        # Concatenate cosine and sine parts along the second dimension
-        return torch.cat([X_cos, X_sin], dim=1)
+        # Sum cosine and sine parts to maintain the original size
+        return X_cos + X_sin
 
     elif x.ndim == 4:
         # 2D case (input is a 4D tensor)
@@ -54,18 +56,18 @@ def dht(x: torch.Tensor) -> torch.Tensor:
         sin_col = torch.sin(2 * torch.pi * n.view(-1, 1) * n / N)
 
         # Perform the Cosine Transform
-        x_reshaped = x.reshape(B * D, M, N)  # (B*D, M, N)
-        intermediate_cos = torch.matmul(x_reshaped, cos_col.T)  # (B*D, M, N) @ (N, N) -> (B*D, M, N)
-        X_cos = torch.matmul(cos_row.T, intermediate_cos)  # (M, M) @ (B*D, M, N) -> (B*D, M, N)
+        x_reshaped = x.reshape(B * D, M, N)
+        intermediate_cos = torch.matmul(x_reshaped, cos_col.T)
+        X_cos = torch.matmul(cos_row.T, intermediate_cos)
         X_cos = X_cos.reshape(B, D, M, N)
 
         # Perform the Sine Transform
-        intermediate_sin = torch.matmul(x_reshaped, sin_col.T)  # (B*D, M, N) @ (N, N) -> (B*D, M, N)
-        X_sin = torch.matmul(sin_row.T, intermediate_sin)  # (M, M) @ (B*D, M, N) -> (B*D, M, N)
+        intermediate_sin = torch.matmul(x_reshaped, sin_col.T)
+        X_sin = torch.matmul(sin_row.T, intermediate_sin)
         X_sin = X_sin.reshape(B, D, M, N)
 
-        # Concatenate cosine and sine parts along the third dimension (along M)
-        return torch.cat([X_cos, X_sin], dim=2)
+        # Sum cosine and sine parts to maintain the original size
+        return X_cos + X_sin
 
     elif x.ndim == 5:
         # 3D case (input is a 5D tensor)
@@ -97,8 +99,8 @@ def dht(x: torch.Tensor) -> torch.Tensor:
         X_sin = torch.einsum('bcme,cfm->bcme', intermediate_sin, sin_depth)
         X_sin = X_sin.reshape(B, C, D, M, N)
 
-        # Concatenate cosine and sine parts along the third dimension (along M)
-        return torch.cat([X_cos, X_sin], dim=2)
+        # Sum cosine and sine parts to maintain the original size
+        return X_cos + X_sin
 
     else:
         raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
