@@ -7,132 +7,191 @@ from functools import partial
 
 import torch.nn.functional as F
 
-import torch
-
-import torch
+import math
 
 def dht(x: torch.Tensor) -> torch.Tensor:
+    """
+    Manually compute the Discrete Fourier Transform (DFT) and return the real part.
+    This function handles 1D, 2D, and 3D cases, returning a real-valued tensor.
+
+    Args:
+        x: Input tensor (3D for 1D DFT, 4D for 2D DFT, 5D for 3D DFT)
+
+    Returns:
+        Real-valued tensor (same torch.dtype as input)
+    """
     if x.ndim == 3:
-        # 1D case (input is a 3D tensor)
+        # 1D DFT case (input is a 3D tensor)
         D, M, N = x.size()
-        n = torch.arange(N, device=x.device).float()
-
-        # Hartley kernel for 1D
-        cas = torch.cos(2 * torch.pi * n.view(-1, 1) * n / N) + torch.sin(2 * torch.pi * n.view(-1, 1) * n / N)
-
-        # Perform the DHT
-        X = torch.matmul(cas, x.view(D, N, M).permute(1, 0, 2).reshape(N, -1))
-        return X.reshape(N, D, M).permute(1, 2, 0)
-
-    elif x.ndim == 4:
-        # 2D case (input is a 4D tensor)
-        B, D, M, N = x.size()
-        m = torch.arange(M, device=x.device).float()
-        n = torch.arange(N, device=x.device).float()
-
-        # Hartley kernels for rows and columns
-        cas_row = torch.cos(2 * torch.pi * m.view(-1, 1) * m / M) + torch.sin(2 * torch.pi * m.view(-1, 1) * m / M)
-        cas_col = torch.cos(2 * torch.pi * n.view(-1, 1) * n / N) + torch.sin(2 * torch.pi * n.view(-1, 1) * n / N)
-
-        # Perform the DHT
-        x_reshaped = x.reshape(B * D, M, N)  # (B*D, M, N)
-
-        # Apply the column transform
-        intermediate = torch.matmul(x_reshaped, cas_col.T)  # (B*D, M, N) @ (N, N) -> (B*D, M, N)
+        n = torch.arange(N, device=x.device).view(1, 1, N)
+        k = torch.arange(N, device=x.device).view(1, N, 1)
         
-        # Apply the row transform
-        X = torch.matmul(cas_row.T, intermediate)  # (M, M) @ (B*D, M, N) -> (B*D, M, N)
+        # Compute the DFT matrix (complex exponential)
+        W = torch.exp(-2j * math.pi * k * n / N)
+        
+        # Compute the DFT using matrix multiplication
+        X_complex = torch.matmul(x, W)
 
-        return X.reshape(B, D, M, N)
+        # Return the real part, maintaining the same type as input
+        return X_complex.real
 
-    elif x.ndim == 5:
-        # 3D case (input is a 5D tensor)
-        B, C, D, M, N = x.size()
-        d = torch.arange(D, device=x.device).float()
-        m = torch.arange(M, device=x.device).float()
-        n = torch.arange(N, device=x.device).float()
-
-        # Hartley kernels for depth, rows, and columns
-        cas_depth = torch.cos(2 * torch.pi * d.view(-1, 1, 1) * d / D) + torch.sin(2 * torch.pi * d.view(-1, 1, 1) * d / D)
-        cas_row = torch.cos(2 * torch.pi * m.view(-1, 1) * m / M) + torch.sin(2 * torch.pi * m.view(-1, 1) * m / M)
-        cas_col = torch.cos(2 * torch.pi * n.view(-1, 1) * n / N) + torch.sin(2 * torch.pi * n.view(-1, 1) * n / N)
-
-        # Perform the DHT
-        x_reshaped = x.reshape(B * C, D, M, N)
-        intermediate = torch.einsum('bcde,cfde->bcfe', x_reshaped, cas_col)
-        intermediate = torch.einsum('bcfe,cfm->bcme', intermediate, cas_row)
-        X = torch.einsum('bcme,cfm->bcme', intermediate, cas_depth)
-        return X.reshape(B, C, D, M, N)
-
-    else:
-        raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
-
-def idht(x: torch.Tensor) -> torch.Tensor:
-    # Compute the DHT (Direct Hartley Transform again, since DHT is self-inverse)
-    transformed = dht(x)
-    
-    # Determine normalization factor
-    if x.ndim == 3:
-        # 1D case (3D tensor input)
-        N = x.size(2)  # N is the size of the last dimension
-        normalization_factor = N
     elif x.ndim == 4:
-        # 2D case (4D tensor input)
-        M, N = x.size(2), x.size(3)
-        normalization_factor = M * N
+        # 2D DFT case (input is a 4D tensor)
+        B, D, M, N = x.size()
+
+        # Compute the 1D DFT for rows
+        m = torch.arange(M, device=x.device).view(1, 1, M, 1)
+        k_m = torch.arange(M, device=x.device).view(1, 1, 1, M)
+        W_m = torch.exp(-2j * math.pi * k_m * m / M)
+
+        # Compute the 1D DFT for columns
+        n = torch.arange(N, device=x.device).view(1, 1, 1, N)
+        k_n = torch.arange(N, device=x.device).view(1, 1, N, 1)
+        W_n = torch.exp(-2j * math.pi * k_n * n / N)
+
+        # Perform the row-wise DFT
+        X_complex_rows = torch.matmul(W_m, x)
+
+        # Perform the column-wise DFT
+        X_complex = torch.matmul(X_complex_rows, W_n)
+
+        # Return the real part, maintaining the same type as input
+        return X_complex.real
+
     elif x.ndim == 5:
-        # 3D case (5D tensor input)
-        D, M, N = x.size(2), x.size(3), x.size(4)
-        normalization_factor = D * M * N
+        # 3D DFT case (input is a 5D tensor)
+        B, C, D, M, N = x.size()
+
+        # Compute the 1D DFT for depth
+        d = torch.arange(D, device=x.device).view(1, 1, D, 1, 1)
+        k_d = torch.arange(D, device=x.device).view(1, 1, 1, D, 1)
+        W_d = torch.exp(-2j * math.pi * k_d * d / D)
+
+        # Compute the 1D DFT for rows
+        m = torch.arange(M, device=x.device).view(1, 1, 1, M, 1)
+        k_m = torch.arange(M, device=x.device).view(1, 1, 1, 1, M)
+        W_m = torch.exp(-2j * math.pi * k_m * m / M)
+
+        # Compute the 1D DFT for columns
+        n = torch.arange(N, device=x.device).view(1, 1, 1, 1, N)
+        k_n = torch.arange(N, device=x.device).view(1, 1, N, 1, 1)
+        W_n = torch.exp(-2j * math.pi * k_n * n / N)
+
+        # Perform the depth-wise DFT
+        X_complex_depth = torch.matmul(W_d, x)
+
+        # Perform the row-wise DFT
+        X_complex_rows = torch.matmul(W_m, X_complex_depth)
+
+        # Perform the column-wise DFT
+        X_complex = torch.matmul(W_n, X_complex_rows)
+
+        # Return the real part, maintaining the same type as input
+        return X_complex.real
+
     else:
         raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
-    
-    # Normalize the result to undo the scaling effect of the DHT
-    return transformed / normalization_factor
 
-def compl_mul1d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
-    # Compute the DHT of both signals
-    X1_H_k = x1
-    X2_H_k = x2
-    X1_H_neg_k = torch.roll(torch.flip(x1, dims=[-1]), shifts=1, dims=[-1])
-    X2_H_neg_k = torch.roll(torch.flip(x2, dims=[-1]), shifts=1, dims=[-1])
 
-    result = 0.5 * (torch.einsum('bix,iox->box', X1_H_k, X2_H_k) - 
-                     torch.einsum('bix,iox->box', X1_H_neg_k, X2_H_neg_k) +
-                     torch.einsum('bix,iox->box', X1_H_k, X2_H_neg_k) + 
-                     torch.einsum('bix,iox->box', X1_H_neg_k, X2_H_k))
+import torch
+import math
 
-    return result
+def idht(X: torch.Tensor) -> torch.Tensor:
+    """
+    Manually compute the Inverse Discrete Fourier Transform (IDFT) and return the real part.
+    This function handles 1D, 2D, and 3D cases, returning a real-valued tensor.
 
-def compl_mul2d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
-    # Compute the DHT of both signals
-    X1_H_k = x1
-    X2_H_k = x2
-    X1_H_neg_k = torch.roll(torch.flip(x1, dims=[-1, -2]), shifts=(1, 1), dims=[-1, -2])
-    X2_H_neg_k = torch.roll(torch.flip(x2, dims=[-1, -2]), shifts=(1, 1), dims=[-1, -2])
-    
-    # Perform the convolution using DHT components
-    result = 0.5 * (torch.einsum('bixy,ioxy->boxy', X1_H_k, X2_H_k) - 
-                    torch.einsum('bixy,ioxy->boxy', X1_H_neg_k, X2_H_neg_k) +
-                    torch.einsum('bixy,ioxy->boxy', X1_H_k, X2_H_neg_k) + 
-                    torch.einsum('bixy,ioxy->boxy', X1_H_neg_k, X2_H_k))
-    
-    return result
+    Args:
+        X: Input tensor (3D for 1D IDFT, 4D for 2D IDFT, 5D for 3D IDFT)
 
-    
-def compl_mul3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
-    # Compute the DHT of both signals
-    X1_H_k = x1
-    X2_H_k = x2
-    X1_H_neg_k = torch.roll(torch.flip(x1, dims=[-3, -2, -1]), shifts=(1, 1, 1), dims=[-3, -2, -1])
-    X2_H_neg_k = torch.roll(torch.flip(x2, dims=[-3, -2, -1]), shifts=(1, 1, 1), dims=[-3, -2, -1])
+    Returns:
+        Real-valued tensor (same torch.dtype as input)
+    """
+    if X.ndim == 3:
+        # 1D IDFT case (input is a 3D tensor)
+        D, M, N = X.size()
+        n = torch.arange(N, device=X.device).view(1, 1, N)
+        k = torch.arange(N, device=X.device).view(1, N, 1)
 
-    result = 0.5 * (torch.einsum('bixyz,ioxyz->boxyz', X1_H_k, X2_H_k) - 
-                     torch.einsum('bixyz,ioxyz->boxyz', X1_H_neg_k, X2_H_neg_k) +
-                     torch.einsum('bixyz,ioxyz->boxyz', X1_H_k, X2_H_neg_k) + 
-                     torch.einsum('bixyz,ioxyz->boxyz', X1_H_neg_k, X2_H_k))
+        # Compute the IDFT matrix (inverse complex exponential)
+        W_inv = torch.exp(2j * math.pi * k * n / N)
 
-    return result
+        # Compute the IDFT using matrix multiplication
+        x_complex = torch.matmul(X, W_inv)
+
+        # Normalize by the length N and return the real part
+        return (x_complex.real / N)
+
+    elif X.ndim == 4:
+        # 2D IDFT case (input is a 4D tensor)
+        B, D, M, N = X.size()
+
+        # Compute the 1D IDFT for rows
+        m = torch.arange(M, device=X.device).view(1, 1, M, 1)
+        k_m = torch.arange(M, device=X.device).view(1, 1, 1, M)
+        W_m_inv = torch.exp(2j * math.pi * k_m * m / M)
+
+        # Compute the 1D IDFT for columns
+        n = torch.arange(N, device=X.device).view(1, 1, 1, N)
+        k_n = torch.arange(N, device=X.device).view(1, 1, N, 1)
+        W_n_inv = torch.exp(2j * math.pi * k_n * n / N)
+
+        # Perform the row-wise IDFT
+        x_complex_rows = torch.matmul(W_m_inv, X)
+
+        # Perform the column-wise IDFT
+        x_complex = torch.matmul(x_complex_rows, W_n_inv)
+
+        # Normalize by M and N and return the real part
+        return (x_complex.real / (M * N))
+
+    elif X.ndim == 5:
+        # 3D IDFT case (input is a 5D tensor)
+        B, C, D, M, N = X.size()
+
+        # Compute the 1D IDFT for depth
+        d = torch.arange(D, device=X.device).view(1, 1, D, 1, 1)
+        k_d = torch.arange(D, device=X.device).view(1, 1, 1, D, 1)
+        W_d_inv = torch.exp(2j * math.pi * k_d * d / D)
+
+        # Compute the 1D IDFT for rows
+        m = torch.arange(M, device=X.device).view(1, 1, 1, M, 1)
+        k_m = torch.arange(M, device=X.device).view(1, 1, 1, 1, M)
+        W_m_inv = torch.exp(2j * math.pi * k_m * m / M)
+
+        # Compute the 1D IDFT for columns
+        n = torch.arange(N, device=X.device).view(1, 1, 1, 1, N)
+        k_n = torch.arange(N, device=X.device).view(1, 1, N, 1, 1)
+        W_n_inv = torch.exp(2j * math.pi * k_n * n / N)
+
+        # Perform the depth-wise IDFT
+        x_complex_depth = torch.matmul(W_d_inv, X)
+
+        # Perform the row-wise IDFT
+        x_complex_rows = torch.matmul(W_m_inv, x_complex_depth)
+
+        # Perform the column-wise IDFT
+        x_complex = torch.matmul(W_n_inv, x_complex_rows)
+
+        # Normalize by D, M, and N and return the real part
+        return (x_complex.real / (D * M * N))
+
+    else:
+        raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {X.ndim}D with shape {X.shape}.")
+
+
+def compl_mul1d(a, b):
+    # (batch, in_channel, x ), (in_channel, out_channel, x) -> (batch, out_channel, x)
+    return torch.einsum("bix,iox->box", a, b)
+
+
+def compl_mul2d(a, b):
+    # (batch, in_channel, x,y,t ), (in_channel, out_channel, x,y,t) -> (batch, out_channel, x,y,t)
+    return torch.einsum("bixy,ioxy->boxy", a, b)
+
+
+def compl_mul3d(a, b):
+    return torch.einsum("bixyz,ioxyz->boxyz", a, b)
 
 ################################################################
 # 1d fourier layer
