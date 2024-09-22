@@ -9,18 +9,38 @@ import torch.nn.functional as F
 
 import torch
 
+import torch
+
 def dht(x: torch.Tensor) -> torch.Tensor:
+    """
+    Compute the separated cosine and sine versions of the DHT to mimic the complex-valued Fourier Transform.
+    This is done for 1D, 2D, and 3D cases.
+    
+    Args:
+        x: Input tensor (3D for 1D case, 4D for 2D case, 5D for 3D case)
+
+    Returns:
+        Tensor with concatenated cosine and sine components.
+    """
     if x.ndim == 3:
         # 1D case (input is a 3D tensor)
         D, M, N = x.size()
         n = torch.arange(N, device=x.device).float()
 
-        # Hartley kernel for 1D
-        cas = torch.cos(2 * torch.pi * n.view(-1, 1) * n / N) + torch.sin(2 * torch.pi * n.view(-1, 1) * n / N)
+        # Cosine and sine parts
+        cos_part = torch.cos(2 * torch.pi * n.view(-1, 1) * n / N)
+        sin_part = torch.sin(2 * torch.pi * n.view(-1, 1) * n / N)
 
-        # Perform the DHT
-        X = torch.matmul(cas, x.view(D, N, M).permute(1, 0, 2).reshape(N, -1))
-        return X.reshape(N, D, M).permute(1, 2, 0)
+        # Perform the Cosine Transform
+        X_cos = torch.matmul(cos_part, x.view(D, N, M).permute(1, 0, 2).reshape(N, -1))
+        X_cos = X_cos.reshape(N, D, M).permute(1, 2, 0)
+
+        # Perform the Sine Transform
+        X_sin = torch.matmul(sin_part, x.view(D, N, M).permute(1, 0, 2).reshape(N, -1))
+        X_sin = X_sin.reshape(N, D, M).permute(1, 2, 0)
+
+        # Concatenate cosine and sine parts along the second dimension
+        return torch.cat([X_cos, X_sin], dim=1)
 
     elif x.ndim == 4:
         # 2D case (input is a 4D tensor)
@@ -28,20 +48,26 @@ def dht(x: torch.Tensor) -> torch.Tensor:
         m = torch.arange(M, device=x.device).float()
         n = torch.arange(N, device=x.device).float()
 
-        # Hartley kernels for rows and columns
-        cas_row = torch.cos(2 * torch.pi * m.view(-1, 1) * m / M) + torch.sin(2 * torch.pi * m.view(-1, 1) * m / M)
-        cas_col = torch.cos(2 * torch.pi * n.view(-1, 1) * n / N) + torch.sin(2 * torch.pi * n.view(-1, 1) * n / N)
+        # Cosine and sine parts for rows and columns
+        cos_row = torch.cos(2 * torch.pi * m.view(-1, 1) * m / M)
+        sin_row = torch.sin(2 * torch.pi * m.view(-1, 1) * m / M)
 
-        # Perform the DHT
-        x_reshaped = x.reshape(B * D, M, N)  # (B*D, M, N)
+        cos_col = torch.cos(2 * torch.pi * n.view(-1, 1) * n / N)
+        sin_col = torch.sin(2 * torch.pi * n.view(-1, 1) * n / N)
 
-        # Apply the column transform
-        intermediate = torch.matmul(x_reshaped, cas_col.T)  # (B*D, M, N) @ (N, N) -> (B*D, M, N)
-        
-        # Apply the row transform
-        X = torch.matmul(cas_row.T, intermediate)  # (M, M) @ (B*D, M, N) -> (B*D, M, N)
+        # Perform the Cosine Transform
+        x_reshaped = x.reshape(B * D, M, N)
+        intermediate_cos = torch.matmul(x_reshaped, cos_col.T)
+        X_cos = torch.matmul(cos_row.T, intermediate_cos)
+        X_cos = X_cos.reshape(B, D, M, N)
 
-        return X.reshape(B, D, M, N)
+        # Perform the Sine Transform
+        intermediate_sin = torch.matmul(x_reshaped, sin_col.T)
+        X_sin = torch.matmul(sin_row.T, intermediate_sin)
+        X_sin = X_sin.reshape(B, D, M, N)
+
+        # Concatenate cosine and sine parts along the second dimension (axis 2)
+        return torch.cat([X_cos, X_sin], dim=2)
 
     elif x.ndim == 5:
         # 3D case (input is a 5D tensor)
@@ -50,27 +76,35 @@ def dht(x: torch.Tensor) -> torch.Tensor:
         m = torch.arange(M, device=x.device).float()
         n = torch.arange(N, device=x.device).float()
 
-        # Hartley kernels for depth, rows, and columns
-        cas_depth = torch.cos(2 * torch.pi * d.view(-1, 1) * d / D) + torch.sin(2 * torch.pi * d.view(-1, 1) * d / D)
-        cas_row = torch.cos(2 * torch.pi * m.view(-1, 1) * m / M) + torch.sin(2 * torch.pi * m.view(-1, 1) * m / M)
-        cas_col = torch.cos(2 * torch.pi * n.view(-1, 1) * n / N) + torch.sin(2 * torch.pi * n.view(-1, 1) * n / N)
+        # Cosine and sine parts for depth, rows, and columns
+        cos_depth = torch.cos(2 * torch.pi * d.view(-1, 1, 1) * d / D)
+        sin_depth = torch.sin(2 * torch.pi * d.view(-1, 1, 1) * d / D)
 
-        # Perform the DHT
+        cos_row = torch.cos(2 * torch.pi * m.view(-1, 1) * m / M)
+        sin_row = torch.sin(2 * torch.pi * m.view(-1, 1) * m / M)
+
+        cos_col = torch.cos(2 * torch.pi * n.view(-1, 1) * n / N)
+        sin_col = torch.sin(2 * torch.pi * n.view(-1, 1) * n / N)
+
+        # Perform the Cosine Transform
         x_reshaped = x.reshape(B * C, D, M, N)
-        
-        # First, apply the depth transform
-        intermediate = torch.einsum('bcde,dc->bcde', x_reshaped, cas_depth)
-        
-        # Next, apply the row transform
-        intermediate = torch.einsum('bcde,md->bcme', intermediate, cas_row)
-        
-        # Finally, apply the column transform
-        X = torch.einsum('bcme,nm->bcme', intermediate, cas_col)
+        intermediate_cos = torch.einsum('bcde,cfde->bcfe', x_reshaped, cos_col)
+        intermediate_cos = torch.einsum('bcfe,cfm->bcme', intermediate_cos, cos_row)
+        X_cos = torch.einsum('bcme,cfm->bcme', intermediate_cos, cos_depth)
+        X_cos = X_cos.reshape(B, C, D, M, N)
 
-        return X.reshape(B, C, D, M, N)
+        # Perform the Sine Transform
+        intermediate_sin = torch.einsum('bcde,cfde->bcfe', x_reshaped, sin_col)
+        intermediate_sin = torch.einsum('bcfe,cfm->bcme', intermediate_sin, sin_row)
+        X_sin = torch.einsum('bcme,cfm->bcme', intermediate_sin, sin_depth)
+        X_sin = X_sin.reshape(B, C, D, M, N)
+
+        # Concatenate cosine and sine parts along the second dimension (axis 2)
+        return torch.cat([X_cos, X_sin], dim=2)
 
     else:
         raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
+
 
 def idht(x: torch.Tensor) -> torch.Tensor:
     # Compute the DHT (Direct Hartley Transform again, since DHT is self-inverse)
