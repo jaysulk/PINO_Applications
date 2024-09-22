@@ -35,9 +35,14 @@ def dht(x: torch.Tensor) -> torch.Tensor:
         cas_col = torch.cos(2 * torch.pi * n.view(-1, 1) * n / N) + torch.sin(2 * torch.pi * n.view(-1, 1) * n / N)
 
         # Perform the DHT
-        x_reshaped = x.reshape(B * D, M, N)
-        intermediate = torch.matmul(cas_col, x_reshaped)
-        X = torch.matmul(cas_row, intermediate)
+        x_reshaped = x.reshape(B * D, M, N)  # (B*D, M, N)
+
+        # Apply the column transform
+        intermediate = torch.matmul(x_reshaped, cas_col.T)  # (B*D, M, N) @ (N, N) -> (B*D, M, N)
+        
+        # Apply the row transform
+        X = torch.matmul(cas_row.T, intermediate)  # (M, M) @ (B*D, M, N) -> (B*D, M, N)
+
         return X.reshape(B, D, M, N)
 
     elif x.ndim == 5:
