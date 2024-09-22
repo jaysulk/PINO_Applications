@@ -6,13 +6,15 @@ import torch.nn.functional as F
 
 import torch
 
-def dht_fftn(x: torch.Tensor, dim: list) -> torch.Tensor:
-    # Compute the FFT of the input tensor over the specified dimensions
-    X_fftn = torch.fft.fftn(x, dim=dim)
+import torch
+
+def dht_fft(x: torch.Tensor, dim: int) -> torch.Tensor:
+    # Compute the 1D FFT of the input tensor along the specified dimension
+    X_fft = torch.fft.fft(x, dim=dim)
     
     # Compute the real and imaginary parts
-    real_part = X_fftn.real
-    imag_part = X_fftn.imag
+    real_part = X_fft.real
+    imag_part = X_fft.imag
     
     # DHT is the sum of the real part and the negative of the imaginary part
     dht_result = real_part - imag_part
@@ -35,11 +37,16 @@ def dht_fftn(x: torch.Tensor, dim: list) -> torch.Tensor:
 
 def dht(x: torch.Tensor) -> torch.Tensor:
     if x.ndim == 3:  # For 1D DHT
-        return dht_fftn(x, dim=[2])
+        return dht_fft(x, dim=2)
     elif x.ndim == 4:  # For 2D DHT
-        return dht_fftn(x, dim=[2, 3])
+        # Apply FFT on each dimension independently
+        result = dht_fft(x, dim=2)
+        return dht_fft(result, dim=3)
     elif x.ndim == 5:  # For 3D DHT
-        return dht_fftn(x, dim=[2, 3, 4])
+        # Apply FFT on each dimension independently
+        result = dht_fft(x, dim=2)
+        result = dht_fft(result, dim=3)
+        return dht_fft(result, dim=4)
     else:
         raise ValueError("Only 1D (3D tensors), 2D (4D tensors), and 3D (5D tensors) tensors are supported.")
 
