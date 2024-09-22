@@ -9,8 +9,6 @@ import torch.nn.functional as F
 
 import torch
 
-import torch
-
 def dht(x: torch.Tensor) -> torch.Tensor:
     if x.ndim == 3:
         # 1D case (input is a 3D tensor)
@@ -74,15 +72,15 @@ def idht(x: torch.Tensor) -> torch.Tensor:
     # Determine normalization factor
     if x.ndim == 3:
         # 1D case (3D tensor input)
-        N = x.size(1)  # N is the size of the last dimension
+        N = x.size(0)  # N is the size of the last dimension
         normalization_factor = N 
     elif x.ndim == 4:
         # 2D case (4D tensor input)
-        M, N = x.size(1), x.size(2)
+        M, N = x.size(0), x.size(1)
         normalization_factor = M * N
     elif x.ndim == 5:
         # 3D case (5D tensor input)
-        D, M, N = x.size(1), x.size(2), x.size(3)
+        D, M, N = x.size(0), x.size(1), x.size(2)
         normalization_factor = D * M * N
     else:
         raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
