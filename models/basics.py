@@ -9,7 +9,10 @@ import torch.nn.functional as F
 
 import math
 
-def dht(x: torch.Tensor) -> torch.Tensor:
+import torch
+import math
+
+def manual_dft(x: torch.Tensor) -> torch.Tensor:
     """
     Manually compute the Discrete Fourier Transform (DFT) and return the real part.
     This function handles 1D, 2D, and 3D cases, returning a real-valued tensor.
@@ -20,15 +23,18 @@ def dht(x: torch.Tensor) -> torch.Tensor:
     Returns:
         Real-valued tensor (same torch.dtype as input)
     """
+    # Convert input to complex type (complex64 for float32, complex128 for float64)
+    x = x.to(torch.complex64) if x.dtype == torch.float32 else x.to(torch.complex128)
+
     if x.ndim == 3:
         # 1D DFT case (input is a 3D tensor)
         D, M, N = x.size()
         n = torch.arange(N, device=x.device).view(1, 1, N)
         k = torch.arange(N, device=x.device).view(1, N, 1)
-        
+
         # Compute the DFT matrix (complex exponential)
         W = torch.exp(-2j * math.pi * k * n / N)
-        
+
         # Compute the DFT using matrix multiplication
         X_complex = torch.matmul(x, W)
 
