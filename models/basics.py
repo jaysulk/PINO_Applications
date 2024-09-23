@@ -7,12 +7,10 @@ from functools import partial
 
 import torch.nn.functional as F
 
-import math
-
 import torch
 import math
 
-def dht(x: torch.Tensor) -> torch.Tensor:
+def manual_dft(x: torch.Tensor) -> torch.Tensor:
     """
     Manually compute the Discrete Fourier Transform (DFT) and return the real part.
     This function handles 1D, 2D, and 3D cases, returning a real-valued tensor.
@@ -97,10 +95,6 @@ def dht(x: torch.Tensor) -> torch.Tensor:
 
     else:
         raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
-
-
-import torch
-import math
 
 def idht(X: torch.Tensor) -> torch.Tensor:
     """
