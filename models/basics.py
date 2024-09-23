@@ -12,7 +12,7 @@ import math
 import torch
 import math
 
-def manual_dft(x: torch.Tensor) -> torch.Tensor:
+def dht(x: torch.Tensor) -> torch.Tensor:
     """
     Manually compute the Discrete Fourier Transform (DFT) and return the real part.
     This function handles 1D, 2D, and 3D cases, returning a real-valued tensor.
