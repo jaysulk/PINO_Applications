@@ -1,54 +1,46 @@
-import numpy as np
-import torch
-import torch.nn as nn
-from functools import partial
-import torch.nn.functional as F
-
 import torch
 
-import torch
+def fhtn(x, dim=[2, 3]):
+    """
+    Fast Hartley Transform over the specified dimensions.
+    
+    Parameters:
+        x (torch.Tensor): Input tensor of arbitrary dimensions.
+        dim (list of int): List of dimensions over which to compute the FHT.
+    
+    Returns:
+        torch.Tensor: The Hartley-transformed tensor.
+    """
+    assert x.ndim >= len(dim), "Input tensor must have enough dimensions for the specified transform."
+    
+    # Apply FHT along each dimension sequentially
+    for d in dim:
+        x = fht1d(x, d)
+        
+    return x
 
-def dht_fft(x: torch.Tensor, dim: int) -> torch.Tensor:
-    # Compute the 1D FFT of the input tensor along the specified dimension
+def dht(x, dim=[2, 3]):
+    """
+    Compute the 1D Fast Hartley Transform (FHT) along the specified dimension.
+    
+    Parameters:
+        x (torch.Tensor): Input tensor.
+        dim (int): The dimension along which to compute the FHT.
+    
+    Returns:
+        torch.Tensor: Tensor with FHT applied along the specified dimension.
+    """
+    # Perform FFT
     X_fft = torch.fft.fft(x, dim=dim)
     
-    # Compute the real and imaginary parts
+    # Compute real and imaginary parts
     real_part = X_fft.real
     imag_part = X_fft.imag
     
-    # DHT is the sum of the real part and the negative of the imaginary part
-    dht_result = real_part - imag_part
+    # Compute the Hartley transform using real and imaginary parts
+    cas = real_part - imag_part  # cos + sin in Hartley transform
     
-    # Compute the shape needed to match the input tensor's shape
-    input_shape = x.shape
-    
-    # Adjust the shape of dht_result to match input_shape if needed
-    if dht_result.shape != input_shape:
-        # Create an output tensor with the same shape as the input
-        dht_adjusted = torch.zeros_like(x)
-        
-        # Calculate slices to insert the dht_result into the padded tensor
-        slices = tuple(slice(0, s) for s in dht_result.shape)
-        dht_adjusted[slices] = dht_result
-        
-        return dht_adjusted
-    else:
-        return dht_result
-
-def dht(x: torch.Tensor) -> torch.Tensor:
-    if x.ndim == 3:  # For 1D DHT
-        return dht_fft(x, dim=2)
-    elif x.ndim == 4:  # For 2D DHT
-        # Apply FFT on each dimension independently
-        result = dht_fft(x, dim=2)
-        return dht_fft(result, dim=3)
-    elif x.ndim == 5:  # For 3D DHT
-        # Apply FFT on each dimension independently
-        result = dht_fft(x, dim=2)
-        result = dht_fft(result, dim=3)
-        return dht_fft(result, dim=4)
-    else:
-        raise ValueError("Only 1D (3D tensors), 2D (4D tensors), and 3D (5D tensors) tensors are supported.")
+    return cas
 
 def idht(x: torch.Tensor) -> torch.Tensor:
     # Compute the DHT
