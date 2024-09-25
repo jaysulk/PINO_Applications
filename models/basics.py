@@ -107,6 +107,9 @@ def idht(X: torch.Tensor) -> torch.Tensor:
     Returns:
         Real-valued tensor (same torch.dtype as input)
     """
+    # Ensure X is in complex type
+    X = X.to(torch.complex64) if X.dtype == torch.float32 else X.to(torch.complex128)
+
     if X.ndim == 3:
         # 1D IDFT case (input is a 3D tensor)
         D, M, N = X.size()
@@ -178,7 +181,6 @@ def idht(X: torch.Tensor) -> torch.Tensor:
 
     else:
         raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {X.ndim}D with shape {X.shape}.")
-
 
 def compl_mul1d(a, b):
     # (batch, in_channel, x ), (in_channel, out_channel, x) -> (batch, out_channel, x)
