@@ -5,7 +5,7 @@ import torch.nn as nn
 from functools import partial
 import torch.nn.functional as F
 
-def fhtn(x, dim=[2, 3]):
+def dht(x, dim=[2, 3]):
     """
     Fast Hartley Transform over the specified dimensions.
     
