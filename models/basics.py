@@ -5,47 +5,65 @@ import torch.nn as nn
 from functools import partial
 import torch.nn.functional as F
 
-def dht(x, dim=[2, 3]):
+import torch
+import math
+
+def fhtn(x, dim=[2, 3]):
     """
-    Fast Hartley Transform over the specified dimensions.
-    
+    Fast Hartley Transform (FHT) over the specified dimensions.
+
     Parameters:
         x (torch.Tensor): Input tensor of arbitrary dimensions.
         dim (list of int): List of dimensions over which to compute the FHT.
-    
+
     Returns:
         torch.Tensor: The Hartley-transformed tensor.
     """
     assert x.ndim >= len(dim), "Input tensor must have enough dimensions for the specified transform."
-    
+
     # Apply FHT along each dimension sequentially
     for d in dim:
         x = fht1d(x, d)
-        
+
     return x
 
 def fht1d(x, dim):
     """
     Compute the 1D Fast Hartley Transform (FHT) along the specified dimension.
-    
+
     Parameters:
         x (torch.Tensor): Input tensor.
         dim (int): The dimension along which to compute the FHT.
-    
+
     Returns:
         torch.Tensor: Tensor with FHT applied along the specified dimension.
     """
-    # Perform FFT
-    X_fft = torch.fft.fft(x, dim=dim)
+    # Get the size of the dimension we are transforming along
+    N = x.size(dim)
     
-    # Compute real and imaginary parts
-    real_part = X_fft.real
-    imag_part = X_fft.imag
+    # Create a grid of indices for the transform
+    n = torch.arange(N, device=x.device)
     
-    # Compute the Hartley transform using real and imaginary parts
-    cas = real_part - imag_part  # cos + sin in Hartley transform
+    # Compute the cas matrix for the Hartley Transform
+    k = torch.arange(N, device=x.device).unsqueeze(-1)  # Shape: (N, 1)
+    theta = 2 * math.pi * k * n / N  # Shape: (N, N), the angles for each k and n
+    cas_matrix = torch.cos(theta) + torch.sin(theta)  # Shape: (N, N), cas function
     
-    return cas
+    # Permute the input tensor to bring the target dimension to the front
+    x = x.transpose(dim, -1)  # Now the target dimension is the last dimension
+    
+    # Perform the Hartley transform via matrix multiplication
+    result = torch.matmul(x, cas_matrix) / N  # Shape: (..., N)
+    
+    # Transpose back to the original dimension order
+    result = result.transpose(dim, -1)  # Restore original dimension order
+    
+    return result
+
+# Example usage:
+x = torch.randn(16, 16, 32, 32)  # 4D input tensor
+result = fhtn(x, dim=[2, 3])  # Apply FHT over the last two dimensions
+
 
 def idht(x: torch.Tensor) -> torch.Tensor:
     # Compute the DHT
