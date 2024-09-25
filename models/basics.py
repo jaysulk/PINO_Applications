@@ -60,11 +60,6 @@ def fht1d(x, dim):
     
     return result
 
-# Example usage:
-x = torch.randn(16, 16, 32, 32)  # 4D input tensor
-result = fhtn(x, dim=[2, 3])  # Apply FHT over the last two dimensions
-
-
 def idht(x: torch.Tensor) -> torch.Tensor:
     # Compute the DHT
     transformed = dht(x)
