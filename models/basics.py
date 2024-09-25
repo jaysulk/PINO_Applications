@@ -19,7 +19,7 @@ def fhtn(x, dim=[2, 3]):
         
     return x
 
-def dht(x, dim=[2, 3]):
+def fht1d(x, dim):
     """
     Compute the 1D Fast Hartley Transform (FHT) along the specified dimension.
     
