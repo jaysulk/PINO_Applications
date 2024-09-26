@@ -9,8 +9,6 @@ import torch.nn.functional as F
 
 import torch
 
-import torch
-
 def recursive_butterfly(x: torch.Tensor) -> torch.Tensor:
     """
     Recursive Butterfly calculation for the Regularized Fast Hartley Transform (RFHT).
@@ -37,25 +35,35 @@ def recursive_butterfly(x: torch.Tensor) -> torch.Tensor:
     transformed_even = recursive_butterfly(even_part)
     transformed_odd = recursive_butterfly(odd_part)
     
+    # Handle size mismatch between even and odd parts
+    if transformed_odd.shape[-1] < transformed_even.shape[-1]:
+        # Pad the odd part to match the size of the even part
+        pad_size = transformed_even.shape[-1] - transformed_odd.shape[-1]
+        transformed_odd = torch.nn.functional.pad(transformed_odd, (0, pad_size))
+    
     # Create butterfly operations for merging
-    n = torch.arange(N // 2, device=x.device).float()
+    n = torch.arange(transformed_even.shape[-1], device=x.device).float()
     factor = 2 * torch.pi * n / N
     
     cos_term = torch.cos(factor)
     sin_term = torch.sin(factor)
     
+    # Reshape cos_term and sin_term to allow broadcasting
+    cos_term = cos_term.view(-1, 1)  # Adjust the shape for broadcasting
+    sin_term = sin_term.view(-1, 1)
+    
     # Combine the even and odd parts using butterfly operation
     combined_part1 = transformed_even + cos_term * transformed_odd + sin_term * transformed_odd
     combined_part2 = transformed_even - cos_term * transformed_odd - sin_term * transformed_odd
     
-    # Handle odd-sized input: last element needs special handling
+    # Handle odd-sized input: when N is odd, append the last element separately
     if N % 2 == 1:
-        last_element = x[..., -1:]
-        last_transformed = torch.cat((combined_part1, last_element), dim=-1)
-        return last_transformed
+        last_element = x[..., -1:]  # Get the last element
+        combined = torch.cat((combined_part1, combined_part2, last_element), dim=-1)
     else:
-        return torch.cat((combined_part1, combined_part2), dim=-1)
-
+        combined = torch.cat((combined_part1, combined_part2), dim=-1)
+    
+    return combined
 
 def low_pass_filter(hartley_coeffs: torch.Tensor, threshold: float) -> torch.Tensor:
     """
