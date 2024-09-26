@@ -66,6 +66,9 @@ def iterative_hartley(x: torch.Tensor) -> torch.Tensor:
             n_range = torch.arange(half_stride, device=x.device)
             cas_n = torch.cos(2 * torch.pi * n_range / (2 * half_stride)) + torch.sin(2 * torch.pi * n_range / (2 * half_stride))
             
+            # Reshape cas_n to match the dimensionality of the odd_part
+            cas_n = cas_n.view(*([1] * (odd_part.ndim - 1)), -1)
+
             # Perform butterfly operation
             X[..., i:i + half_stride] = even_part + odd_part * cas_n
             X[..., i + half_stride:i + 2 * half_stride] = even_part - odd_part * cas_n
@@ -122,7 +125,6 @@ def dht(x: torch.Tensor, threshold: float = 1.0) -> torch.Tensor:
 
     else:
         raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
-
 
 def idht(x: torch.Tensor) -> torch.Tensor:
     # Compute the DHT
