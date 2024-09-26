@@ -57,23 +57,26 @@ def iterative_hartley(x: torch.Tensor) -> torch.Tensor:
             even_part = X[..., i:i + half_stride]
             odd_part = X[..., i + half_stride:i + 2 * half_stride]
             
-            # If the odd part is smaller (due to odd sizes), pad the odd part
-            if odd_part.size(-1) < even_part.size(-1):
-                odd_part = torch.nn.functional.pad(odd_part, (0, even_part.size(-1) - odd_part.size(-1)))
-            # If the even part is smaller, pad the even part (though this is less likely)
-            elif even_part.size(-1) < odd_part.size(-1):
-                even_part = torch.nn.functional.pad(even_part, (0, odd_part.size(-1) - even_part.size(-1)))
+            # Determine the larger size between even_part and odd_part
+            larger_size = max(even_part.size(-1), odd_part.size(-1))
 
-            # Calculate cosine and sine values for butterfly combination
-            n_range = torch.arange(half_stride, device=x.device)
+            # If the odd part is smaller, pad it
+            if odd_part.size(-1) < larger_size:
+                odd_part = torch.nn.functional.pad(odd_part, (0, larger_size - odd_part.size(-1)))
+            # If the even part is smaller, pad it
+            if even_part.size(-1) < larger_size:
+                even_part = torch.nn.functional.pad(even_part, (0, larger_size - even_part.size(-1)))
+
+            # Calculate cosine and sine values for butterfly combination based on the larger size
+            n_range = torch.arange(larger_size, device=x.device)
             cas_n = torch.cos(2 * torch.pi * n_range / (2 * half_stride)) + torch.sin(2 * torch.pi * n_range / (2 * half_stride))
             
             # Reshape cas_n to match the dimensionality of the odd_part
             cas_n = cas_n.view(*([1] * (odd_part.ndim - 1)), -1)
 
             # Perform butterfly operation
-            X[..., i:i + half_stride] = even_part + odd_part * cas_n
-            X[..., i + half_stride:i + 2 * half_stride] = even_part - odd_part * cas_n
+            X[..., i:i + larger_size] = even_part + odd_part * cas_n
+            X[..., i + larger_size:i + 2 * larger_size] = even_part - odd_part * cas_n
         
         stride *= 2
 
