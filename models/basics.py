@@ -48,25 +48,29 @@ def iterative_hartley(x: torch.Tensor) -> torch.Tensor:
     X = x.clone()
     
     # Apply the butterfly structure iteratively
-    for stage in range(int(torch.log2(torch.tensor(N)).floor().item()) + 1):
-        stride = 2 ** stage
-        half_stride = stride // 2
+    stride = 1
+    while stride < N:
+        half_stride = stride
         
         # Apply the butterfly for this stage
-        for i in range(0, N, stride):
-            even_part = X[..., i:i+half_stride]
-            odd_part = X[..., i+half_stride:i+stride]
-
-            # For odd lengths, ensure proper dimension handling
-            if odd_part.size(-1) != even_part.size(-1):
-                odd_part = torch.nn.functional.pad(odd_part, (0, 1))
-
-            # Apply the butterfly combination
-            cas_n = torch.cos(2 * torch.pi * torch.arange(half_stride, device=x.device) / stride) + \
-                    torch.sin(2 * torch.pi * torch.arange(half_stride, device=x.device) / stride)
+        for i in range(0, N, 2 * stride):
+            # Get even and odd parts (ensure that they are within bounds)
+            even_part = X[..., i:i + half_stride]
+            odd_part = X[..., i + half_stride:min(i + 2 * half_stride, N)]  # Ensure we don't go out of bounds
             
-            X[..., i:i+half_stride] = even_part + odd_part * cas_n
-            X[..., i+half_stride:i+stride] = even_part - odd_part * cas_n
+            # If the odd part is shorter (due to odd sizes), pad it
+            if odd_part.size(-1) < even_part.size(-1):
+                odd_part = torch.nn.functional.pad(odd_part, (0, even_part.size(-1) - odd_part.size(-1)))
+            
+            # Calculate cosine and sine values for butterfly combination
+            n_range = torch.arange(half_stride, device=x.device)
+            cas_n = torch.cos(2 * torch.pi * n_range / (2 * half_stride)) + torch.sin(2 * torch.pi * n_range / (2 * half_stride))
+            
+            # Perform butterfly operation
+            X[..., i:i + half_stride] = even_part + odd_part * cas_n
+            X[..., i + half_stride:i + 2 * half_stride] = even_part - odd_part * cas_n
+
+        stride *= 2
 
     return X[..., :N]
 
@@ -118,6 +122,7 @@ def dht(x: torch.Tensor, threshold: float = 1.0) -> torch.Tensor:
 
     else:
         raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
+
 
 def idht(x: torch.Tensor) -> torch.Tensor:
     # Compute the DHT
