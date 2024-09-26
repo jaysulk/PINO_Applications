@@ -57,10 +57,13 @@ def iterative_hartley(x: torch.Tensor) -> torch.Tensor:
             even_part = X[..., i:i + half_stride]
             odd_part = X[..., i + half_stride:i + 2 * half_stride]
             
-            # If the odd part is shorter (due to odd sizes), pad it
+            # If the odd part is smaller (due to odd sizes), pad the odd part
             if odd_part.size(-1) < even_part.size(-1):
                 odd_part = torch.nn.functional.pad(odd_part, (0, even_part.size(-1) - odd_part.size(-1)))
-            
+            # If the even part is smaller, pad the even part (though this is less likely)
+            elif even_part.size(-1) < odd_part.size(-1):
+                even_part = torch.nn.functional.pad(even_part, (0, odd_part.size(-1) - even_part.size(-1)))
+
             # Calculate cosine and sine values for butterfly combination
             n_range = torch.arange(half_stride, device=x.device)
             cas_n = torch.cos(2 * torch.pi * n_range / (2 * half_stride)) + torch.sin(2 * torch.pi * n_range / (2 * half_stride))
@@ -147,8 +150,6 @@ def dht(x: torch.Tensor, threshold: float = 1.0) -> torch.Tensor:
 
     else:
         raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
-
-
 
 def idht(x: torch.Tensor) -> torch.Tensor:
     # Compute the DHT
