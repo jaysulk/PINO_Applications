@@ -7,9 +7,13 @@ from functools import partial
 
 import torch.nn.functional as F
 
-import torch
-
-import torch
+def memoize(f):
+    cache = {}
+    def wrapper(n):
+        if n not in cache:
+            cache[n] = f(n)
+        return cache[n]
+    return wrapper
 
 def low_pass_filter(hartley_coeffs: torch.Tensor, threshold: float) -> torch.Tensor:
     """
@@ -33,6 +37,7 @@ def low_pass_filter(hartley_coeffs: torch.Tensor, threshold: float) -> torch.Ten
     hartley_coeffs[..., freq_cutoff:] = 0.0
     return hartley_coeffs
 
+@memoize
 def recursive_hartley(x: torch.Tensor) -> torch.Tensor:
     """
     Recursive Hartley Transform using a butterfly structure.
