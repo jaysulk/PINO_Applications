@@ -29,8 +29,6 @@ def low_pass_filter(hartley_coeffs: torch.Tensor, threshold: float) -> torch.Ten
     hartley_coeffs[..., freq_cutoff:] = 0.0
     return hartley_coeffs
 
-import torch
-
 def rfht_recursive(x: torch.Tensor) -> torch.Tensor:
     """
     Recursive Fast Hartley Transform (RFHT) using butterfly equations.
@@ -66,11 +64,15 @@ def rfht_recursive(x: torch.Tensor) -> torch.Tensor:
     cos_term = torch.cos(angle)
     sin_term = torch.sin(angle)
 
+    # Unsqueeze cos_term and sin_term to match the shape of odd_transform for broadcasting
+    cos_term = cos_term.view([1] * (odd_transform.ndim - 1) + [-1])
+    sin_term = sin_term.view([1] * (odd_transform.ndim - 1) + [-1])
+
     # Apply the butterfly operation using basic torch operations
-    # Note: We avoid broadcasting issues by summing them in a simpler way
     combined_odd_cos = torch.mul(odd_transform, cos_term)
     combined_odd_sin = torch.mul(odd_transform, sin_term)
 
+    # Use torch.add to perform element-wise addition with a negative multiplier
     combined_odd = torch.add(combined_odd_cos, combined_odd_sin, alpha=-1)
 
     # Recombine even and odd parts using torch.cat
@@ -80,6 +82,7 @@ def rfht_recursive(x: torch.Tensor) -> torch.Tensor:
     else:
         # For odd-sized input, append the remaining element from even_transform
         return torch.cat([even_transform + combined_odd, even_transform - combined_odd, even_transform[..., :1]], dim=-1)
+
 
 
 def dht(x: torch.Tensor, threshold: float = 1.0) -> torch.Tensor:
