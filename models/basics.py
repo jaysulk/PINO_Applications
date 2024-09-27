@@ -44,11 +44,12 @@ def iterative_rfht_1d(x: torch.Tensor) -> torch.Tensor:
     """
     N = x.size(-1)
     
-    # Create a tensor to hold the result of the transformation
-    X = x.clone()
-    
     # Initialize an index for the butterfly combination
     step = 1
+    
+    # Iteratively perform the RFHT
+    X = x.clone()  # Work on a copy of the input
+    
     while step < N:
         # Compute the Hartley kernel for this step
         n = torch.arange(N, device=x.device).float()
@@ -65,8 +66,9 @@ def iterative_rfht_1d(x: torch.Tensor) -> torch.Tensor:
                     t_even = X[..., idx_even].clone()
                     t_odd = X[..., idx_odd].clone()
 
-                    X[..., idx_even] = t_even + cas[j] * t_odd
-                    X[..., idx_odd] = t_even - cas[j] * t_odd
+                    # The butterfly operation
+                    X[..., idx_even] = t_even + cas[j * N // (2 * step)] * t_odd
+                    X[..., idx_odd] = t_even - cas[j * N // (2 * step)] * t_odd
         
         step *= 2  # Double the step size for the next iteration
     
@@ -143,11 +145,6 @@ def dht(x: torch.Tensor, threshold: float = 1.0) -> torch.Tensor:
 
     else:
         raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
-
-
-# Example Usage
-# x = torch.randn(2, 3, 64, 64)  # Example input
-# X = dht(x, threshold=0.5)
 
 def idht(x: torch.Tensor) -> torch.Tensor:
     # Compute the DHT
