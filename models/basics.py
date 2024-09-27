@@ -47,35 +47,50 @@ def rfht_recursive(x: torch.Tensor) -> torch.Tensor:
     return torch.cat([left, right], dim=-1)
 
 def dht(x: torch.Tensor) -> torch.Tensor:
-    def apply_rfht_recursive_along_last_dim(tensor: torch.Tensor) -> torch.Tensor:
+    def apply_rfht_recursive_along_all_dims(tensor: torch.Tensor) -> torch.Tensor:
         """
-        Apply RFHT recursively along the last dimension of the input tensor.
+        Apply RFHT recursively along all dimensions of the input tensor using `reshape` instead of `view`.
         """
         shape = tensor.shape
-        reshaped_tensor = tensor.reshape(-1, shape[-1])  # Reshape to apply along last dimension
-        transformed = torch.stack([rfht_recursive(row) for row in reshaped_tensor])
-        return transformed.view(*shape)
+        transformed_tensor = tensor
+
+        # Apply RFHT recursively along each dimension, starting from the last one
+        for dim in range(-1, -tensor.ndim - 1, -1):
+            # Permute the tensor so that the current dimension `dim` becomes the last dimension
+            reshaped_tensor = transformed_tensor.permute(*range(dim, 0), -1).contiguous()
+
+            # Reshape the tensor such that we flatten all dimensions except the last one
+            reshaped_tensor = reshaped_tensor.reshape(-1, reshaped_tensor.shape[-1])
+
+            # Apply the recursive RFHT along the last dimension
+            transformed_tensor = torch.stack([rfht_recursive(row) for row in reshaped_tensor])
+
+            # Restore the original shape by reshaping and permuting back
+            transformed_tensor = transformed_tensor.reshape(reshaped_tensor.shape).permute(0, *range(1, tensor.ndim))  # Restore original shape
+
+        return transformed_tensor.reshape(*shape)
 
     if x.ndim == 3:
         # 1D case (input is a 3D tensor)
         D, M, N = x.size()
-        # Apply RFHT recursively along the last dimension (which corresponds to N)
-        return apply_rfht_recursive_along_last_dim(x)
+        # Apply RFHT recursively along all dimensions
+        return apply_rfht_recursive_along_all_dims(x)
 
     elif x.ndim == 4:
         # 2D case (input is a 4D tensor)
         B, D, M, N = x.size()
-        # Apply RFHT recursively along the last dimension (which corresponds to N)
-        return apply_rfht_recursive_along_last_dim(x)
+        # Apply RFHT recursively along all dimensions
+        return apply_rfht_recursive_along_all_dims(x)
 
     elif x.ndim == 5:
         # 3D case (input is a 5D tensor)
         B, C, D, M, N = x.size()
-        # Apply RFHT recursively along the last dimension (which corresponds to N)
-        return apply_rfht_recursive_along_last_dim(x)
+        # Apply RFHT recursively along all dimensions
+        return apply_rfht_recursive_along_all_dims(x)
 
     else:
         raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
+
 
 def idht(x: torch.Tensor) -> torch.Tensor:
     # Compute the DHT
