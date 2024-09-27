@@ -76,16 +76,18 @@ def iterative_hartley(x: torch.Tensor) -> torch.Tensor:
             cas_n = cas_n.view(*([1] * (odd_part.ndim - 1)), -1)
 
             # Perform butterfly operation; ensure sizes match during assignment
-            butterfly_result_even = (even_part + odd_part * cas_n)
-            butterfly_result_odd = (even_part - odd_part * cas_n)
+            butterfly_result_even = even_part + odd_part * cas_n
+            butterfly_result_odd = even_part - odd_part * cas_n
 
             # Assign the results back to the original tensor X, making sure to index correctly
-            X[..., i:i + larger_size] = butterfly_result_even[..., :larger_size]
-            X[..., i + larger_size:i + 2 * larger_size] = butterfly_result_odd[..., :larger_size]
+            # Ensure correct shape is sliced based on actual size of even/odd parts
+            X[..., i:i + even_part.size(-1)] = butterfly_result_even[..., :even_part.size(-1)]
+            X[..., i + even_part.size(-1):i + even_part.size(-1) + odd_part.size(-1)] = butterfly_result_odd[..., :odd_part.size(-1)]
         
         stride *= 2
 
     return X[..., :N]
+
 
 def dht(x: torch.Tensor, threshold: float = 1.0) -> torch.Tensor:
     """
