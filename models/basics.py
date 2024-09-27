@@ -69,10 +69,10 @@ def iterative_hartley(x: torch.Tensor) -> torch.Tensor:
 
             # Calculate cosine and sine values for butterfly combination based on the larger size
             n_range = torch.arange(larger_size, device=x.device)
-            cas_n = torch.cos(2 * torch.pi * n_range / (2 * half_stride)) + torch.sin(2 * torch.pi * n_range / (2 * half_stride))
+            cas_n = torch.cos(2 * torch.pi * n_range / (2 * larger_size)) + torch.sin(2 * torch.pi * n_range / (2 * larger_size))
             
-            # Reshape cas_n to match the dimensionality of the odd_part
-            cas_n = cas_n.view(*([1] * (odd_part.ndim - 1)), -1)
+            # Ensure cas_n can broadcast properly by adding singleton dimensions as needed
+            cas_n = cas_n.view(*([1] * (X.ndim - 1)), -1)
 
             # Perform butterfly operation
             X[..., i:i + larger_size] = even_part + odd_part * cas_n
@@ -154,25 +154,6 @@ def dht(x: torch.Tensor, threshold: float = 1.0) -> torch.Tensor:
     else:
         raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
 
-def idht(x: torch.Tensor) -> torch.Tensor:
-    # Compute the DHT
-    transformed = dht(x)
-    
-    # Determine normalization factor
-    if x.ndim == 3:
-        # 1D case (3D tensor input)
-        N = x.size(1)  # N is the size of the last dimension
-        normalization_factor = N
-    elif x.ndim == 4:
-        # 2D case (4D tensor input)
-        M, N = x.size(2), x.size(3)
-        normalization_factor = M * N
-    elif x.ndim == 5:
-        # 3D case (5D tensor input)
-        D, M, N = x.size(2), x.size(3), x.size(4)
-        normalization_factor = D * M * N
-    else:
-        raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
 
 def compl_mul1d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     # Compute the DHT of both signals
