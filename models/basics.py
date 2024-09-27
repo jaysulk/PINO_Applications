@@ -52,7 +52,7 @@ def dht(x: torch.Tensor) -> torch.Tensor:
         Apply RFHT recursively along the last dimension of the input tensor.
         """
         shape = tensor.shape
-        reshaped_tensor = tensor.view(-1, shape[-1])  # Reshape to apply along last dimension
+        reshaped_tensor = tensor.reshape(-1, shape[-1])  # Reshape to apply along last dimension
         transformed = torch.stack([rfht_recursive(row) for row in reshaped_tensor])
         return transformed.view(*shape)
 
