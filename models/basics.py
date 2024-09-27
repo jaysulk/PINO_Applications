@@ -99,13 +99,15 @@ def dht(x: torch.Tensor, threshold: float = 1.0) -> torch.Tensor:
         # Apply RFHT along both dimensions (rows and columns)
         x_reshaped = x.reshape(B * D, M, N)
 
-        # First apply RFHT along the rows
+        # First apply RFHT along the rows (last dimension)
         row_transformed = torch.stack([rfht_recursive(x_reshaped[i]) for i in range(B * D)])
 
-        # Then apply RFHT along the columns
-        col_transformed = torch.stack([rfht_recursive(row_transformed[:, i]) for i in range(N)], dim=-2)
+        # Now apply RFHT along the columns (second last dimension)
+        row_transformed = row_transformed.transpose(-1, -2)  # Transpose to make columns the last dimension
+        col_transformed = torch.stack([rfht_recursive(row_transformed[i]) for i in range(row_transformed.shape[0])])
 
-        X = col_transformed.reshape(B, D, M, N)
+        # Transpose back to the original dimension order
+        X = col_transformed.transpose(-1, -2).reshape(B, D, M, N)
 
         # Apply low-pass filter
         X = low_pass_filter(X, threshold)
@@ -118,16 +120,18 @@ def dht(x: torch.Tensor, threshold: float = 1.0) -> torch.Tensor:
         # Apply RFHT along depth, rows, and columns
         x_reshaped = x.reshape(B * C, D, M, N)
 
-        # First apply RFHT along the depth
+        # First apply RFHT along the depth (third last dimension)
         depth_transformed = torch.stack([rfht_recursive(x_reshaped[:, i]) for i in range(D)], dim=-3)
 
-        # Then apply RFHT along the rows
-        row_transformed = torch.stack([rfht_recursive(depth_transformed[:, :, i]) for i in range(M)], dim=-2)
+        # Then apply RFHT along the rows (second last dimension)
+        row_transformed = depth_transformed.transpose(-1, -2)
+        row_transformed = torch.stack([rfht_recursive(row_transformed[i]) for i in range(row_transformed.shape[0])])
 
-        # Finally, apply RFHT along the columns
+        # Apply RFHT along the columns (last dimension)
         col_transformed = torch.stack([rfht_recursive(row_transformed[:, :, :, i]) for i in range(N)], dim=-1)
 
-        X = col_transformed.reshape(B, C, D, M, N)
+        # Reshape back to original shape
+        X = col_transformed.transpose(-1, -2).reshape(B, C, D, M, N)
 
         # Apply low-pass filter
         X = low_pass_filter(X, threshold)
