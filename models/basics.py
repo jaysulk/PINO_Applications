@@ -89,7 +89,8 @@ def iterative_hartley(x: torch.Tensor) -> torch.Tensor:
 
 def dht(x: torch.Tensor, threshold: float = 1.0) -> torch.Tensor:
     """
-    Compute the Discrete Hartley Transform (DHT) with iterative RFHT and optional low-pass filtering.
+    Compute the Discrete Hartley Transform (DHT) using iterative butterfly structure
+    with an optional low-pass filter.
 
     Parameters:
     x (torch.Tensor): Input tensor (3D, 4D, or 5D).
@@ -101,8 +102,11 @@ def dht(x: torch.Tensor, threshold: float = 1.0) -> torch.Tensor:
     if x.ndim == 3:
         # 1D case (input is a 3D tensor)
         D, M, N = x.size()
-        X = iterative_rfht_nd(x, dim=-1)  # Apply RFHT along the last dimension (M and N should be the same)
-        
+        X = iterative_hartley(x)
+
+        # Match output size to input size
+        X = match_input_output_size(X, N)
+
         # Apply low-pass filter
         X = low_pass_filter(X, threshold)
         return X
@@ -110,9 +114,14 @@ def dht(x: torch.Tensor, threshold: float = 1.0) -> torch.Tensor:
     elif x.ndim == 4:
         # 2D case (input is a 4D tensor)
         B, D, M, N = x.size()
-        X = iterative_rfht_nd(x, dim=-1)  # Apply RFHT along the last dimension (columns)
-        X = iterative_rfht_nd(X, dim=-2)  # Apply RFHT along the second last dimension (rows)
         
+        # Apply iterative Hartley transform on both dimensions
+        X = iterative_hartley(x.transpose(-1, -2))
+        X = iterative_hartley(X.transpose(-1, -2))
+
+        # Match output size to input size
+        X = match_input_output_size(X, N)
+
         # Apply low-pass filter
         X = low_pass_filter(X, threshold)
         return X
@@ -120,10 +129,15 @@ def dht(x: torch.Tensor, threshold: float = 1.0) -> torch.Tensor:
     elif x.ndim == 5:
         # 3D case (input is a 5D tensor)
         B, C, D, M, N = x.size()
-        X = iterative_rfht_nd(x, dim=-1)  # Apply RFHT along the last dimension (columns)
-        X = iterative_rfht_nd(X, dim=-2)  # Apply RFHT along the second last dimension (rows)
-        X = iterative_rfht_nd(X, dim=-3)  # Apply RFHT along the third last dimension (depth)
         
+        # Apply iterative Hartley transform on all three dimensions
+        X = iterative_hartley(x.transpose(-1, -2))
+        X = iterative_hartley(X.transpose(-2, -3))
+        X = iterative_hartley(X.transpose(-3, -4))
+
+        # Match output size to input size
+        X = match_input_output_size(X, N)
+
         # Apply low-pass filter
         X = low_pass_filter(X, threshold)
         return X
