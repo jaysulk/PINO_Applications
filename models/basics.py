@@ -32,75 +32,60 @@ def low_pass_filter(hartley_coeffs: torch.Tensor, threshold: float) -> torch.Ten
     return hartley_coeffs
 
 
-def iterative_rfht_1d(x: torch.Tensor) -> torch.Tensor:
+def iterative_hartley(x: torch.Tensor) -> torch.Tensor:
     """
-    Compute the Regularized Fast Hartley Transform (RFHT) iteratively using butterfly structure.
-    
+    Iterative Hartley Transform using butterfly structure.
+    This function handles tensors of odd sizes by splitting them appropriately.
+
     Parameters:
-    x (torch.Tensor): Input 1D tensor (size N).
+    x (torch.Tensor): Input tensor.
     
     Returns:
-    torch.Tensor: Hartley transformed tensor.
+    torch.Tensor: Hartley transform of the input tensor.
     """
     N = x.size(-1)
     
-    # Initialize an index for the butterfly combination
-    step = 1
+    # Initialize working tensor
+    X = x.clone()
     
-    # Iteratively perform the RFHT
-    X = x.clone()  # Work on a copy of the input
-    
-    while step < N:
-        # Compute the Hartley kernel for this step
-        n = torch.arange(N, device=x.device).float()
-        cas = torch.cos(2 * torch.pi * n / N) + torch.sin(2 * torch.pi * n / N)
+    # Apply the butterfly structure iteratively
+    stride = 1
+    while stride < N:
+        half_stride = stride
         
-        # Iterate through the signal in pairs (even and odd parts)
-        for i in range(0, N, 2 * step):
-            for j in range(step):
-                idx_even = i + j
-                idx_odd = idx_even + step
+        # Apply the butterfly for this stage
+        for i in range(0, N, 2 * stride):
+            even_part = X[..., i:i + half_stride]
+            odd_part = X[..., i + half_stride:i + 2 * half_stride]
+            
+            # Ensure both even_part and odd_part are the same size by padding if necessary
+            larger_size = max(even_part.size(-1), odd_part.size(-1))
 
-                if idx_odd < N:
-                    # Perform the butterfly combination
-                    t_even = X[..., idx_even].clone()
-                    t_odd = X[..., idx_odd].clone()
+            # If the odd part is smaller, pad it
+            if odd_part.size(-1) < larger_size:
+                odd_part = torch.nn.functional.pad(odd_part, (0, larger_size - odd_part.size(-1)))
+            # If the even part is smaller, pad it
+            if even_part.size(-1) < larger_size:
+                even_part = torch.nn.functional.pad(even_part, (0, larger_size - even_part.size(-1)))
 
-                    # The butterfly operation
-                    X[..., idx_even] = t_even + cas[j * N // (2 * step)] * t_odd
-                    X[..., idx_odd] = t_even - cas[j * N // (2 * step)] * t_odd
+            # Calculate cosine and sine values for butterfly combination based on the larger size
+            n_range = torch.arange(larger_size, device=x.device)
+            cas_n = torch.cos(2 * torch.pi * n_range / (2 * larger_size)) + torch.sin(2 * torch.pi * n_range / (2 * larger_size))
+            
+            # Reshape cas_n to match the last dimension of odd_part for broadcasting
+            cas_n = cas_n.view(*([1] * (odd_part.ndim - 1)), -1)
+
+            # Perform butterfly operation; ensure sizes match during assignment
+            butterfly_result_even = (even_part + odd_part * cas_n)
+            butterfly_result_odd = (even_part - odd_part * cas_n)
+
+            # Assign the results back to the original tensor X, making sure to index correctly
+            X[..., i:i + larger_size] = butterfly_result_even[..., :larger_size]
+            X[..., i + larger_size:i + 2 * larger_size] = butterfly_result_odd[..., :larger_size]
         
-        step *= 2  # Double the step size for the next iteration
-    
-    return X
+        stride *= 2
 
-
-def iterative_rfht_nd(x: torch.Tensor, dim: int) -> torch.Tensor:
-    """
-    Perform iterative RFHT along a specific dimension of an n-dimensional tensor.
-    
-    Parameters:
-    x (torch.Tensor): Input tensor.
-    dim (int): The dimension along which to apply the RFHT.
-    
-    Returns:
-    torch.Tensor: Hartley transformed tensor.
-    """
-    # Permute the dimension of interest to the last position for easier handling
-    x = x.transpose(dim, -1)
-    original_shape = x.shape
-    
-    # Flatten all dimensions except the last one
-    x_flat = x.reshape(-1, x.size(-1))
-
-    # Apply iterative RFHT to the last dimension
-    X_flat = iterative_rfht_1d(x_flat)
-
-    # Reshape and permute back to original shape
-    X = X_flat.reshape(original_shape).transpose(dim, -1)
-    
-    return X
-
+    return X[..., :N]
 
 def dht(x: torch.Tensor, threshold: float = 1.0) -> torch.Tensor:
     """
