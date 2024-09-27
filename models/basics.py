@@ -36,10 +36,16 @@ def iterative_hartley(x: torch.Tensor) -> torch.Tensor:
             # Broadcasting handles the size differences automatically
             # Calculate cosine and sine values for butterfly combination based on the larger size
             larger_size = max(even_part.size(-1), odd_part.size(-1))
+
+            # Ensure that we don't go out of bounds in slicing
+            if i + larger_size > N:
+                larger_size = N - i  # Adjust larger_size so we don't exceed the bounds of X
+
+            # If the odd part is smaller, pad it using broadcasting
             n_range = torch.arange(larger_size, device=x.device)
             cas_n = torch.cos(2 * torch.pi * n_range / (2 * larger_size)) + torch.sin(2 * torch.pi * n_range / (2 * larger_size))
 
-            # Reshape cas_n to broadcast correctly
+            # Reshape cas_n to match the last dimension of odd_part for broadcasting
             cas_n = cas_n.view(*([1] * (odd_part.ndim - 1)), -1)
 
             # Perform butterfly operation using broadcasting
@@ -53,6 +59,7 @@ def iterative_hartley(x: torch.Tensor) -> torch.Tensor:
         stride *= 2
 
     return X[..., :N]
+
 
 def dht(x: torch.Tensor, threshold: float = 1.0) -> torch.Tensor:
     """
