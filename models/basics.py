@@ -7,58 +7,55 @@ from functools import partial
 
 import torch.nn.functional as F
 
+import torch
+
 def iterative_hartley(x: torch.Tensor) -> torch.Tensor:
-    """
-    Iterative Hartley Transform using butterfly structure.
-    This function handles tensors of odd sizes by leveraging PyTorch's broadcasting.
-    
-    Parameters:
-    x (torch.Tensor): Input tensor.
-    
-    Returns:
-    torch.Tensor: Hartley transform of the input tensor.
-    """
     N = x.size(-1)
     
     # Initialize working tensor
     X = x.clone()
-    
+
     # Apply the butterfly structure iteratively
     stride = 1
     while stride < N:
         half_stride = stride
         
-        # Apply the butterfly for this stage
         for i in range(0, N, 2 * stride):
-            even_part = X[..., i:i + half_stride]
-            odd_part = X[..., i + half_stride:i + 2 * half_stride]
+            # Indices for selecting even and odd parts
+            even_indices = torch.arange(i, i + half_stride, device=x.device)
+            odd_indices = torch.arange(i + half_stride, i + 2 * half_stride, device=x.device)
+
+            # Select even_part and odd_part using index_select
+            even_part = torch.index_select(X, -1, even_indices)
+            odd_part = torch.index_select(X, -1, odd_indices)
 
             # Broadcasting handles the size differences automatically
-            # Calculate cosine and sine values for butterfly combination based on the larger size
             larger_size = max(even_part.size(-1), odd_part.size(-1))
 
-            # Ensure that we don't go out of bounds in slicing
+            # Ensure the size does not exceed the bounds of X
             if i + larger_size > N:
-                larger_size = N - i  # Adjust larger_size so we don't exceed the bounds of X
+                larger_size = N - i
 
-            # If the odd part is smaller, pad it using broadcasting
             n_range = torch.arange(larger_size, device=x.device)
             cas_n = torch.cos(2 * torch.pi * n_range / (2 * larger_size)) + torch.sin(2 * torch.pi * n_range / (2 * larger_size))
 
-            # Reshape cas_n to match the last dimension of odd_part for broadcasting
+            # Reshape cas_n for broadcasting
             cas_n = cas_n.view(*([1] * (odd_part.ndim - 1)), -1)
 
-            # Perform butterfly operation using broadcasting
+            # Perform the butterfly operation
             butterfly_result_even = even_part + odd_part * cas_n
             butterfly_result_odd = even_part - odd_part * cas_n
 
-            # Assign the results back to the original tensor X, automatically broadcasted to match shapes
-            X[..., i:i + larger_size] = butterfly_result_even[..., :larger_size]
-            X[..., i + larger_size:i + 2 * larger_size] = butterfly_result_odd[..., :larger_size]
+            # Concatenate the even and odd parts back into X
+            combined_result = torch.cat([butterfly_result_even, butterfly_result_odd], dim=-1)
+            
+            # Replace the values in X using index_select again
+            X = torch.cat([X[..., :i], combined_result, X[..., i + 2 * larger_size:]], dim=-1)
         
         stride *= 2
 
     return X[..., :N]
+
 
 
 def dht(x: torch.Tensor, threshold: float = 1.0) -> torch.Tensor:
