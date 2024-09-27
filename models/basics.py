@@ -15,7 +15,7 @@ def pad_if_odd(x: torch.Tensor) -> torch.Tensor:
         return torch.nn.functional.pad(x, (0, 1))
     return x
 
-def iterative_fht(x: torch.Tensor) -> torch.Tensor:
+def dht(x: torch.Tensor) -> torch.Tensor:
     """Compute the Fast Hartley Transform iteratively using butterfly equations."""
     N = x.shape[-1]
     log_n = int(torch.ceil(torch.log2(torch.tensor(N, dtype=torch.float32))))
