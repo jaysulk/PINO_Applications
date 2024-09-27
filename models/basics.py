@@ -9,38 +9,6 @@ import torch.nn.functional as F
 
 import torch
 
-def pad_if_odd(x: torch.Tensor) -> torch.Tensor:
-    """Pads the last dimension of the tensor if it has an odd size."""
-    if x.shape[-1] % 2 != 0:
-        return torch.nn.functional.pad(x, (0, 1))
-    return x
-
-def dht(x: torch.Tensor) -> torch.Tensor:
-    """Compute the Fast Hartley Transform iteratively using butterfly equations."""
-    N = x.shape[-1]
-    log_n = int(torch.ceil(torch.log2(torch.tensor(N, dtype=torch.float32))))
-    
-    # Pad the input if needed to handle odd sizes
-    x_padded = pad_if_odd(x)
-    N_padded = x_padded.shape[-1]
-
-    for level in range(log_n):
-        stride = 2 ** (level + 1)
-        half_stride = stride // 2
-
-        # Even and odd parts
-        even_part = x_padded[..., :half_stride]
-        odd_part = x_padded[..., half_stride:stride]
-        
-        # Butterfly combination
-        cos_term = torch.cos(2 * torch.pi * torch.arange(half_stride, device=x.device).float() / stride)
-        sin_term = torch.sin(2 * torch.pi * torch.arange(half_stride, device=x.device).float() / stride)
-
-        x_padded[..., :half_stride] = even_part + cos_term * odd_part - sin_term * odd_part
-        x_padded[..., half_stride:stride] = even_part - cos_term * odd_part + sin_term * odd_part
-
-    return x_padded[..., :N]  # Truncate back to original size if padding was applied
-
 def low_pass_filter(hartley_coeffs: torch.Tensor, threshold: float) -> torch.Tensor:
     """
     Apply a low-pass filter to the Hartley coefficients.
@@ -63,23 +31,91 @@ def low_pass_filter(hartley_coeffs: torch.Tensor, threshold: float) -> torch.Ten
     hartley_coeffs[..., freq_cutoff:] = 0.0
     return hartley_coeffs
 
-def fht(x: torch.Tensor, threshold: float = 1.0) -> torch.Tensor:
+
+def iterative_rfht_1d(x: torch.Tensor) -> torch.Tensor:
     """
-    Compute the Fast Hartley Transform (FHT) iteratively with an optional low-pass filter.
+    Compute the Regularized Fast Hartley Transform (RFHT) iteratively using butterfly structure.
     
     Parameters:
-    x (torch.Tensor): Input tensor (3D, 4D, or 5D).
-    threshold (float): Fraction of frequencies to keep after FHT (0 < threshold <= 1).
+    x (torch.Tensor): Input 1D tensor (size N).
     
     Returns:
-    torch.Tensor: FHT of the input tensor with optional low-pass filtering.
+    torch.Tensor: Hartley transformed tensor.
+    """
+    N = x.size(-1)
+    
+    # Create a tensor to hold the result of the transformation
+    X = x.clone()
+    
+    # Initialize an index for the butterfly combination
+    step = 1
+    while step < N:
+        # Compute the Hartley kernel for this step
+        n = torch.arange(N, device=x.device).float()
+        cas = torch.cos(2 * torch.pi * n / N) + torch.sin(2 * torch.pi * n / N)
+        
+        # Iterate through the signal in pairs (even and odd parts)
+        for i in range(0, N, 2 * step):
+            for j in range(step):
+                idx_even = i + j
+                idx_odd = idx_even + step
+
+                if idx_odd < N:
+                    # Perform the butterfly combination
+                    t_even = X[..., idx_even].clone()
+                    t_odd = X[..., idx_odd].clone()
+
+                    X[..., idx_even] = t_even + cas[j] * t_odd
+                    X[..., idx_odd] = t_even - cas[j] * t_odd
+        
+        step *= 2  # Double the step size for the next iteration
+    
+    return X
+
+
+def iterative_rfht_nd(x: torch.Tensor, dim: int) -> torch.Tensor:
+    """
+    Perform iterative RFHT along a specific dimension of an n-dimensional tensor.
+    
+    Parameters:
+    x (torch.Tensor): Input tensor.
+    dim (int): The dimension along which to apply the RFHT.
+    
+    Returns:
+    torch.Tensor: Hartley transformed tensor.
+    """
+    # Permute the dimension of interest to the last position for easier handling
+    x = x.transpose(dim, -1)
+    original_shape = x.shape
+    
+    # Flatten all dimensions except the last one
+    x_flat = x.reshape(-1, x.size(-1))
+
+    # Apply iterative RFHT to the last dimension
+    X_flat = iterative_rfht_1d(x_flat)
+
+    # Reshape and permute back to original shape
+    X = X_flat.reshape(original_shape).transpose(dim, -1)
+    
+    return X
+
+
+def dht(x: torch.Tensor, threshold: float = 1.0) -> torch.Tensor:
+    """
+    Compute the Discrete Hartley Transform (DHT) with iterative RFHT and optional low-pass filtering.
+
+    Parameters:
+    x (torch.Tensor): Input tensor (3D, 4D, or 5D).
+    threshold (float): Fraction of frequencies to keep after DHT (0 < threshold <= 1).
+
+    Returns:
+    torch.Tensor: DHT of the input tensor with optional low-pass filtering.
     """
     if x.ndim == 3:
         # 1D case (input is a 3D tensor)
         D, M, N = x.size()
-        N = M  # For 1D case, M and N should be the same size
-        X = iterative_fht(x.reshape(D, M, N))
-
+        X = iterative_rfht_nd(x, dim=-1)  # Apply RFHT along the last dimension (M and N should be the same)
+        
         # Apply low-pass filter
         X = low_pass_filter(X, threshold)
         return X
@@ -87,29 +123,31 @@ def fht(x: torch.Tensor, threshold: float = 1.0) -> torch.Tensor:
     elif x.ndim == 4:
         # 2D case (input is a 4D tensor)
         B, D, M, N = x.size()
-
-        # Apply the FHT iteratively over both dimensions
-        X = iterative_fht(x.reshape(B * D, M, N))
-
+        X = iterative_rfht_nd(x, dim=-1)  # Apply RFHT along the last dimension (columns)
+        X = iterative_rfht_nd(X, dim=-2)  # Apply RFHT along the second last dimension (rows)
+        
         # Apply low-pass filter
         X = low_pass_filter(X, threshold)
-        return X.reshape(B, D, M, N)
+        return X
 
     elif x.ndim == 5:
         # 3D case (input is a 5D tensor)
         B, C, D, M, N = x.size()
-
-        # Apply the FHT iteratively over all 3 dimensions
-        X = iterative_fht(x.reshape(B * C, D, M, N))
-
+        X = iterative_rfht_nd(x, dim=-1)  # Apply RFHT along the last dimension (columns)
+        X = iterative_rfht_nd(X, dim=-2)  # Apply RFHT along the second last dimension (rows)
+        X = iterative_rfht_nd(X, dim=-3)  # Apply RFHT along the third last dimension (depth)
+        
         # Apply low-pass filter
         X = low_pass_filter(X, threshold)
-        return X.reshape(B, C, D, M, N)
+        return X
 
     else:
         raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
 
 
+# Example Usage
+# x = torch.randn(2, 3, 64, 64)  # Example input
+# X = dht(x, threshold=0.5)
 
 def idht(x: torch.Tensor) -> torch.Tensor:
     # Compute the DHT
