@@ -7,31 +7,6 @@ from functools import partial
 
 import torch.nn.functional as F
 
-import torch
-
-def low_pass_filter(hartley_coeffs: torch.Tensor, threshold: float) -> torch.Tensor:
-    """
-    Apply a low-pass filter to the Hartley coefficients.
-    Zero out or attenuate frequencies above the threshold.
-    
-    Parameters:
-    hartley_coeffs (torch.Tensor): Hartley coefficients after DHT.
-    threshold (float): Fraction of frequencies to keep (0 < threshold <= 1).
-    
-    Returns:
-    torch.Tensor: Filtered Hartley coefficients.
-    """
-    assert 0 < threshold <= 1, "Threshold must be a value between 0 and 1."
-
-    # Get the number of frequencies
-    N = hartley_coeffs.shape[-1]
-    freq_cutoff = int(N * threshold)
-
-    # Zero out or attenuate high frequencies
-    hartley_coeffs[..., freq_cutoff:] = 0.0
-    return hartley_coeffs
-
-
 def iterative_hartley(x: torch.Tensor) -> torch.Tensor:
     """
     Iterative Hartley Transform using butterfly structure.
@@ -57,25 +32,24 @@ def iterative_hartley(x: torch.Tensor) -> torch.Tensor:
         for i in range(0, N, 2 * stride):
             even_part = X[..., i:i + half_stride]
             odd_part = X[..., i + half_stride:i + 2 * half_stride]
-            
-            # Ensure both even_part and odd_part are the same size by padding if necessary
-            larger_size = max(even_part.size(-1), odd_part.size(-1))
 
-            # If the odd part is smaller, pad it
-            if odd_part.size(-1) < larger_size:
-                odd_part = torch.nn.functional.pad(odd_part, (0, larger_size - odd_part.size(-1)))
-            # If the even part is smaller, pad it
-            if even_part.size(-1) < larger_size:
-                even_part = torch.nn.functional.pad(even_part, (0, larger_size - even_part.size(-1)))
+            # Find the larger size in all dimensions between even_part and odd_part
+            larger_shape = list(torch.broadcast_shapes(even_part.shape, odd_part.shape))
 
-            # Ensure that both even_part and odd_part have the same number of dimensions
-            if even_part.size() != odd_part.size():
-                raise RuntimeError("Dimension mismatch between even_part and odd_part after padding.")
+            # If the odd part is smaller in any dimension, pad it
+            pad_odd = [max(0, larger - odd) for larger, odd in zip(larger_shape, odd_part.shape)]
+            if any(pad_odd):
+                odd_part = torch.nn.functional.pad(odd_part, [0, pad_odd[-1]] + [0, 0] * (odd_part.ndim - 1))
+
+            # If the even part is smaller in any dimension, pad it
+            pad_even = [max(0, larger - even) for larger, even in zip(larger_shape, even_part.shape)]
+            if any(pad_even):
+                even_part = torch.nn.functional.pad(even_part, [0, pad_even[-1]] + [0, 0] * (even_part.ndim - 1))
 
             # Calculate cosine and sine values for butterfly combination based on the larger size
-            n_range = torch.arange(larger_size, device=x.device)
-            cas_n = torch.cos(2 * torch.pi * n_range / (2 * larger_size)) + torch.sin(2 * torch.pi * n_range / (2 * larger_size))
-            
+            n_range = torch.arange(larger_shape[-1], device=x.device)
+            cas_n = torch.cos(2 * torch.pi * n_range / (2 * larger_shape[-1])) + torch.sin(2 * torch.pi * n_range / (2 * larger_shape[-1]))
+
             # Reshape cas_n to match the last dimension of odd_part for broadcasting
             cas_n = cas_n.view(*([1] * (odd_part.ndim - 1)), -1)
 
@@ -83,20 +57,14 @@ def iterative_hartley(x: torch.Tensor) -> torch.Tensor:
             butterfly_result_even = even_part + odd_part * cas_n
             butterfly_result_odd = even_part - odd_part * cas_n
 
-            # Ensure that the size of butterfly_result_even and butterfly_result_odd match their corresponding slice in X
-            if butterfly_result_even.size(-1) != even_part.size(-1):
-                raise RuntimeError("Shape mismatch in butterfly_result_even during assignment.")
-            if butterfly_result_odd.size(-1) != odd_part.size(-1):
-                raise RuntimeError("Shape mismatch in butterfly_result_odd during assignment.")
-            
-            # Assign the results back to the original tensor X, making sure to index correctly
-            # Ensure correct shape is sliced based on actual size of even/odd parts
-            X[..., i:i + even_part.size(-1)] = butterfly_result_even[..., :even_part.size(-1)]
-            X[..., i + even_part.size(-1):i + even_part.size(-1) + odd_part.size(-1)] = butterfly_result_odd[..., :odd_part.size(-1)]
+            # Assign the results back to the original tensor X
+            X[..., i:i + larger_shape[-1]] = butterfly_result_even[..., :larger_shape[-1]]
+            X[..., i + larger_shape[-1]:i + 2 * larger_shape[-1]] = butterfly_result_odd[..., :larger_shape[-1]]
         
         stride *= 2
 
     return X[..., :N]
+
 
 
 
