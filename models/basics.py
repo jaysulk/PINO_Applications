@@ -68,6 +68,10 @@ def iterative_hartley(x: torch.Tensor) -> torch.Tensor:
             if even_part.size(-1) < larger_size:
                 even_part = torch.nn.functional.pad(even_part, (0, larger_size - even_part.size(-1)))
 
+            # Ensure that both even_part and odd_part have the same number of dimensions
+            if even_part.size() != odd_part.size():
+                raise RuntimeError("Dimension mismatch between even_part and odd_part after padding.")
+
             # Calculate cosine and sine values for butterfly combination based on the larger size
             n_range = torch.arange(larger_size, device=x.device)
             cas_n = torch.cos(2 * torch.pi * n_range / (2 * larger_size)) + torch.sin(2 * torch.pi * n_range / (2 * larger_size))
@@ -79,6 +83,12 @@ def iterative_hartley(x: torch.Tensor) -> torch.Tensor:
             butterfly_result_even = even_part + odd_part * cas_n
             butterfly_result_odd = even_part - odd_part * cas_n
 
+            # Ensure that the size of butterfly_result_even and butterfly_result_odd match their corresponding slice in X
+            if butterfly_result_even.size(-1) != even_part.size(-1):
+                raise RuntimeError("Shape mismatch in butterfly_result_even during assignment.")
+            if butterfly_result_odd.size(-1) != odd_part.size(-1):
+                raise RuntimeError("Shape mismatch in butterfly_result_odd during assignment.")
+            
             # Assign the results back to the original tensor X, making sure to index correctly
             # Ensure correct shape is sliced based on actual size of even/odd parts
             X[..., i:i + even_part.size(-1)] = butterfly_result_even[..., :even_part.size(-1)]
@@ -87,6 +97,7 @@ def iterative_hartley(x: torch.Tensor) -> torch.Tensor:
         stride *= 2
 
     return X[..., :N]
+
 
 
 def dht(x: torch.Tensor, threshold: float = 1.0) -> torch.Tensor:
