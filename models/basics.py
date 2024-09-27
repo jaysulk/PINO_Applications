@@ -31,8 +31,9 @@ def low_pass_filter(hartley_coeffs: torch.Tensor, threshold: float) -> torch.Ten
 
 def rfht_recursive(x: torch.Tensor) -> torch.Tensor:
     """
-    Recursive Fast Hartley Transform (RFHT) using butterfly equations, 
-    handling odd-sized inputs without explicit padding.
+    Recursive Fast Hartley Transform (RFHT) using butterfly equations,
+    handling odd-sized inputs without explicit padding, and using torch.einsum
+    for matrix summations to avoid dimension mismatches.
     
     Parameters:
     x (torch.Tensor): Input tensor.
@@ -57,15 +58,15 @@ def rfht_recursive(x: torch.Tensor) -> torch.Tensor:
     even_transform = rfht_recursive(even)
     odd_transform = rfht_recursive(odd)
 
-    # Compute the butterfly combination
+    # Compute the butterfly combination using einsum (avoiding manual broadcasting)
     N_even = even_transform.size(-1)
     n = torch.arange(N_even, device=x.device).float()
     angle = 2 * torch.pi * n / N
     cos_term = torch.cos(angle)
     sin_term = torch.sin(angle)
 
-    # Apply the butterfly combination
-    combined_odd = odd_transform * (cos_term - sin_term).unsqueeze(0)
+    # We now use einsum to perform the element-wise combination safely
+    combined_odd = torch.einsum('...i,i->...i', odd_transform, cos_term - sin_term)
 
     # Recombine even and odd parts using torch.cat
     if N % 2 == 0:
@@ -126,8 +127,6 @@ def dht(x: torch.Tensor, threshold: float = 1.0) -> torch.Tensor:
 
     else:
         raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
-
-
 
 def idht(x: torch.Tensor) -> torch.Tensor:
     # Compute the DHT
