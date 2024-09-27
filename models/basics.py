@@ -9,63 +9,69 @@ import torch.nn.functional as F
 
 import torch
 
-import torch
+def low_pass_filter(hartley_coeffs: torch.Tensor, threshold: float) -> torch.Tensor:
+    """
+    Apply a low-pass filter to the Hartley coefficients.
+    Zero out or attenuate frequencies above the threshold.
+    
+    Parameters:
+    hartley_coeffs (torch.Tensor): Hartley coefficients after DHT.
+    threshold (float): Fraction of frequencies to keep (0 < threshold <= 1).
+    
+    Returns:
+    torch.Tensor: Filtered Hartley coefficients.
+    """
+    assert 0 < threshold <= 1, "Threshold must be a value between 0 and 1."
 
-def iterative_hartley(x: torch.Tensor) -> torch.Tensor:
+    # Get the number of frequencies
+    N = hartley_coeffs.shape[-1]
+    freq_cutoff = int(N * threshold)
+
+    # Zero out or attenuate high frequencies
+    hartley_coeffs[..., freq_cutoff:] = 0.0
+    return hartley_coeffs
+
+def rfht_recursive(x: torch.Tensor) -> torch.Tensor:
+    """
+    Recursive Fast Hartley Transform (RFHT) using butterfly equations.
+
+    Parameters:
+    x (torch.Tensor): Input tensor.
+
+    Returns:
+    torch.Tensor: Transformed tensor.
+    """
     N = x.size(-1)
     
-    # Initialize working tensor
-    X = x.clone()
+    # Base case: direct computation for small inputs
+    if N == 1:
+        return x
+    elif N == 2:
+        # For size 2, we can directly compute the Hartley transform
+        return x[..., 0] + x[..., 1], x[..., 0] - x[..., 1]
 
-    # Apply the butterfly structure iteratively
-    stride = 1
-    while stride < N:
-        half_stride = stride
-        
-        for i in range(0, N, 2 * stride):
-            # Indices for selecting even and odd parts
-            even_indices = torch.arange(i, i + half_stride, device=x.device)
-            odd_indices = torch.arange(i + half_stride, i + 2 * half_stride, device=x.device)
+    # Split the tensor into even and odd parts
+    even, odd = torch.chunk(x, 2, dim=-1)
 
-            # Select even_part and odd_part using index_select
-            even_part = torch.index_select(X, -1, even_indices)
-            odd_part = torch.index_select(X, -1, odd_indices)
+    # Recursive Hartley transforms on the even and odd parts
+    even_transform = rfht_recursive(even)
+    odd_transform = rfht_recursive(odd)
 
-            # Find the minimum size between even_part and odd_part
-            min_size = min(even_part.size(-1), odd_part.size(-1))
+    # Combine the results using butterfly equations
+    n = torch.arange(N // 2, device=x.device).float()
+    angle = 2 * torch.pi * n / N
+    cos_term = torch.cos(angle)
+    sin_term = torch.sin(angle)
 
-            # Create an index tensor to gather matching elements
-            indices = torch.arange(min_size, device=x.device).view(1, -1)
+    combined_odd = odd_transform * (cos_term - sin_term)
 
-            # Gather only the matching elements from both even_part and odd_part
-            even_part_gathered = torch.gather(even_part, -1, indices.expand_as(even_part[..., :min_size]))
-            odd_part_gathered = torch.gather(odd_part, -1, indices.expand_as(odd_part[..., :min_size]))
-
-            # Compute the butterfly operation
-            n_range = torch.arange(min_size, device=x.device)
-            cas_n = torch.cos(2 * torch.pi * n_range / (2 * min_size)) + torch.sin(2 * torch.pi * n_range / (2 * min_size))
-
-            # Reshape cas_n for broadcasting
-            cas_n = cas_n.view(*([1] * (odd_part_gathered.ndim - 1)), -1)
-
-            # Perform the butterfly operation using the gathered parts
-            butterfly_result_even = even_part_gathered + odd_part_gathered * cas_n
-            butterfly_result_odd = even_part_gathered - odd_part_gathered * cas_n
-
-            # Concatenate the even and odd parts back into X
-            combined_result = torch.cat([butterfly_result_even, butterfly_result_odd], dim=-1)
-            
-            # Replace the values in X using concatenation
-            X = torch.cat([X[..., :i], combined_result, X[..., i + 2 * min_size:]], dim=-1)
-        
-        stride *= 2
-
-    return X[..., :N]
+    # Combine the even and odd parts back together
+    return torch.cat([even_transform + combined_odd, even_transform - combined_odd], dim=-1)
 
 def dht(x: torch.Tensor, threshold: float = 1.0) -> torch.Tensor:
     """
-    Compute the Discrete Hartley Transform (DHT) using iterative butterfly structure
-    with an optional low-pass filter.
+    Compute the Discrete Hartley Transform (DHT) with an optional low-pass filter
+    using the recursive fast Hartley transform (RFHT) with butterfly equations.
 
     Parameters:
     x (torch.Tensor): Input tensor (3D, 4D, or 5D).
@@ -77,10 +83,9 @@ def dht(x: torch.Tensor, threshold: float = 1.0) -> torch.Tensor:
     if x.ndim == 3:
         # 1D case (input is a 3D tensor)
         D, M, N = x.size()
-        X = iterative_hartley(x)
-
-        # Match output size to input size
-        X = match_input_output_size(X, N)
+        
+        # Perform the RFHT on the last dimension
+        X = rfht_recursive(x)
 
         # Apply low-pass filter
         X = low_pass_filter(X, threshold)
@@ -89,13 +94,12 @@ def dht(x: torch.Tensor, threshold: float = 1.0) -> torch.Tensor:
     elif x.ndim == 4:
         # 2D case (input is a 4D tensor)
         B, D, M, N = x.size()
-        
-        # Apply iterative Hartley transform on both dimensions
-        X = iterative_hartley(x.transpose(-1, -2))
-        X = iterative_hartley(X.transpose(-1, -2))
 
-        # Match output size to input size
-        X = match_input_output_size(X, N)
+        # Apply RFHT on each row (last dimension first)
+        X = rfht_recursive(x)
+
+        # Now apply RFHT recursively on the second-to-last dimension
+        X = rfht_recursive(X.transpose(-2, -1)).transpose(-2, -1)
 
         # Apply low-pass filter
         X = low_pass_filter(X, threshold)
@@ -104,14 +108,11 @@ def dht(x: torch.Tensor, threshold: float = 1.0) -> torch.Tensor:
     elif x.ndim == 5:
         # 3D case (input is a 5D tensor)
         B, C, D, M, N = x.size()
-        
-        # Apply iterative Hartley transform on all three dimensions
-        X = iterative_hartley(x.transpose(-1, -2))
-        X = iterative_hartley(X.transpose(-2, -3))
-        X = iterative_hartley(X.transpose(-3, -4))
 
-        # Match output size to input size
-        X = match_input_output_size(X, N)
+        # Apply RFHT recursively on each dimension starting from the last
+        X = rfht_recursive(x)
+        X = rfht_recursive(X.transpose(-2, -1)).transpose(-2, -1)
+        X = rfht_recursive(X.transpose(-3, -2)).transpose(-3, -2)
 
         # Apply low-pass filter
         X = low_pass_filter(X, threshold)
@@ -119,6 +120,7 @@ def dht(x: torch.Tensor, threshold: float = 1.0) -> torch.Tensor:
 
     else:
         raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
+
 
 def idht(x: torch.Tensor) -> torch.Tensor:
     # Compute the DHT
