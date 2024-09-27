@@ -7,30 +7,6 @@ from functools import partial
 
 import torch.nn.functional as F
 
-import torch
-
-def low_pass_filter(hartley_coeffs: torch.Tensor, threshold: float) -> torch.Tensor:
-    """
-    Apply a low-pass filter to the Hartley coefficients.
-    Zero out or attenuate frequencies above the threshold.
-    
-    Parameters:
-    hartley_coeffs (torch.Tensor): Hartley coefficients after DHT.
-    threshold (float): Fraction of frequencies to keep (0 < threshold <= 1).
-    
-    Returns:
-    torch.Tensor: Filtered Hartley coefficients.
-    """
-    assert 0 < threshold <= 1, "Threshold must be a value between 0 and 1."
-
-    # Get the number of frequencies
-    N = hartley_coeffs.shape[-1]
-    freq_cutoff = int(N * threshold)
-
-    # Zero out or attenuate high frequencies
-    hartley_coeffs[..., freq_cutoff:] = 0.0
-    return hartley_coeffs
-
 def rfht_recursive(x: torch.Tensor) -> torch.Tensor:
     """
     Recursive implementation of the Regularized Fast Hartley Transform (RFHT)
@@ -70,76 +46,36 @@ def rfht_recursive(x: torch.Tensor) -> torch.Tensor:
     # Concatenate the two parts along the last dimension
     return torch.cat([left, right], dim=-1)
 
-def dht(x: torch.Tensor, threshold: float = 1.0) -> torch.Tensor:
-    """
-    Compute the Discrete Hartley Transform (DHT) with an optional low-pass filter.
+def dht(x: torch.Tensor) -> torch.Tensor:
+    def apply_rfht_recursive_along_last_dim(tensor: torch.Tensor) -> torch.Tensor:
+        """
+        Apply RFHT recursively along the last dimension of the input tensor.
+        """
+        shape = tensor.shape
+        reshaped_tensor = tensor.view(-1, shape[-1])  # Reshape to apply along last dimension
+        transformed = torch.stack([rfht_recursive(row) for row in reshaped_tensor])
+        return transformed.view(*shape)
 
-    Parameters:
-    x (torch.Tensor): Input tensor (3D, 4D, or 5D).
-    threshold (float): Fraction of frequencies to keep after DHT (0 < threshold <= 1).
-
-    Returns:
-    torch.Tensor: DHT of the input tensor with optional low-pass filtering.
-    """
     if x.ndim == 3:
         # 1D case (input is a 3D tensor)
         D, M, N = x.size()
-
-        # Perform the DHT along the last dimension using RFHT
-        X = torch.stack([rfht_recursive(x[d]) for d in range(D)])
-
-        # Apply low-pass filter
-        X = low_pass_filter(X, threshold)
-        return X
+        # Apply RFHT recursively along the last dimension (which corresponds to N)
+        return apply_rfht_recursive_along_last_dim(x)
 
     elif x.ndim == 4:
         # 2D case (input is a 4D tensor)
         B, D, M, N = x.size()
-
-        # Apply RFHT along both dimensions (rows and columns)
-        x_reshaped = x.reshape(B * D, M, N)
-
-        # First apply RFHT along the rows (last dimension)
-        row_transformed = torch.stack([rfht_recursive(x_reshaped[i]) for i in range(B * D)])
-
-        # Now apply RFHT along the columns (second last dimension)
-        row_transformed = row_transformed.transpose(-1, -2)  # Transpose to make columns the last dimension
-        col_transformed = torch.stack([rfht_recursive(row_transformed[i]) for i in range(row_transformed.shape[0])])
-
-        # Transpose back to the original dimension order
-        X = col_transformed.transpose(-1, -2).reshape(B, D, M, N)
-
-        # Apply low-pass filter
-        X = low_pass_filter(X, threshold)
-        return X
+        # Apply RFHT recursively along the last dimension (which corresponds to N)
+        return apply_rfht_recursive_along_last_dim(x)
 
     elif x.ndim == 5:
         # 3D case (input is a 5D tensor)
         B, C, D, M, N = x.size()
-
-        # Apply RFHT along depth, rows, and columns
-        x_reshaped = x.reshape(B * C, D, M, N)
-
-        # First apply RFHT along the depth (third last dimension)
-        depth_transformed = torch.stack([rfht_recursive(x_reshaped[:, i]) for i in range(D)], dim=-3)
-
-        # Then apply RFHT along the rows (second last dimension)
-        row_transformed = depth_transformed.transpose(-1, -2)
-        row_transformed = torch.stack([rfht_recursive(row_transformed[i]) for i in range(row_transformed.shape[0])])
-
-        # Apply RFHT along the columns (last dimension)
-        col_transformed = torch.stack([rfht_recursive(row_transformed[:, :, :, i]) for i in range(N)], dim=-1)
-
-        # Reshape back to original shape
-        X = col_transformed.transpose(-1, -2).reshape(B, C, D, M, N)
-
-        # Apply low-pass filter
-        X = low_pass_filter(X, threshold)
-        return X
+        # Apply RFHT recursively along the last dimension (which corresponds to N)
+        return apply_rfht_recursive_along_last_dim(x)
 
     else:
         raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
-
 
 def idht(x: torch.Tensor) -> torch.Tensor:
     # Compute the DHT
