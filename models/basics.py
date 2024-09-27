@@ -69,8 +69,8 @@ def rfht_recursive(x: torch.Tensor) -> torch.Tensor:
     sin_term = sin_term.view([1] * (odd_transform.ndim - 1) + [-1])
 
     # Apply the butterfly operation using basic torch operations
-    combined_odd_cos = torch.mul(odd_transform, cos_term)
-    combined_odd_sin = torch.mul(odd_transform, sin_term)
+    combined_odd_cos = torch.mul(odd_transform, cos_term.unsqueeze(-1))
+    combined_odd_sin = torch.mul(odd_transform, sin_term.unsqueeze(-1))
 
     # Use torch.add to perform element-wise addition with a negative multiplier
     combined_odd = torch.add(combined_odd_cos, combined_odd_sin, alpha=-1)
