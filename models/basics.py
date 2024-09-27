@@ -9,6 +9,38 @@ import torch.nn.functional as F
 
 import torch
 
+def pad_if_odd(x: torch.Tensor) -> torch.Tensor:
+    """Pads the last dimension of the tensor if it has an odd size."""
+    if x.shape[-1] % 2 != 0:
+        return torch.nn.functional.pad(x, (0, 1))
+    return x
+
+def iterative_fht(x: torch.Tensor) -> torch.Tensor:
+    """Compute the Fast Hartley Transform iteratively using butterfly equations."""
+    N = x.shape[-1]
+    log_n = int(torch.ceil(torch.log2(torch.tensor(N, dtype=torch.float32))))
+    
+    # Pad the input if needed to handle odd sizes
+    x_padded = pad_if_odd(x)
+    N_padded = x_padded.shape[-1]
+
+    for level in range(log_n):
+        stride = 2 ** (level + 1)
+        half_stride = stride // 2
+
+        # Even and odd parts
+        even_part = x_padded[..., :half_stride]
+        odd_part = x_padded[..., half_stride:stride]
+        
+        # Butterfly combination
+        cos_term = torch.cos(2 * torch.pi * torch.arange(half_stride, device=x.device).float() / stride)
+        sin_term = torch.sin(2 * torch.pi * torch.arange(half_stride, device=x.device).float() / stride)
+
+        x_padded[..., :half_stride] = even_part + cos_term * odd_part - sin_term * odd_part
+        x_padded[..., half_stride:stride] = even_part - cos_term * odd_part + sin_term * odd_part
+
+    return x_padded[..., :N]  # Truncate back to original size if padding was applied
+
 def low_pass_filter(hartley_coeffs: torch.Tensor, threshold: float) -> torch.Tensor:
     """
     Apply a low-pass filter to the Hartley coefficients.
@@ -31,90 +63,22 @@ def low_pass_filter(hartley_coeffs: torch.Tensor, threshold: float) -> torch.Ten
     hartley_coeffs[..., freq_cutoff:] = 0.0
     return hartley_coeffs
 
-def iterative_hartley(x: torch.Tensor) -> torch.Tensor:
+def fht(x: torch.Tensor, threshold: float = 1.0) -> torch.Tensor:
     """
-    Iterative Hartley Transform using butterfly structure.
-    This function handles tensors of odd sizes by splitting them appropriately.
-
-    Parameters:
-    x (torch.Tensor): Input tensor.
+    Compute the Fast Hartley Transform (FHT) iteratively with an optional low-pass filter.
     
-    Returns:
-    torch.Tensor: Hartley transform of the input tensor.
-    """
-    N = x.size(-1)
-    
-    # Initialize working tensor
-    X = x.clone()
-    
-    # Apply the butterfly structure iteratively
-    stride = 1
-    while stride < N:
-        half_stride = stride
-        
-        # Apply the butterfly for this stage
-        for i in range(0, N, 2 * stride):
-            even_part = X[..., i:i + half_stride]
-            odd_part = X[..., i + half_stride:i + 2 * half_stride]
-            
-            # Determine the larger size between even_part and odd_part
-            larger_size = max(even_part.size(-1), odd_part.size(-1))
-
-            # If the odd part is smaller, pad it
-            if odd_part.size(-1) < larger_size:
-                odd_part = torch.nn.functional.pad(odd_part, (0, larger_size - odd_part.size(-1)))
-            # If the even part is smaller, pad it
-            if even_part.size(-1) < larger_size:
-                even_part = torch.nn.functional.pad(even_part, (0, larger_size - even_part.size(-1)))
-
-            # Calculate cosine and sine values for butterfly combination based on the larger size
-            n_range = torch.arange(larger_size, device=x.device)
-            cas_n = torch.cos(2 * torch.pi * n_range / (2 * larger_size)) + torch.sin(2 * torch.pi * n_range / (2 * larger_size))
-            
-            # Reshape cas_n to broadcast correctly over the higher dimensions
-            cas_n = cas_n.view(*([1] * (x.ndim - 1)), larger_size)
-
-            # Perform butterfly operation
-            X[..., i:i + larger_size] = even_part + odd_part * cas_n
-            X[..., i + larger_size:i + 2 * larger_size] = even_part - odd_part * cas_n
-        
-        stride *= 2
-
-    return X[..., :N]
-
-def match_input_output_size(X: torch.Tensor, original_size: int) -> torch.Tensor:
-    """
-    Ensure that the size of the tensor matches the original input size.
-    This function trims any excess padding added during the butterfly process.
-    
-    Parameters:
-    X (torch.Tensor): Tensor after Hartley Transform.
-    original_size (int): The original size of the input tensor.
-    
-    Returns:
-    torch.Tensor: Resized tensor matching the original size.
-    """
-    return X[..., :original_size]
-
-def dht(x: torch.Tensor, threshold: float = 1.0) -> torch.Tensor:
-    """
-    Compute the Discrete Hartley Transform (DHT) using iterative butterfly structure
-    with an optional low-pass filter.
-
     Parameters:
     x (torch.Tensor): Input tensor (3D, 4D, or 5D).
-    threshold (float): Fraction of frequencies to keep after DHT (0 < threshold <= 1).
-
+    threshold (float): Fraction of frequencies to keep after FHT (0 < threshold <= 1).
+    
     Returns:
-    torch.Tensor: DHT of the input tensor with optional low-pass filtering.
+    torch.Tensor: FHT of the input tensor with optional low-pass filtering.
     """
     if x.ndim == 3:
         # 1D case (input is a 3D tensor)
         D, M, N = x.size()
-        X = iterative_hartley(x)
-
-        # Match output size to input size
-        X = match_input_output_size(X, N)
+        N = M  # For 1D case, M and N should be the same size
+        X = iterative_fht(x.reshape(D, M, N))
 
         # Apply low-pass filter
         X = low_pass_filter(X, threshold)
@@ -123,36 +87,29 @@ def dht(x: torch.Tensor, threshold: float = 1.0) -> torch.Tensor:
     elif x.ndim == 4:
         # 2D case (input is a 4D tensor)
         B, D, M, N = x.size()
-        
-        # Apply iterative Hartley transform on both dimensions
-        X = iterative_hartley(x.transpose(-1, -2))
-        X = iterative_hartley(X.transpose(-1, -2))
 
-        # Match output size to input size
-        X = match_input_output_size(X, N)
+        # Apply the FHT iteratively over both dimensions
+        X = iterative_fht(x.reshape(B * D, M, N))
 
         # Apply low-pass filter
         X = low_pass_filter(X, threshold)
-        return X
+        return X.reshape(B, D, M, N)
 
     elif x.ndim == 5:
         # 3D case (input is a 5D tensor)
         B, C, D, M, N = x.size()
-        
-        # Apply iterative Hartley transform on all three dimensions
-        X = iterative_hartley(x.transpose(-1, -2))
-        X = iterative_hartley(X.transpose(-2, -3))
-        X = iterative_hartley(X.transpose(-3, -4))
 
-        # Match output size to input size
-        X = match_input_output_size(X, N)
+        # Apply the FHT iteratively over all 3 dimensions
+        X = iterative_fht(x.reshape(B * C, D, M, N))
 
         # Apply low-pass filter
         X = low_pass_filter(X, threshold)
-        return X
+        return X.reshape(B, C, D, M, N)
 
     else:
         raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
+
+
 
 def idht(x: torch.Tensor) -> torch.Tensor:
     # Compute the DHT
