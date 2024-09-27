@@ -71,12 +71,12 @@ def iterative_hartley(x: torch.Tensor) -> torch.Tensor:
             n_range = torch.arange(larger_size, device=x.device)
             cas_n = torch.cos(2 * torch.pi * n_range / (2 * larger_size)) + torch.sin(2 * torch.pi * n_range / (2 * larger_size))
             
-            # Reshape cas_n to match the dimensionality of the odd_part
-            cas_n = cas_n.view(*([1] * (odd_part.ndim - 1)), -1)
+            # Reshape cas_n to broadcast correctly over the higher dimensions
+            cas_n = cas_n.view(*([1] * (x.ndim - 1)), larger_size)
 
-            # Perform butterfly operation and adjust the target slice size accordingly
-            X[..., i:i + even_part.size(-1)] = (even_part + odd_part * cas_n)[..., :even_part.size(-1)]
-            X[..., i + even_part.size(-1):i + 2 * even_part.size(-1)] = (even_part - odd_part * cas_n)[..., :even_part.size(-1)]
+            # Perform butterfly operation
+            X[..., i:i + larger_size] = even_part + odd_part * cas_n
+            X[..., i + larger_size:i + 2 * larger_size] = even_part - odd_part * cas_n
         
         stride *= 2
 
