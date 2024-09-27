@@ -29,12 +29,13 @@ def low_pass_filter(hartley_coeffs: torch.Tensor, threshold: float) -> torch.Ten
     hartley_coeffs[..., freq_cutoff:] = 0.0
     return hartley_coeffs
 
+import torch
+
 def rfht_recursive(x: torch.Tensor) -> torch.Tensor:
     """
-    Recursive Fast Hartley Transform (RFHT) using butterfly equations,
-    handling odd-sized inputs without explicit padding, and using torch.einsum
-    for matrix summations to avoid dimension mismatches.
-    
+    Recursive Fast Hartley Transform (RFHT) using butterfly equations.
+    Handles odd-sized inputs without explicit padding, using basic PyTorch operations.
+
     Parameters:
     x (torch.Tensor): Input tensor.
 
@@ -58,22 +59,28 @@ def rfht_recursive(x: torch.Tensor) -> torch.Tensor:
     even_transform = rfht_recursive(even)
     odd_transform = rfht_recursive(odd)
 
-    # Compute the butterfly combination using einsum (avoiding manual broadcasting)
-    N_even = even_transform.size(-1)
+    # Calculate the angles for the butterfly operation
+    N_even = even_transform.size(-1)  # Size of even part
     n = torch.arange(N_even, device=x.device).float()
     angle = 2 * torch.pi * n / N
     cos_term = torch.cos(angle)
     sin_term = torch.sin(angle)
 
-    # We now use einsum to perform the element-wise combination safely
-    combined_odd = torch.einsum('...i,i->...i', odd_transform, cos_term - sin_term)
+    # Apply the butterfly operation using basic torch operations
+    # Note: We avoid broadcasting issues by summing them in a simpler way
+    combined_odd_cos = torch.mul(odd_transform, cos_term)
+    combined_odd_sin = torch.mul(odd_transform, sin_term)
+
+    combined_odd = torch.add(combined_odd_cos, combined_odd_sin, alpha=-1)
 
     # Recombine even and odd parts using torch.cat
     if N % 2 == 0:
+        # For even-sized input, recombine evenly
         return torch.cat([even_transform + combined_odd, even_transform - combined_odd], dim=-1)
     else:
-        # Handle odd-sized input by recombining carefully, skipping the last odd element
+        # For odd-sized input, append the remaining element from even_transform
         return torch.cat([even_transform + combined_odd, even_transform - combined_odd, even_transform[..., :1]], dim=-1)
+
 
 def dht(x: torch.Tensor, threshold: float = 1.0) -> torch.Tensor:
     """
