@@ -9,6 +9,8 @@ import torch.nn.functional as F
 
 import torch
 
+import torch
+
 def iterative_hartley(x: torch.Tensor) -> torch.Tensor:
     N = x.size(-1)
     
@@ -29,34 +31,36 @@ def iterative_hartley(x: torch.Tensor) -> torch.Tensor:
             even_part = torch.index_select(X, -1, even_indices)
             odd_part = torch.index_select(X, -1, odd_indices)
 
-            # Broadcasting handles the size differences automatically
-            larger_size = max(even_part.size(-1), odd_part.size(-1))
+            # Find the minimum size between even_part and odd_part
+            min_size = min(even_part.size(-1), odd_part.size(-1))
 
-            # Ensure the size does not exceed the bounds of X
-            if i + larger_size > N:
-                larger_size = N - i
+            # Create an index tensor to gather matching elements
+            indices = torch.arange(min_size, device=x.device).view(1, -1)
 
-            n_range = torch.arange(larger_size, device=x.device)
-            cas_n = torch.cos(2 * torch.pi * n_range / (2 * larger_size)) + torch.sin(2 * torch.pi * n_range / (2 * larger_size))
+            # Gather only the matching elements from both even_part and odd_part
+            even_part_gathered = torch.gather(even_part, -1, indices.expand_as(even_part[..., :min_size]))
+            odd_part_gathered = torch.gather(odd_part, -1, indices.expand_as(odd_part[..., :min_size]))
+
+            # Compute the butterfly operation
+            n_range = torch.arange(min_size, device=x.device)
+            cas_n = torch.cos(2 * torch.pi * n_range / (2 * min_size)) + torch.sin(2 * torch.pi * n_range / (2 * min_size))
 
             # Reshape cas_n for broadcasting
-            cas_n = cas_n.view(*([1] * (odd_part.ndim - 1)), -1)
+            cas_n = cas_n.view(*([1] * (odd_part_gathered.ndim - 1)), -1)
 
-            # Perform the butterfly operation
-            butterfly_result_even = even_part + odd_part * cas_n
-            butterfly_result_odd = even_part - odd_part * cas_n
+            # Perform the butterfly operation using the gathered parts
+            butterfly_result_even = even_part_gathered + odd_part_gathered * cas_n
+            butterfly_result_odd = even_part_gathered - odd_part_gathered * cas_n
 
             # Concatenate the even and odd parts back into X
             combined_result = torch.cat([butterfly_result_even, butterfly_result_odd], dim=-1)
             
-            # Replace the values in X using index_select again
-            X = torch.cat([X[..., :i], combined_result, X[..., i + 2 * larger_size:]], dim=-1)
+            # Replace the values in X using concatenation
+            X = torch.cat([X[..., :i], combined_result, X[..., i + 2 * min_size:]], dim=-1)
         
         stride *= 2
 
     return X[..., :N]
-
-
 
 def dht(x: torch.Tensor, threshold: float = 1.0) -> torch.Tensor:
     """
