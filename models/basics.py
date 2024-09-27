@@ -7,8 +7,6 @@ from functools import partial
 
 import torch.nn.functional as F
 
-import torch
-
 def low_pass_filter(hartley_coeffs: torch.Tensor, threshold: float) -> torch.Tensor:
     """
     Apply a low-pass filter to the Hartley coefficients.
@@ -48,7 +46,7 @@ def rfht_recursive(x: torch.Tensor) -> torch.Tensor:
         return x
     elif N == 2:
         # For size 2, we can directly compute the Hartley transform
-        return x[..., 0] + x[..., 1], x[..., 0] - x[..., 1]
+        return torch.stack([x[..., 0] + x[..., 1], x[..., 0] - x[..., 1]], dim=-1)
 
     # Split the tensor into even and odd parts
     even, odd = torch.chunk(x, 2, dim=-1)
@@ -60,10 +58,11 @@ def rfht_recursive(x: torch.Tensor) -> torch.Tensor:
     # Combine the results using butterfly equations
     n = torch.arange(N // 2, device=x.device).float()
     angle = 2 * torch.pi * n / N
-    cos_term = torch.cos(angle)
-    sin_term = torch.sin(angle)
+    cos_term = torch.cos(angle).unsqueeze(0)  # Add batch dim
+    sin_term = torch.sin(angle).unsqueeze(0)  # Add batch dim
 
-    combined_odd = odd_transform * (cos_term - sin_term)
+    # Expand cos_term and sin_term to match the last dimension of odd_transform
+    combined_odd = odd_transform * (cos_term - sin_term).unsqueeze(-1)
 
     # Combine the even and odd parts back together
     return torch.cat([even_transform + combined_odd, even_transform - combined_odd], dim=-1)
