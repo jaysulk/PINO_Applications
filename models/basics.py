@@ -11,84 +11,35 @@ import torch
 
 import torch
 
-def dht(x: torch.Tensor) -> torch.Tensor:
-    if x.ndim == 3:
-        # 1D case (input is a 3D tensor)
-        D, M, N = x.size()
-        n = torch.arange(N, device=x.device).float()
-
-        # Hartley kernel for 1D
-        cas = torch.cos(2 * torch.pi * n.view(-1, 1) * n / N) + torch.sin(2 * torch.pi * n.view(-1, 1) * n / N)
-
-        # Perform the DHT
-        X = torch.matmul(cas, x.view(D, N, M).permute(1, 0, 2).reshape(N, -1))
-        return X.reshape(N, D, M).permute(1, 2, 0)
-
-    elif x.ndim == 4:
-        # 2D case (input is a 4D tensor)
-        B, D, M, N = x.size()
-        m = torch.arange(M, device=x.device).float()
-        n = torch.arange(N, device=x.device).float()
-
-        # Hartley kernels for rows and columns
-        cas_row = torch.cos(2 * torch.pi * m.view(-1, 1) * m / M) + torch.sin(2 * torch.pi * m.view(-1, 1) * m / M)
-        cas_col = torch.cos(2 * torch.pi * n.view(-1, 1) * n / N) + torch.sin(2 * torch.pi * n.view(-1, 1) * n / N)
-
-        # Perform the DHT
-        x_reshaped = x.reshape(B * D, M, N)  # (B*D, M, N)
-
-        # Apply the column transform
-        intermediate = torch.matmul(x_reshaped, cas_col.T)  # (B*D, M, N) @ (N, N) -> (B*D, M, N)
-        
-        # Apply the row transform
-        X = torch.matmul(cas_row.T, intermediate)  # (M, M) @ (B*D, M, N) -> (B*D, M, N)
-
-        return X.reshape(B, D, M, N)
-
-    elif x.ndim == 5:
-        # 3D case (input is a 5D tensor)
-        B, C, D, M, N = x.size()
-        d = torch.arange(D, device=x.device).float()
-        m = torch.arange(M, device=x.device).float()
-        n = torch.arange(N, device=x.device).float()
-
-        # Hartley kernels for depth, rows, and columns
-        cas_depth = torch.cos(2 * torch.pi * d.view(-1, 1, 1) * d / D) + torch.sin(2 * torch.pi * d.view(-1, 1, 1) * d / D)
-        cas_row = torch.cos(2 * torch.pi * m.view(-1, 1) * m / M) + torch.sin(2 * torch.pi * m.view(-1, 1) * m / M)
-        cas_col = torch.cos(2 * torch.pi * n.view(-1, 1) * n / N) + torch.sin(2 * torch.pi * n.view(-1, 1) * n / N)
-
-        # Perform the DHT
-        x_reshaped = x.reshape(B * C, D, M, N)
-        intermediate = torch.einsum('bcde,cfde->bcfe', x_reshaped, cas_col)
-        intermediate = torch.einsum('bcfe,cfm->bcme', intermediate, cas_row)
-        X = torch.einsum('bcme,cfm->bcme', intermediate, cas_depth)
-        return X.reshape(B, C, D, M, N)
-
-    else:
-        raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
-
-def idht(x: torch.Tensor) -> torch.Tensor:
-    # Compute the DHT (Direct Hartley Transform again, since DHT is self-inverse)
-    transformed = dht(x)
+def dht2d(x: torch.Tensor) -> torch.Tensor:
+    N = x.size(-1)
     
-    # Determine normalization factor
-    if x.ndim == 3:
-        # 1D case (3D tensor input)
-        N = x.size(2)  # N is the size of the last dimension
-        normalization_factor = N
-    elif x.ndim == 4:
-        # 2D case (4D tensor input)
-        M, N = x.size(2), x.size(3)
-        normalization_factor = M * N
-    elif x.ndim == 5:
-        # 3D case (5D tensor input)
-        D, M, N = x.size(2), x.size(3), x.size(4)
-        normalization_factor = D * M * N
-    else:
-        raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
+    # Use float dtype for creating the Hartley kernel
+    n = torch.arange(N, device=x.device, dtype=torch.float32)
+    k = n.view(-1, 1)
     
-    # Normalize the result to undo the scaling effect of the DHT
-    return transformed / normalization_factor
+    # Calculate the Hartley kernel (cas function)
+    cas = torch.cos(2 * torch.pi * k * n / N) + torch.sin(2 * torch.pi * k * n / N)
+    
+    # If x is complex, separate real and imaginary parts and process them separately
+    if x.is_complex():
+        real_part = torch.matmul(x.real, cas)
+        imag_part = torch.matmul(x.imag, cas)
+        X = real_part - imag_part
+    else:
+        # Perform the matrix multiplication between input and the Hartley kernel
+        X = torch.matmul(x, cas)
+    
+    return X
+
+def idht2d(x):
+    # Assume that dht2d is already defined for NumPy
+    # Get the dimensions of X
+    dims = x.size()
+    n = torch.prod(torch.tensor(dims)).item()
+    dht = dht2d(x)
+    H = dht / n
+    return H
 
 def compl_mul1d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     # Compute the DHT of both signals
