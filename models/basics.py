@@ -1,8 +1,15 @@
 import numpy as np
+
 import torch
 import torch.nn as nn
+
 from functools import partial
+
 import torch.nn.functional as F
+
+import torch
+
+import torch
 
 def dht(x: torch.Tensor) -> torch.Tensor:
     if x.ndim == 3:
@@ -15,9 +22,7 @@ def dht(x: torch.Tensor) -> torch.Tensor:
 
         # Perform the DHT
         X = torch.matmul(cas, x.view(D, N, M).permute(1, 0, 2).reshape(N, -1))
-
-        # Return only the first half of the frequency spectrum along the N dimension
-        return X.reshape(N, D, M).permute(1, 2, 0)[:, :, : (N // 2 + 1)]
+        return X.reshape(N, D, M).permute(1, 2, 0)
 
     elif x.ndim == 4:
         # 2D case (input is a 4D tensor)
@@ -38,8 +43,7 @@ def dht(x: torch.Tensor) -> torch.Tensor:
         # Apply the row transform
         X = torch.matmul(cas_row.T, intermediate)  # (M, M) @ (B*D, M, N) -> (B*D, M, N)
 
-        # Return only the first half of the frequency spectrum along the N dimension
-        return X.reshape(B, D, M, N)[:, :, :, : (N // 2 + 1)]
+        return X.reshape(B, D, M, N)
 
     elif x.ndim == 5:
         # 3D case (input is a 5D tensor)
@@ -58,9 +62,7 @@ def dht(x: torch.Tensor) -> torch.Tensor:
         intermediate = torch.einsum('bcde,cfde->bcfe', x_reshaped, cas_col)
         intermediate = torch.einsum('bcfe,cfm->bcme', intermediate, cas_row)
         X = torch.einsum('bcme,cfm->bcme', intermediate, cas_depth)
-
-        # Return only the first half of the frequency spectrum along the N dimension
-        return X.reshape(B, C, D, M, N)[:, :, :, :, : (N // 2 + 1)]
+        return X.reshape(B, C, D, M, N)
 
     else:
         raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
