@@ -17,11 +17,7 @@ def dht(x: torch.Tensor) -> torch.Tensor:
         X = torch.matmul(cas, x.view(D, N, M).permute(1, 0, 2).reshape(N, -1))
 
         # Return only the first half of the frequency spectrum along the N dimension
-        X_half = X.reshape(N, D, M).permute(1, 2, 0)[:, :, : (N // 2 + 1)]
-
-        # Pad the result to the original size
-        X_padded = F.pad(X_half, (0, N - (N // 2 + 1)))
-        return X_padded
+        return X.reshape(N, D, M).permute(1, 2, 0)[:, :, : (N // 2 + 1)]
 
     elif x.ndim == 4:
         # 2D case (input is a 4D tensor)
@@ -43,11 +39,7 @@ def dht(x: torch.Tensor) -> torch.Tensor:
         X = torch.matmul(cas_row.T, intermediate)  # (M, M) @ (B*D, M, N) -> (B*D, M, N)
 
         # Return only the first half of the frequency spectrum along the N dimension
-        X_half = X.reshape(B, D, M, N)[:, :, :, : (N // 2 + 1)]
-
-        # Pad the result to the original size
-        X_padded = F.pad(X_half, (0, N - (N // 2 + 1)))
-        return X_padded
+        return X.reshape(B, D, M, N)[:, :, :, : (N // 2 + 1)]
 
     elif x.ndim == 5:
         # 3D case (input is a 5D tensor)
@@ -68,11 +60,7 @@ def dht(x: torch.Tensor) -> torch.Tensor:
         X = torch.einsum('bcme,cfm->bcme', intermediate, cas_depth)
 
         # Return only the first half of the frequency spectrum along the N dimension
-        X_half = X.reshape(B, C, D, M, N)[:, :, :, :, : (N // 2 + 1)]
-
-        # Pad the result to the original size
-        X_padded = F.pad(X_half, (0, N - (N // 2 + 1)))
-        return X_padded
+        return X.reshape(B, C, D, M, N)[:, :, :, :, : (N // 2 + 1)]
 
     else:
         raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
