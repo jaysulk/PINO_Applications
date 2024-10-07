@@ -5,28 +5,15 @@ import torch.nn.functional as F
 from .lowrank2d import LowRank2d
 from .basics import SpectralConv2d
 
-
 class FNN2d(nn.Module):
     def __init__(self, modes1, modes2,
                  width=64, fc_dim=128,
                  layers=None,
                  in_dim=3, out_dim=1,
                  activation='tanh',
-                 pad_x=0, pad_y=0):
+                 pad_x=0, pad_y=0,
+                 num_iterations=5):  # Number of von Neumann iterations
         super(FNN2d, self).__init__()
-
-        """
-        The overall network. It contains 4 layers of the Fourier layer.
-        1. Lift the input to the desire channel dimension by self.fc0 .
-        2. 4 layers of the integral operators u' = (W + K)(u).
-            W defined by self.w; K defined by self.conv .
-        3. Project from the channel space to the output space by self.fc1 and self.fc2 .
-        
-        input: the solution of the coefficient function and locations (a(x, y), x, y)
-        input shape: (batchsize, x=s, y=s, c=3)
-        output: the solution 
-        output shape: (batchsize, x=s, y=s, c=1)
-        """
 
         self.modes1 = modes1
         self.modes2 = modes2
@@ -34,7 +21,8 @@ class FNN2d(nn.Module):
         self.in_dim = in_dim
         self.out_dim = out_dim
         self.padding = (0, 0, 0, pad_y, 0, pad_x)
-        # input channel is 3: (a(x, y), x, y)
+        self.num_iterations = num_iterations
+
         if layers is None:
             self.layers = [width] * 4
         else:
@@ -51,6 +39,7 @@ class FNN2d(nn.Module):
 
         self.fc1 = nn.Linear(layers[-1], fc_dim)
         self.fc2 = nn.Linear(fc_dim, out_dim)
+
         if activation =='tanh':
             self.activation = F.tanh
         elif activation == 'gelu':
@@ -67,28 +56,27 @@ class FNN2d(nn.Module):
         return x * torch.sigmoid(x)
 
     def forward(self, x):
-        '''
-        Args:
-            - x : (batch size, x_grid, y_grid, 2)
-        Returns:
-            - x: (batch size, x_grid, y_grid, 1)
-        '''
         length = len(self.ws)
         batchsize = x.shape[0]
-        nx, ny = x.shape[1], x.shape[2] # original shape
+        nx, ny = x.shape[1], x.shape[2]
         x = F.pad(x, self.padding, "constant", 0)
         size_x, size_y = x.shape[1], x.shape[2]
 
         x = self.fc0(x)
         x = x.permute(0, 3, 1, 2)
 
-        for i, (speconv, w) in enumerate(zip(self.sp_convs, self.ws)):
-            x1 = speconv(x)
-            x2 = w(x.view(batchsize, self.layers[i], -1)).view(batchsize, self.layers[i+1], size_x, size_y)
-            x = x1 + x2
-            if i != length - 1:
-                x = self.activation(x)
-        x = x.permute(0, 2, 3, 1)
+        # von Neumann iterations
+        u_prev = x.clone()  # Initialize with input
+
+        for _ in range(self.num_iterations):
+            for i, (speconv, w) in enumerate(zip(self.sp_convs, self.ws)):
+                x1 = speconv(u_prev)
+                x2 = w(u_prev.view(batchsize, self.layers[i], -1)).view(batchsize, self.layers[i+1], size_x, size_y)
+                u_next = x1 + x2  # von Neumann update: u^{(n+1)} = \mathcal{O}(u^{(n)}) + u^{(n)}
+                if i != length - 1:
+                    u_next = self.activation(u_next)
+                u_prev = u_next  # Update the previous state
+        x = u_next.permute(0, 2, 3, 1)
         x = self.fc1(x)
         x = self.activation(x)
         x = self.fc2(x)
@@ -96,22 +84,14 @@ class FNN2d(nn.Module):
         x = x[..., :nx, :ny, :]
         return x
 
-
 class PINO2d(nn.Module):
-    def __init__(self, modes1, modes2, width, layers=None, in_dim=3, out_dim=1):
-        '''
-        Args:
-            modes1: number of modes to keep
-            modes2: number of modes to keep
-            width: width of features
-            layers: list of integers
-            in_dim: input dimensionality, default: a(x), x, t
-            out_dim: output dimensionality, default: u(x,t)
-        '''
+    def __init__(self, modes1, modes2, width, layers=None, in_dim=3, out_dim=1, num_iterations=5):
         super(PINO2d, self).__init__()
         self.modes1 = modes1
         self.modes2 = modes2
         self.width = width
+        self.num_iterations = num_iterations
+
         if layers is None:
             self.layers = [width] * 4
         else:
@@ -126,6 +106,7 @@ class PINO2d(nn.Module):
         self.ws = nn.ModuleList([nn.Conv1d(in_size, out_size, 1)
                                  for in_size, out_size in zip(self.layers[:-1], self.layers[1:-1])])
         self.ws.append(LowRank2d(self.layers[-2], self.layers[-1]))
+
         self.fc1 = nn.Linear(layers[-1], layers[-1] * 4)
         self.fc2 = nn.Linear(layers[-1] * 4, out_dim)
 
@@ -137,49 +118,42 @@ class PINO2d(nn.Module):
         x = self.fc0(x)
         x = x.permute(0, 3, 1, 2)
 
-        for i, (speconv, w) in enumerate(zip(self.sp_convs, self.ws)):
-            if i != length - 1:
-                x1 = speconv(x)
-                x2 = w(x.view(batchsize, self.layers[i], -1))\
-                    .view(batchsize, self.layers[i+1], size_x, size_y)
-                x = x1 + x2
-                x = F.selu(x)
-            else:
-                x1 = speconv(x, y).reshape(batchsize, self.layers[-1], -1)
-                x2 = w(x, y).reshape(batchsize, self.layers[-1], -1)
-                x = x1 + x2
-        x = x.permute(0, 2, 1)
+        # von Neumann iterations
+        u_prev = x.clone()
+
+        for _ in range(self.num_iterations):
+            for i, (speconv, w) in enumerate(zip(self.sp_convs, self.ws)):
+                if i != length - 1:
+                    x1 = speconv(u_prev)
+                    x2 = w(u_prev.view(batchsize, self.layers[i], -1))\
+                        .view(batchsize, self.layers[i+1], size_x, size_y)
+                    u_next = x1 + x2
+                    u_next = F.selu(u_next)
+                else:
+                    x1 = speconv(u_prev, y).reshape(batchsize, self.layers[-1], -1)
+                    x2 = w(u_prev, y).reshape(batchsize, self.layers[-1], -1)
+                    u_next = x1 + x2
+                u_prev = u_next
+        x = u_next.permute(0, 2, 1)
         x = self.fc1(x)
         x = F.selu(x)
         x = self.fc2(x)
         return x
-
 
 class FNN2d_AD(nn.Module):
     def __init__(self, modes1, modes2,
                  width=64, fc_dim=128,
                  layers=None,
                  in_dim=3, out_dim=1,
-                 activation='tanh'):
+                 activation='tanh',
+                 num_iterations=5):
         super(FNN2d_AD, self).__init__()
-
-        """
-        The overall network. It contains 4 layers of the Fourier layer.
-        1. Lift the input to the desire channel dimension by self.fc0 .
-        2. 4 layers of the integral operators u' = (W + K)(u).
-            W defined by self.w; K defined by self.conv .
-        3. Project from the channel space to the output space by self.fc1 and self.fc2 .
-        
-        input: the solution of the coefficient function and locations (a(x, y), x, y)
-        input shape: (batchsize, x=s, y=s, c=3)
-        output: the solution 
-        output shape: (batchsize, x=s, y=s, c=1)
-        """
 
         self.modes1 = modes1
         self.modes2 = modes2
         self.width = width
-        # input channel is 3: (a(x, y), x, y)
+        self.num_iterations = num_iterations
+
         if layers is None:
             self.layers = [width] * 4
         else:
@@ -197,12 +171,13 @@ class FNN2d_AD(nn.Module):
 
         self.fc1 = nn.Linear(layers[-1], fc_dim)
         self.fc2 = nn.Linear(fc_dim, out_dim)
+
         if activation =='tanh':
             self.activation = F.tanh
         elif activation == 'gelu':
             self.activation = F.gelu
         elif activation == 'relu':
-            self.activation == F.relu
+            self.activation = F.relu
         elif activation == 'swish':
             self.activation = self.swish
         else:
@@ -213,12 +188,6 @@ class FNN2d_AD(nn.Module):
         return x * torch.sigmoid(x)
 
     def forward(self, x, y=None):
-        '''
-        Args:
-            - x : (batch size, x_grid, y_grid, 2)
-        Returns:
-            - x: (batch size, x_grid, y_grid, 1)
-        '''
         length = len(self.ws)
         batchsize = x.shape[0]
         size_x, size_y = x.shape[1], x.shape[2]
@@ -226,19 +195,12 @@ class FNN2d_AD(nn.Module):
         x = self.fc0(x)
         x = x.permute(0, 3, 1, 2)
 
-        for i, (speconv, w) in enumerate(zip(self.sp_convs, self.ws)):
-            if i != length - 1:
-                x1 = speconv(x)
-                x2 = w(x.view(batchsize, self.layers[i], -1)).view(batchsize, self.layers[i+1], size_x, size_y)
-                x = x1 + x2
-                x = self.activation(x)
-            else:
-                x1 = speconv(x, y).reshape(batchsize, self.layers[-1], -1)
-                x2 = w(x, y).reshape(batchsize, self.layers[-1], -1)
-                x = x1 + x2
-        # x = x.permute(0, 2, 3, 1)
-        x = x.permute(0, 2, 1)
-        x = self.fc1(x)
-        x = self.activation(x)
-        x = self.fc2(x)
-        return x
+        # von Neumann iterations
+        u_prev = x.clone()
+
+        for _ in range(self.num_iterations):
+            for i, (speconv, w) in enumerate(zip(self.sp_convs, self.ws)):
+                if i != length - 1:
+                    x1 = speconv(u_prev)
+                    x2 = w(u_prev.view(batchsize, self.layers[i], -1)).view(batchsize, self.layers[i+1], size_x, size_y)
+                    u_next = x1 +
