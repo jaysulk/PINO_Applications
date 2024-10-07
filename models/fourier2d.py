@@ -203,4 +203,16 @@ class FNN2d_AD(nn.Module):
                 if i != length - 1:
                     x1 = speconv(u_prev)
                     x2 = w(u_prev.view(batchsize, self.layers[i], -1)).view(batchsize, self.layers[i+1], size_x, size_y)
-                    u_next = x1 +
+                    u_next = x1 + x2
+                    u_next = self.activation(u_next)
+                else:
+                    x1 = speconv(u_prev, y).reshape(batchsize, self.layers[-1], -1)
+                    x2 = w(u_prev, y).reshape(batchsize, self.layers[-1], -1)
+                    u_next = x1 + x2
+                u_prev = u_next
+
+        x = u_next.permute(0, 2, 1)
+        x = self.fc1(x)
+        x = self.activation(x)
+        x = self.fc2(x)
+        return x
