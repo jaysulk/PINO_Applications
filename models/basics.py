@@ -8,6 +8,8 @@ from functools import partial
 import torch.nn.functional as F
 import math
 
+from typing import List, Tuple
+
 def dht(x: torch.Tensor, dims: List[int]) -> torch.Tensor:
     """
     Manually compute the Discrete Fourier Transform (DFT) along the specified dimensions.
