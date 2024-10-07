@@ -1,20 +1,15 @@
 import numpy as np
-
 import torch
 import torch.nn as nn
-
 from functools import partial
-
 
 def compl_mul1d(a, b):
     # (batch, in_channel, x ), (in_channel, out_channel, x) -> (batch, out_channel, x)
     return torch.einsum("bix,iox->box", a, b)
 
-
 def compl_mul2d(a, b):
     # (batch, in_channel, x,y,t ), (in_channel, out_channel, x,y,t) -> (batch, out_channel, x,y,t)
     return torch.einsum("bixy,ioxy->boxy", a, b)
-
 
 def compl_mul3d(a, b):
     return torch.einsum("bixyz,ioxyz->boxyz", a, b)
@@ -23,7 +18,6 @@ def compl_mul3d(a, b):
 # 1d fourier layer
 ################################################################
 
-
 class SpectralConv1d(nn.Module):
     def __init__(self, in_channels, out_channels, modes1):
         super(SpectralConv1d, self).__init__()
@@ -31,13 +25,12 @@ class SpectralConv1d(nn.Module):
         """
         1D Fourier layer. It does FFT, linear transform, and Inverse FFT.    
         """
-
         self.in_channels = in_channels
         self.out_channels = out_channels
         # Number of Fourier modes to multiply, at most floor(N/2) + 1
         self.modes1 = modes1
 
-        self.scale = (1 / (in_channels*out_channels))
+        self.scale = (1 / (in_channels * out_channels))
         self.weights1 = nn.Parameter(
             self.scale * torch.rand(in_channels, out_channels, self.modes1, 2))
 
@@ -57,7 +50,6 @@ class SpectralConv1d(nn.Module):
 ################################################################
 # 2d fourier layer
 ################################################################
-
 
 class SpectralConv2d(nn.Module):
     def __init__(self, in_channels, out_channels, modes1, modes2):
@@ -99,10 +91,6 @@ class SpectralConv2d(nn.Module):
         return x
 
     def ifft2d(self, gridy, coeff1, coeff2, k1, k2):
-
-        # y (batch, N, 2) locations in [0,1]*[0,1]
-        # coeff (batch, channels, kmax, kmax)
-
         batchsize = gridy.shape[0]
         N = gridy.shape[1]
         device = gridy.device
@@ -135,13 +123,16 @@ class SpectralConv2d(nn.Module):
         Y = Y.real
         return Y
 
+################################################################
+# 3d fourier layer
+################################################################
 
 class SpectralConv3d(nn.Module):
     def __init__(self, in_channels, out_channels, modes1, modes2, modes3):
         super(SpectralConv3d, self).__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
-        self.modes1 = modes1  #Number of Fourier modes to multiply, at most floor(N/2) + 1
+        self.modes1 = modes1  # Number of Fourier modes to multiply, at most floor(N/2) + 1
         self.modes2 = modes2
         self.modes3 = modes3
 
@@ -154,9 +145,10 @@ class SpectralConv3d(nn.Module):
     def forward(self, x):
         batchsize = x.shape[0]
         # Compute Fourier coeffcients up to factor of e^(- something constant)
-        x_ft = torch.fft.rfftn(x, dim=[2,3,4])
+        x_ft = torch.fft.rfftn(x, dim=[2, 3, 4])
+
         # Multiply relevant Fourier modes
-        out_ft = torch.zeros(batchsize, self.out_channels, x.size(2), x.size(3), x.size(4)//2 + 1, device=x.device, dtype=torch.cfloat)
+        out_ft = torch.zeros(batchsize, self.out_channels, x.size(2), x.size(3), x.size(4) // 2 + 1, device=x.device, dtype=torch.cfloat)
         out_ft[:, :, :self.modes1, :self.modes2, :self.modes3] = \
             compl_mul3d(x_ft[:, :, :self.modes1, :self.modes2, :self.modes3], self.weights1)
         out_ft[:, :, -self.modes1:, :self.modes2, :self.modes3] = \
@@ -166,19 +158,24 @@ class SpectralConv3d(nn.Module):
         out_ft[:, :, -self.modes1:, -self.modes2:, :self.modes3] = \
             compl_mul3d(x_ft[:, :, -self.modes1:, -self.modes2:, :self.modes3], self.weights4)
 
-        #Return to physical space
-        x = torch.fft.irfftn(out_ft, s=(x.size(2), x.size(3), x.size(4)), dim=[2,3,4])
+        # Return to physical space
+        x = torch.fft.irfftn(out_ft, s=(x.size(2), x.size(3), x.size(4)), dim=[2, 3, 4])
         return x
 
+################################################################
+# Fourier Block with von Neumann Operator Iteration
+################################################################
 
 class FourierBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, modes1, modes2, modes3, activation='tanh'):
+    def __init__(self, in_channels, out_channels, modes1, modes2, modes3, activation='tanh', num_iterations=5):
         super(FourierBlock, self).__init__()
         self.in_channel = in_channels
         self.out_channel = out_channels
-        self.speconv = SpectralConv3d(in_channels, out_channels, modes1, modes2, modes3)  # Assuming you have this defined elsewhere
+        self.speconv = SpectralConv3d(in_channels, out_channels, modes1, modes2, modes3)  # Spectral convolution layer
         self.linear = nn.Conv1d(in_channels, out_channels, 1)
+        self.num_iterations = num_iterations  # Number of fixed-point iterations
 
+        # Activation function setup
         if activation == 'tanh':
             self.activation = torch.tanh_
         elif activation == 'gelu':
@@ -196,9 +193,27 @@ class FourierBlock(nn.Module):
         '''
         input x: (batchsize, channel width, x_grid, y_grid, t_grid)
         '''
-        x1 = self.speconv(x)
-        x2 = self.linear(x.view(x.shape[0], self.in_channel, -1))
-        out = x1 + x2.view(x.shape[0], self.out_channel, x.shape[2], x.shape[3], x.shape[4])
-        if self.activation is not None:
-            out = self.activation(out)
-        return out
+        # Initial state
+        u_prev = x.clone()  # u^{(n)}
+
+        # Apply fixed-point iteration (von Neumann operator)
+        for _ in range(self.num_iterations):
+            # Apply Fourier convolution
+            x1 = self.speconv(u_prev)
+
+            # Apply linear layer to flattened input
+            x2 = self.linear(u_prev.view(u_prev.shape[0], self.in_channel, -1))
+            x2 = x2.view(u_prev.shape[0], self.out_channel, u_prev.shape[2], u_prev.shape[3], u_prev.shape[4])
+
+            # Combine results
+            u_next = x1 + x2  # Update: u^{(n+1)} = \mathcal{O}(u^{(n)}) + u^{(n)}
+
+            # Apply activation if specified
+            if self.activation is not None:
+                u_next = self.activation(u_next)
+
+            # Update the previous state for the next iteration
+            u_prev = u_next
+
+        # Return the final result after all iterations
+        return u_next
