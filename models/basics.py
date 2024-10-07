@@ -31,9 +31,21 @@ def dht(x: torch.Tensor, dims: List[int]) -> torch.Tensor:
         
         # Compute the DFT matrix for the given dimension (complex exponential)
         W = torch.exp(-2j * math.pi * k * n / N)
+
+        # Reshape x for matrix multiplication along the specified dimension
+        x_shape = x.shape
+        new_shape = (-1, N)  # Collapse all dimensions except the DFT dimension
+        x = x.reshape(*x_shape[:-1], N)
         
-        # Reshape x so that matrix multiplication works along the specified dimension
-        # We need to permute and reshape x such that `dim` becomes the last dimension, perform the multiplication, and then restore the original order.
+        # Perform DFT along the specified dimension
+        x = torch.matmul(x, W)
+
+        # Reshape back to original dimensions
+        x = x.reshape(x_shape)
+
+    # Return the real part of the result
+    return x.real
+ermute and reshape x such that `dim` becomes the last dimension, perform the multiplication, and then restore the original order.
         x = torch.moveaxis(x, dim, -1)  # Move the target dimension to the last axis
         x = torch.matmul(x, W)  # Perform DFT along the last axis
         x = torch.moveaxis(x, -1, dim)  # Restore the original order
@@ -63,11 +75,17 @@ def idht(X: torch.Tensor, dims: List[int], s: Tuple[int]) -> torch.Tensor:
         
         # Compute the IDFT matrix for the given dimension (inverse complex exponential)
         W_inv = torch.exp(2j * math.pi * k * n / N)
+
+        # Reshape X for matrix multiplication along the specified dimension
+        X_shape = X.shape
+        new_shape = (-1, N)  # Collapse all dimensions except the IDFT dimension
+        X = X.reshape(*X_shape[:-1], N)
         
-        # Reshape X so that matrix multiplication works along the specified dimension
-        X = torch.moveaxis(X, dim, -1)  # Move the target dimension to the last axis
-        X = torch.matmul(X, W_inv)  # Perform IDFT along the last axis
-        X = torch.moveaxis(X, -1, dim)  # Restore the original order
+        # Perform IDFT along the specified dimension
+        X = torch.matmul(X, W_inv)
+
+        # Reshape back to original dimensions
+        X = X.reshape(X_shape)
         
         # Normalize the result by the size of the dimension
         X = X / N
