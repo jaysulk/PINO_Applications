@@ -6,8 +6,6 @@ import torch.nn as nn
 from functools import partial
 
 import torch.nn.functional as F
-
-import torch
 import math
 
 def dht(x: torch.Tensor, dims: List[int]) -> torch.Tensor:
