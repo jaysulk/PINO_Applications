@@ -13,19 +13,18 @@ import torch
 
 def dht(x: torch.Tensor) -> torch.Tensor:
     if x.ndim == 3:
-        # 1D case (input is a 3D tensor)
+        # 1D case (3D tensor)
         D, M, N = x.size()
         n = torch.arange(N, device=x.device).float()
 
         # Hartley kernel for 1D
         cas = torch.cos(2 * torch.pi * n.view(-1, 1) * n / N) + torch.sin(2 * torch.pi * n.view(-1, 1) * n / N)
 
-        # Perform the DHT
-        X = torch.matmul(cas, x.view(D, N, M).permute(1, 0, 2).reshape(N, -1))
-        return X.reshape(N, D, M).permute(1, 2, 0)
-
+        # DHT along the last dimension (dim=-1)
+        X = torch.einsum('ni,dmn->dmi', cas, x)
+        return X
     elif x.ndim == 4:
-        # 2D case (input is a 4D tensor)
+        # 2D case (4D tensor)
         B, D, M, N = x.size()
         m = torch.arange(M, device=x.device).float()
         n = torch.arange(N, device=x.device).float()
@@ -34,19 +33,12 @@ def dht(x: torch.Tensor) -> torch.Tensor:
         cas_row = torch.cos(2 * torch.pi * m.view(-1, 1) * m / M) + torch.sin(2 * torch.pi * m.view(-1, 1) * m / M)
         cas_col = torch.cos(2 * torch.pi * n.view(-1, 1) * n / N) + torch.sin(2 * torch.pi * n.view(-1, 1) * n / N)
 
-        # Perform the DHT
-        x_reshaped = x.reshape(B * D, M, N)  # (B*D, M, N)
-
-        # Apply the column transform
-        intermediate = torch.matmul(x_reshaped, cas_col.T)  # (B*D, M, N) @ (N, N) -> (B*D, M, N)
-        
-        # Apply the row transform
-        X = torch.matmul(cas_row.T, intermediate)  # (M, M) @ (B*D, M, N) -> (B*D, M, N)
-
-        return X.reshape(B, D, M, N)
-
+        # Perform DHT on both dimensions
+        X = torch.einsum('mi,bmnj->bimj', cas_row, x)  # Transform rows
+        X = torch.einsum('ni,bimj->bimn', cas_col, X)  # Transform columns
+        return X
     elif x.ndim == 5:
-        # 3D case (input is a 5D tensor)
+        # 3D case (5D tensor)
         B, C, D, M, N = x.size()
         d = torch.arange(D, device=x.device).float()
         m = torch.arange(M, device=x.device).float()
@@ -57,16 +49,13 @@ def dht(x: torch.Tensor) -> torch.Tensor:
         cas_row = torch.cos(2 * torch.pi * m.view(-1, 1) * m / M) + torch.sin(2 * torch.pi * m.view(-1, 1) * m / M)
         cas_col = torch.cos(2 * torch.pi * n.view(-1, 1) * n / N) + torch.sin(2 * torch.pi * n.view(-1, 1) * n / N)
 
-        # Perform the DHT
-        x_reshaped = x.reshape(B * C, D, M, N)
-        intermediate = torch.einsum('bcde,cfde->bcfe', x_reshaped, cas_col)
-        intermediate = torch.einsum('bcfe,cfm->bcme', intermediate, cas_row)
-        X = torch.einsum('bcme,cfm->bcme', intermediate, cas_depth)
-        return X.reshape(B, C, D, M, N)
-
+        # Apply Hartley transform along depth, rows, and columns
+        X = torch.einsum('di,bcde->bcie', cas_depth, x)
+        X = torch.einsum('mi,bcie->bcme', cas_row, X)
+        X = torch.einsum('ni,bcme->bcmn', cas_col, X)
+        return X
     else:
         raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
-
 
 def idht(x: torch.Tensor) -> torch.Tensor:
     # Compute the DHT (Direct Hartley Transform)
