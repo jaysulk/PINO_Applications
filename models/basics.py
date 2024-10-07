@@ -146,7 +146,7 @@ class SpectralConv2d(nn.Module):
         size2 = x.shape[-1]
         
         # Compute DHT
-        x_dht = (x, dims=[2, 3])
+        x_dht = dht(x, dims=[2, 3])
         
         # Multiply relevant Hartley modes
         out_dht = torch.zeros(batchsize, self.out_channels, size1, size2, device=x.device)
