@@ -23,18 +23,20 @@ def dht(x: torch.Tensor, dims: List[int]) -> torch.Tensor:
     x = x.to(torch.complex64) if x.dtype == torch.float32 else x.to(torch.complex128)
     
     for dim in dims:
-        # Get the size along the current dimension
         N = x.size(dim)
         
         # Create the frequency grid for the current dimension
-        n = torch.arange(N, device=x.device).view(*([1] * dim), N)
-        k = torch.arange(N, device=x.device).view(*([1] * dim), N).transpose(dim, -1)
+        n = torch.arange(N, device=x.device).view([1] * dim + [N])
+        k = torch.arange(N, device=x.device).view([1] * dim + [N]).transpose(dim, -1)
         
         # Compute the DFT matrix for the given dimension (complex exponential)
         W = torch.exp(-2j * math.pi * k * n / N)
         
-        # Perform the DFT along the specified dimension using matrix multiplication
-        x = torch.matmul(x, W) if dim == dims[-1] else torch.matmul(W, x)
+        # Reshape x so that matrix multiplication works along the specified dimension
+        # We need to permute and reshape x such that `dim` becomes the last dimension, perform the multiplication, and then restore the original order.
+        x = torch.moveaxis(x, dim, -1)  # Move the target dimension to the last axis
+        x = torch.matmul(x, W)  # Perform DFT along the last axis
+        x = torch.moveaxis(x, -1, dim)  # Restore the original order
 
     # Return the real part of the result
     return x.real
@@ -53,25 +55,25 @@ def idht(X: torch.Tensor, dims: List[int], s: Tuple[int]) -> torch.Tensor:
     X = X.to(torch.complex64) if X.dtype == torch.float32 else X.to(torch.complex128)
     
     for dim in dims:
-        # Get the size along the current dimension (from shape `s`)
         N = s[dims.index(dim)]
         
         # Create the frequency grid for the current dimension
-        n = torch.arange(N, device=X.device).view(*([1] * dim), N)
-        k = torch.arange(N, device=X.device).view(*([1] * dim), N).transpose(dim, -1)
+        n = torch.arange(N, device=X.device).view([1] * dim + [N])
+        k = torch.arange(N, device=X.device).view([1] * dim + [N]).transpose(dim, -1)
         
         # Compute the IDFT matrix for the given dimension (inverse complex exponential)
         W_inv = torch.exp(2j * math.pi * k * n / N)
         
-        # Perform the IDFT along the specified dimension using matrix multiplication
-        X = torch.matmul(X, W_inv) if dim == dims[-1] else torch.matmul(W_inv, X)
+        # Reshape X so that matrix multiplication works along the specified dimension
+        X = torch.moveaxis(X, dim, -1)  # Move the target dimension to the last axis
+        X = torch.matmul(X, W_inv)  # Perform IDFT along the last axis
+        X = torch.moveaxis(X, -1, dim)  # Restore the original order
         
         # Normalize the result by the size of the dimension
         X = X / N
     
     # Return the real part of the result
     return X.real
-
 
 def compl_mul1d(a, b):
     # (batch, in_channel, x ), (in_channel, out_channel, x) -> (batch, out_channel, x)
