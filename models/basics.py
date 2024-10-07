@@ -8,8 +8,10 @@ def compl_mul1d(a, b):
     return torch.einsum("bix,iox->box", a, b)
 
 def compl_mul2d(a, b):
-    # (batch, in_channel, x,y,t ), (in_channel, out_channel, x,y,t) -> (batch, out_channel, x,y,t)
-    return torch.einsum("bixy,ioxy->boxy", a, b)
+    # Assuming `a` has shape (batch, in_channel, x, y) and `b` has shape (in_channel, out_channel, modes1, modes2)
+    # Perform einsum over the Fourier modes
+    return torch.einsum("bixy,ioxy->boxy", a[:, :, :b.shape[2], :b.shape[3]], b)
+
 
 def compl_mul3d(a, b):
     return torch.einsum("bixyz,ioxyz->boxyz", a, b)
