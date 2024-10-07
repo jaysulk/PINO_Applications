@@ -12,7 +12,7 @@ from typing import List, Tuple
 
 def dht(x: torch.Tensor, dims: List[int]) -> torch.Tensor:
     """
-    Manually compute the Discrete Fourier Transform (DFT) along the specified dimensions.
+    Compute the Discrete Fourier Transform (DFT) along the specified dimensions.
     Args:
         x: Input tensor (3D, 4D, or 5D).
         dims: List of dimensions along which to compute the DFT.
@@ -26,30 +26,22 @@ def dht(x: torch.Tensor, dims: List[int]) -> torch.Tensor:
         N = x.size(dim)
         
         # Create the frequency grid for the current dimension
-        n = torch.arange(N, device=x.device).view([1] * (x.ndim - dim - 1) + [N])
-        k = torch.arange(N, device=x.device).view([1] * (x.ndim - dim - 1) + [N]).transpose(dim, -1)
+        n = torch.arange(N, device=x.device).view([1] * dim + [N])
+        k = torch.arange(N, device=x.device).view([1] * dim + [N])
         
         # Compute the DFT matrix for the given dimension (complex exponential)
         W = torch.exp(-2j * math.pi * k * n / N)
 
-        # Move the `dim` axis to the last axis for matrix multiplication
-        x = x.transpose(dim, -1)
-        
-        # Perform DFT along the last axis
-        x_shape = x.shape
-        x = x.reshape(-1, N)  # Collapse all other dimensions except the last
-        x = torch.matmul(x, W)  # Perform matrix multiplication
-        
-        # Reshape back to the original shape and move the transformed axis back to its original position
-        x = x.reshape(x_shape)
-        x = x.transpose(-1, dim)
+        # Use torch.einsum for matrix multiplication along the specified dimension
+        # '...i,ij->...j' means we are multiplying along the last axis of x with W
+        x = torch.einsum('...i,ij->...j', x, W)
 
     # Return the real part of the result
     return x.real
-
+    
 def idht(X: torch.Tensor, dims: List[int], s: Tuple[int]) -> torch.Tensor:
     """
-    Manually compute the Inverse Discrete Fourier Transform (IDFT) along the specified dimensions.
+    Compute the Inverse Discrete Fourier Transform (IDFT) along the specified dimensions.
     Args:
         X: Input tensor in the frequency domain.
         dims: List of dimensions along which to compute the IDFT.
@@ -64,23 +56,14 @@ def idht(X: torch.Tensor, dims: List[int], s: Tuple[int]) -> torch.Tensor:
         N = s[dims.index(dim)]
         
         # Create the frequency grid for the current dimension
-        n = torch.arange(N, device=X.device).view([1] * (X.ndim - dim - 1) + [N])
-        k = torch.arange(N, device=X.device).view([1] * (X.ndim - dim - 1) + [N]).transpose(dim, -1)
+        n = torch.arange(N, device=X.device).view([1] * dim + [N])
+        k = torch.arange(N, device=X.device).view([1] * dim + [N])
         
         # Compute the IDFT matrix for the given dimension (inverse complex exponential)
         W_inv = torch.exp(2j * math.pi * k * n / N)
 
-        # Move the `dim` axis to the last axis for matrix multiplication
-        X = X.transpose(dim, -1)
-        
-        # Perform IDFT along the last axis
-        X_shape = X.shape
-        X = X.reshape(-1, N)  # Collapse all other dimensions except the last
-        X = torch.matmul(X, W_inv)  # Perform matrix multiplication
-        
-        # Reshape back to the original shape and move the transformed axis back to its original position
-        X = X.reshape(X_shape)
-        X = X.transpose(-1, dim)
+        # Use torch.einsum for matrix multiplication along the specified dimension
+        X = torch.einsum('...i,ij->...j', X, W_inv)
         
         # Normalize the result by the size of the dimension
         X = X / N
