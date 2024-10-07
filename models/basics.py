@@ -117,7 +117,7 @@ class SpectralConv1d(nn.Module):
         out_ht[:, :, :self.modes1] = compl_mul1d(x_ht[:, :, :self.modes1], self.weights1)
 
         # Return to physical space
-        x = (out_ht, dims=[2], s=(x.size(-1),))
+        x = idht(out_ht, dims=[2], s=(x.size(-1),))
         return x
 
 
@@ -175,26 +175,24 @@ class SpectralConv3d(nn.Module):
 
     def forward(self, x):
         batchsize = x.shape[0]
-        # Compute Hartley coefficients up to factor of h^(- something constant)
-        x_ft = torch.fft.rfftn(x, dim=[2, 3, 4])
-        x_ft_mirror = torch.fft.rfftn(x.flip(dims=[2, 3, 4]), dim=[2, 3, 4])  # F(-u)
-        x_ht = x_ft + x_ft_mirror
-
+        
+        # Compute DHT (Discrete Hartley Transform) along the last three dimensions
+        x_dht = dht(x, dims=[2, 3, 4])
+        
         # Multiply relevant Hartley modes
-        out_ht = torch.zeros(batchsize, self.out_channels, x.size(2), x.size(3), x.size(4)//2 + 1, device=x.device, dtype=torch.cfloat)
-        out_ht[:, :, :self.modes1, :self.modes2, :self.modes3] = \
-            compl_mul3d(x_ht[:, :, :self.modes1, :self.modes2, :self.modes3], self.weights1)
-        out_ht[:, :, -self.modes1:, :self.modes2, :self.modes3] = \
-            compl_mul3d(x_ht[:, :, -self.modes1:, :self.modes2, :self.modes3], self.weights2)
-        out_ht[:, :, :self.modes1, -self.modes2:, :self.modes3] = \
-            compl_mul3d(x_ht[:, :, :self.modes1, -self.modes2:, :self.modes3], self.weights3)
-        out_ht[:, :, -self.modes1:, -self.modes2:, :self.modes3] = \
-            compl_mul3d(x_ht[:, :, -self.modes1:, -self.modes2:, :self.modes3], self.weights4)
+        out_dht = torch.zeros(batchsize, self.out_channels, x.size(2), x.size(3), x.size(4)//2 + 1, device=x.device, dtype=torch.cfloat)
+        out_dht[:, :, :self.modes1, :self.modes2, :self.modes3] = \
+            compl_mul3d(x_dht[:, :, :self.modes1, :self.modes2, :self.modes3], self.weights1)
+        out_dht[:, :, -self.modes1:, :self.modes2, :self.modes3] = \
+            compl_mul3d(x_dht[:, :, -self.modes1:, :self.modes2, :self.modes3], self.weights2)
+        out_dht[:, :, :self.modes1, -self.modes2:, :self.modes3] = \
+            compl_mul3d(x_dht[:, :, :self.modes1, -self.modes2:, :self.modes3], self.weights3)
+        out_dht[:, :, -self.modes1:, -self.modes2:, :self.modes3] = \
+            compl_mul3d(x_dht[:, :, -self.modes1:, -self.modes2:, :self.modes3], self.weights4)
 
-        # Return to physical space
-        x = torch.fft.irfftn(out_ht, s=(x.size(2), x.size(3), x.size(4)), dim=[2, 3, 4])
+        # Return to physical space using inverse DHT
+        x = idht(out_dht, dims=[2, 3, 4], s=(x.size(2), x.size(3), x.size(4)))
         return x
-
 
 class FourierBlock(nn.Module):
     def __init__(self, in_channels, out_channels, modes1, modes2, modes3, activation='tanh'):
