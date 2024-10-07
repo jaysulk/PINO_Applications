@@ -45,13 +45,6 @@ def dht(x: torch.Tensor, dims: List[int]) -> torch.Tensor:
 
     # Return the real part of the result
     return x.real
-ermute and reshape x such that `dim` becomes the last dimension, perform the multiplication, and then restore the original order.
-        x = torch.moveaxis(x, dim, -1)  # Move the target dimension to the last axis
-        x = torch.matmul(x, W)  # Perform DFT along the last axis
-        x = torch.moveaxis(x, -1, dim)  # Restore the original order
-
-    # Return the real part of the result
-    return x.real
 
 def idht(X: torch.Tensor, dims: List[int], s: Tuple[int]) -> torch.Tensor:
     """
