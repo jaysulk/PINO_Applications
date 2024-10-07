@@ -110,14 +110,14 @@ class SpectralConv1d(nn.Module):
     def forward(self, x):
         batchsize = x.shape[0]
         # Compute Hartley coefficients up to factor of h^(- something constant)
-        x_ht = dht(x)
+        x_ht = dht(x, dims=[2])
 
         # Multiply relevant Hartley modes
         out_ht = torch.zeros(batchsize, self.in_channels, x.size(-1)//2 + 1, device=x.device, dtype=torch.cfloat)
         out_ht[:, :, :self.modes1] = compl_mul1d(x_ht[:, :, :self.modes1], self.weights1)
 
         # Return to physical space
-        x = idht(out_ht)
+        x = (out_ht, dims=[2], s=(x.size(-1),))
         return x
 
 
@@ -146,7 +146,7 @@ class SpectralConv2d(nn.Module):
         size2 = x.shape[-1]
         
         # Compute DHT
-        x_dht = dht(x)
+        x_dht = (x, dims=[2, 3])
         
         # Multiply relevant Hartley modes
         out_dht = torch.zeros(batchsize, self.out_channels, size1, size2, device=x.device)
@@ -154,7 +154,7 @@ class SpectralConv2d(nn.Module):
         out_dht[:, :, -self.modes1:, :self.modes2] = compl_mul2d(x_dht[:, :, -self.modes1:, :self.modes2], self.weights2)
         
         # Return to physical space
-        x = idht(out_dht)
+        x = idht(out_dht, dims=[2, 3], s=(x.size(-2), x.size(-1)))
         
         return x
 
