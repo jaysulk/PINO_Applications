@@ -143,7 +143,7 @@ def compl_mul3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     return result
 
 ################################################################
-# 1d fourier layer
+# 1D Hartley convolution layer
 ################################################################
 
 class SpectralConv1d(nn.Module):
@@ -151,7 +151,7 @@ class SpectralConv1d(nn.Module):
         super(SpectralConv1d, self).__init__()
 
         """
-        1D Hartley layer. It does HHT, linear transform, and Inverse HHT.    
+        1D Hartley layer. It does DHT, linear transform, and Inverse DHT.    
         """
 
         self.in_channels = in_channels
@@ -161,7 +161,7 @@ class SpectralConv1d(nn.Module):
 
         self.scale = (1 / (in_channels*out_channels))
         self.weights1 = nn.Parameter(
-            self.scale * torch.rand(in_channels, out_channels, self.modes1, 2))
+            self.scale * torch.rand(in_channels, out_channels, self.modes1))
 
     def forward(self, x):
         batchsize = x.shape[0]
@@ -169,7 +169,7 @@ class SpectralConv1d(nn.Module):
         x_ht = dht(x)
 
         # Multiply relevant Hartley modes
-        out_ht = torch.zeros(batchsize, self.in_channels, x.size(-1)//2 + 1, device=x.device, dtype=torch.cfloat)
+        out_ht = torch.zeros(batchsize, self.in_channels, x.size(-1)//2 + 1, device=x.device)
         out_ht[:, :, :self.modes1] = compl_mul1d(x_ht[:, :, :self.modes1], self.weights1)
 
         # Return to physical space
@@ -177,9 +177,8 @@ class SpectralConv1d(nn.Module):
         return x
 
 
-
 ################################################################
-# 2d fourier layer
+# 2D Hartley convolution layer
 ################################################################
 
 class SpectralConv2d(nn.Module):
@@ -214,6 +213,11 @@ class SpectralConv2d(nn.Module):
         
         return x
 
+
+################################################################
+# 3D Hartley convolution layer
+################################################################
+
 class SpectralConv3d(nn.Module):
     def __init__(self, in_channels, out_channels, modes1, modes2, modes3):
         super(SpectralConv3d, self).__init__()
@@ -224,10 +228,10 @@ class SpectralConv3d(nn.Module):
         self.modes3 = modes3
 
         self.scale = (1 / (in_channels * out_channels))
-        self.weights1 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3, dtype=torch.cfloat))
-        self.weights2 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3, dtype=torch.cfloat))
-        self.weights3 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3, dtype=torch.cfloat))
-        self.weights4 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3, dtype=torch.cfloat))
+        self.weights1 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3))
+        self.weights2 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3))
+        self.weights3 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3))
+        self.weights4 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3))
 
     def forward(self, x):
         batchsize = x.shape[0]
@@ -237,7 +241,7 @@ class SpectralConv3d(nn.Module):
         x_ht = x_ft + x_ft_mirror
 
         # Multiply relevant Hartley modes
-        out_ht = torch.zeros(batchsize, self.out_channels, x.size(2), x.size(3), x.size(4)//2 + 1, device=x.device, dtype=torch.cfloat)
+        out_ht = torch.zeros(batchsize, self.out_channels, x.size(2), x.size(3), x.size(4)//2 + 1, device=x.device)
         out_ht[:, :, :self.modes1, :self.modes2, :self.modes3] = \
             compl_mul3d(x_ht[:, :, :self.modes1, :self.modes2, :self.modes3], self.weights1)
         out_ht[:, :, -self.modes1:, :self.modes2, :self.modes3] = \
@@ -250,7 +254,6 @@ class SpectralConv3d(nn.Module):
         # Return to physical space
         x = torch.fft.irfftn(out_ht, s=(x.size(2), x.size(3), x.size(4)), dim=[2, 3, 4])
         return x
-
 
 class FourierBlock(nn.Module):
     def __init__(self, in_channels, out_channels, modes1, modes2, modes3, activation='tanh'):
