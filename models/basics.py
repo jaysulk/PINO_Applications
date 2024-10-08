@@ -166,27 +166,28 @@ def compl_mul3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
 ################################################################
 # Data Augmentation Function
 ################################################################
-def augment_data(inputs, shift_range=0.1, scale_range=0.05):
-    """
-    Augment input data by applying random shifts and scaling.
-    
-    Parameters:
-    - inputs: torch.Tensor, the input data to be augmented
-    - shift_range: float, the maximum range for random shifts
-    - scale_range: float, the maximum range for random scaling
-    
-    Returns:
-    - augmented_inputs: torch.Tensor, the augmented input data
-    """
-    # Apply random shifts
-    shifts = torch.rand(inputs.size()) * shift_range
-    augmented_inputs = inputs + shifts
-    
-    # Apply random scaling
-    scales = 1 + torch.rand(inputs.size()) * scale_range
-    augmented_inputs = augmented_inputs * scales
-    
-    return augmented_inputs
+
+#def augment_data(inputs, shift_range=0.1, scale_range=0.05):
+#    """
+#    Augment input data by applying random shifts and scaling.
+#    
+#    Parameters:
+#    - inputs: torch.Tensor, the input data to be augmented
+#    - shift_range: float, the maximum range for random shifts
+#    - scale_range: float, the maximum range for random scaling
+#    
+#    Returns:
+#    - augmented_inputs: torch.Tensor, the augmented input data
+#    """
+#    # Apply random shifts
+#    shifts = torch.rand(inputs.size()) * shift_range
+#    augmented_inputs = inputs + shifts
+#    
+#    # Apply random scaling
+#    scales = 1 + torch.rand(inputs.size()) * scale_range
+#    augmented_inputs = augmented_inputs * scales
+#    
+#    return augmented_inputs
 
 ################################################################
 # 1D Hartley convolution layer
@@ -213,7 +214,7 @@ class SpectralConv1d(nn.Module):
         batchsize = x.shape[0]
         
         # Augment the input data
-        x = augment_data(x)
+        #x = augment_data(x)
         
         # Compute Hartley coefficients up to factor of h^(- something constant)
         x_ht = dht(x)
@@ -265,7 +266,7 @@ class SpectralConv2d(nn.Module):
         size2 = x.shape[-1]
         
         # Augment the input data
-        x = augment_data(x)
+        #x = augment_data(x)
         
         # Compute DHT
         x_dht = dht(x)
@@ -317,7 +318,7 @@ class SpectralConv3d(nn.Module):
         batchsize = x.shape[0]
 
         # Augment the input data
-        x = augment_data(x)
+        #x = augment_data(x)
 
         # Compute Hartley coefficients up to factor of h^(- something constant)
         x_ht = dht(x)
