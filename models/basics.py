@@ -142,26 +142,26 @@ def compl_mul3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
 # Low-Pass Filter Function
 ################################################################
 
-def low_pass_filter(x_ht, cutoff):
-    """
-    Applies a low-pass filter to the spectral coefficients (DHT output).
-    Frequencies higher than `cutoff` are dampened.
-    """
-    size = x_ht.shape[-1]  # Get the last dimension (frequency axis)
-    frequencies = torch.fft.fftfreq(size, d=1.0)  # Compute frequency bins
-    filter_mask = torch.abs(frequencies) <= cutoff  # Mask for low frequencies
-    return x_ht * filter_mask.to(x_ht.device)
+#def low_pass_filter(x_ht, cutoff):
+#    """
+#    Applies a low-pass filter to the spectral coefficients (DHT output).
+#    Frequencies higher than `cutoff` are dampened.
+#    """
+#    size = x_ht.shape[-1]  # Get the last dimension (frequency axis)
+#    frequencies = torch.fft.fftfreq(size, d=1.0)  # Compute frequency bins
+#    filter_mask = torch.abs(frequencies) <= cutoff  # Mask for low frequencies
+#    return x_ht * filter_mask.to(x_ht.device)
 
 ################################################################
 # Gaussian Smoothing Function
 ################################################################
 
-def gaussian_smoothing(x, kernel_size=5, sigma=1.0):
-    """
-    Applies Gaussian smoothing to the output.
-    """
-    # Apply Gaussian blur (use 2D or 3D kernel as needed)
-    return F.gaussian_blur(x, kernel_size=[kernel_size], sigma=[sigma])
+#def gaussian_smoothing(x, kernel_size=5, sigma=1.0):
+#    """
+#    Applies Gaussian smoothing to the output.
+#    """
+#    # Apply Gaussian blur (use 2D or 3D kernel as needed)
+#    return F.gaussian_blur(x, kernel_size=[kernel_size], sigma=[sigma])
 
 ################################################################
 # 1D Hartley convolution layer with LPF and smoothing
@@ -186,7 +186,7 @@ class SpectralConv1d(nn.Module):
         x_ht = dht(x)
         
         # Apply low-pass filter
-        x_ht = low_pass_filter(x_ht, self.cutoff_frequency)
+        #x_ht = low_pass_filter(x_ht, self.cutoff_frequency)
         
         # Compute DHT of the flipped input to simulate sine part
         x_ht_flip = dht(x.flip(dims=[-1]))
@@ -242,7 +242,7 @@ class SpectralConv2d(nn.Module):
         x_dht = dht(x)
         
         # Apply low-pass filter
-        x_dht = low_pass_filter(x_dht, self.cutoff_frequency)
+        #x_dht = low_pass_filter(x_dht, self.cutoff_frequency)
         
         # Compute DHT of the flipped input to simulate sine part
         x_dht_flip = dht(x.flip(dims=[-2, -1]))
@@ -300,7 +300,7 @@ class SpectralConv3d(nn.Module):
         x_ht = dht(x)
         
         # Apply low-pass filter
-        x_ht = low_pass_filter(x_ht, self.cutoff_frequency)
+        #x_ht = low_pass_filter(x_ht, self.cutoff_frequency)
         
         x_ht_flip = dht(x.flip(dims=[2, 3, 4]))
 
