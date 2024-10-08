@@ -139,30 +139,55 @@ def compl_mul3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     return result
 
 ################################################################
-# 1D Hartley convolution layer
+# Low-Pass Filter Function
+################################################################
+
+def low_pass_filter(x_ht, cutoff):
+    """
+    Applies a low-pass filter to the spectral coefficients (DHT output).
+    Frequencies higher than `cutoff` are dampened.
+    """
+    size = x_ht.shape[-1]  # Get the last dimension (frequency axis)
+    frequencies = torch.fft.fftfreq(size, d=1.0)  # Compute frequency bins
+    filter_mask = torch.abs(frequencies) <= cutoff  # Mask for low frequencies
+    return x_ht * filter_mask.to(x_ht.device)
+
+################################################################
+# Gaussian Smoothing Function
+################################################################
+
+def gaussian_smoothing(x, kernel_size=5, sigma=1.0):
+    """
+    Applies Gaussian smoothing to the output.
+    """
+    # Apply Gaussian blur (use 2D or 3D kernel as needed)
+    return F.gaussian_blur(x, kernel_size=[kernel_size], sigma=[sigma])
+
+################################################################
+# 1D Hartley convolution layer with LPF and smoothing
 ################################################################
 
 class SpectralConv1d(nn.Module):
-    def __init__(self, in_channels, out_channels, modes1):
+    def __init__(self, in_channels, out_channels, modes1, cutoff_frequency=0.3):
         super(SpectralConv1d, self).__init__()
-
-        """
-        1D Hartley layer. It does DHT, linear transform, and Inverse DHT.    
-        """
 
         self.in_channels = in_channels
         self.out_channels = out_channels
-        # Number of Hartley modes to multiply, at most floor(N/2) + 1
         self.modes1 = modes1
+        self.cutoff_frequency = cutoff_frequency
 
         self.scale = (1 / (in_channels*out_channels))
-        self.weights1 = nn.Parameter(
-            self.scale * torch.rand(in_channels, out_channels, self.modes1))
+        self.weights1 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1))
 
     def forward(self, x):
         batchsize = x.shape[0]
+        
         # Compute Hartley coefficients up to factor of h^(- something constant)
         x_ht = dht(x)
+        
+        # Apply low-pass filter
+        x_ht = low_pass_filter(x_ht, self.cutoff_frequency)
+        
         # Compute DHT of the flipped input to simulate sine part
         x_ht_flip = dht(x.flip(dims=[-1]))
 
@@ -184,26 +209,29 @@ class SpectralConv1d(nn.Module):
 
         # Combine magnitude (x) and phase into a real-valued signal
         reconstructed_signal = x * torch.cos(phase)  # Reconstruction with magnitude and phase
-        return reconstructed_signal
+        
+        # Apply Gaussian smoothing to the final output
+        smoothed_signal = gaussian_smoothing(reconstructed_signal)
+        
+        return smoothed_signal
 
 
 ################################################################
-# 2D Hartley convolution layer
+# 2D Hartley convolution layer with LPF and smoothing
 ################################################################
 
 class SpectralConv2d(nn.Module):
-    def __init__(self, in_channels, out_channels, modes1, modes2):
+    def __init__(self, in_channels, out_channels, modes1, modes2, cutoff_frequency=0.3):
         super(SpectralConv2d, self).__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.modes1 = modes1
         self.modes2 = modes2
+        self.cutoff_frequency = cutoff_frequency
 
         self.scale = (1 / (in_channels * out_channels))
-        self.weights1 = nn.Parameter(
-            self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2))
-        self.weights2 = nn.Parameter(
-            self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2))
+        self.weights1 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2))
+        self.weights2 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2))
 
     def forward(self, x):
         batchsize = x.shape[0]
@@ -212,6 +240,10 @@ class SpectralConv2d(nn.Module):
         
         # Compute DHT
         x_dht = dht(x)
+        
+        # Apply low-pass filter
+        x_dht = low_pass_filter(x_dht, self.cutoff_frequency)
+        
         # Compute DHT of the flipped input to simulate sine part
         x_dht_flip = dht(x.flip(dims=[-2, -1]))
 
@@ -234,21 +266,26 @@ class SpectralConv2d(nn.Module):
 
         # Combine magnitude (x) and phase into a real-valued signal
         reconstructed_signal = x * torch.cos(phase)  # Reconstruction with magnitude and phase
-        return reconstructed_signal
+        
+        # Apply Gaussian smoothing to the final output
+        smoothed_signal = gaussian_smoothing(reconstructed_signal)
+        
+        return smoothed_signal
 
 
 ################################################################
-# 3D Hartley convolution layer
+# 3D Hartley convolution layer with LPF and smoothing
 ################################################################
 
 class SpectralConv3d(nn.Module):
-    def __init__(self, in_channels, out_channels, modes1, modes2, modes3):
+    def __init__(self, in_channels, out_channels, modes1, modes2, modes3, cutoff_frequency=0.3):
         super(SpectralConv3d, self).__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
-        self.modes1 = modes1  # Number of Hartley modes to multiply, at most floor(N/2) + 1
+        self.modes1 = modes1
         self.modes2 = modes2
         self.modes3 = modes3
+        self.cutoff_frequency = cutoff_frequency
 
         self.scale = (1 / (in_channels * out_channels))
         self.weights1 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3))
@@ -261,6 +298,10 @@ class SpectralConv3d(nn.Module):
 
         # Compute Hartley coefficients up to factor of h^(- something constant)
         x_ht = dht(x)
+        
+        # Apply low-pass filter
+        x_ht = low_pass_filter(x_ht, self.cutoff_frequency)
+        
         x_ht_flip = dht(x.flip(dims=[2, 3, 4]))
 
         # Combine the Hartley and flipped-Hartley (cosine and sine components)
@@ -288,7 +329,11 @@ class SpectralConv3d(nn.Module):
 
         # Combine magnitude (x) and phase into a real-valued signal
         reconstructed_signal = x * torch.cos(phase)  # Reconstruction with magnitude and phase
-        return reconstructed_signal
+        
+        # Apply Gaussian smoothing to the final output
+        smoothed_signal = gaussian_smoothing(reconstructed_signal)
+        
+        return smoothed_signal
 
 class FourierBlock(nn.Module):
     def __init__(self, in_channels, out_channels, modes1, modes2, modes3, activation='tanh'):
