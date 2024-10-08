@@ -10,7 +10,7 @@ import torch
 
 def dht_fft(x: torch.Tensor, dim: int) -> torch.Tensor:
     # Compute the 1D FFT of the input tensor along the specified dimension
-    X_fft = torch.fft.rfftn(x, dim=dim)
+    X_fft = torch.fft.fftn(x, dim=dim)
     
     # Compute the real and imaginary parts
     real_part = X_fft.real
