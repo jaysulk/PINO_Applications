@@ -1,10 +1,7 @@
 import numpy as np
-
 import torch
 import torch.nn as nn
-
 from functools import partial
-
 import torch.nn.functional as F
 
 def dht(x: torch.Tensor, dims=None) -> torch.Tensor:
@@ -238,8 +235,9 @@ class SpectralConv1d(nn.Module):
         x = idht(out_ht)
 
         # Combine magnitude (x) and phase into a real-valued signal
-        reconstructed_signal = x * torch.cos(phase)  # Reconstruction with magnitude and phase
-        return reconstructed_signal
+        #reconstructed_signal = x * torch.cos(phase)  # Reconstruction with magnitude and phase
+        #return reconstructed_signal
+        return x
 
 
 ################################################################
@@ -291,8 +289,9 @@ class SpectralConv2d(nn.Module):
         x = idht(out_dht)
 
         # Combine magnitude (x) and phase into a real-valued signal
-        reconstructed_signal = x * torch.cos(phase)  # Reconstruction with magnitude and phase
-        return reconstructed_signal
+        #reconstructed_signal = x * torch.cos(phase)  # Reconstruction with magnitude and phase
+        #return reconstructed_signal
+        return x
 
 
 ################################################################
@@ -348,7 +347,9 @@ class SpectralConv3d(nn.Module):
         x = idht(out_ht)
 
         # Combine magnitude (x) and phase into a real-valued signal
-        reconstructed_signal = x * torch.cos(phase)  #
+        #reconstructed_signal = x * torch.cos(phase)  # Reconstruction with magnitude and phase
+        #return reconstructed_signal
+        return x
 
 class FourierBlock(nn.Module):
     def __init__(self, in_channels, out_channels, modes1, modes2, modes3, activation='tanh'):
