@@ -39,6 +39,7 @@ def dht(x: torch.Tensor, dims=None) -> torch.Tensor:
         # Apply the row transform
         X = torch.matmul(cas_row.T, intermediate)
 
+        # Reshape to original size
         return X.reshape(B, D, M, N)
 
     elif x.ndim == 5:
@@ -56,13 +57,12 @@ def dht(x: torch.Tensor, dims=None) -> torch.Tensor:
         # Perform the DHT
         x_reshaped = x.reshape(B * C, D, M, N)
 
-        # Apply depth transform
+        # Apply depth, row, and column transforms
         intermediate = torch.matmul(x_reshaped, cas_col.T)
+        intermediate = torch.matmul(cas_row.T, intermediate)
+        X = torch.matmul(cas_depth.T, intermediate)
 
-        # Apply row and column transforms
-        intermediate = torch.einsum('bcde,cfde->bcfe', intermediate, cas_row)
-        X = torch.einsum('bcme,cfm->bcme', intermediate, cas_depth)
-
+        # Reshape to original size
         return X.reshape(B, C, D, M, N)
 
     else:
