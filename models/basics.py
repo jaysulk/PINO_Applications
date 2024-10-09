@@ -354,27 +354,44 @@ class SpectralConv3d(nn.Module):
 class FourierBlock(nn.Module):
     def __init__(self, in_channels, out_channels, modes1, modes2, modes3, activation='tanh'):
         super(FourierBlock, self).__init__()
-        self.in_channel = in_channels
-        self.out_channel = out_channels
+        
+        # Spectral convolution layer (using 3D Hartley transform)
         self.speconv = SpectralConv3d(in_channels, out_channels, modes1, modes2, modes3)
+        
+        # Linear layer applied across the channel dimension
         self.linear = nn.Conv1d(in_channels, out_channels, 1)
+        
+        # Activation function selection
         if activation == 'tanh':
-            self.activation = torch.tanh_
+            self.activation = nn.Tanh()  # Use nn.Tanh() for module (not in-place operation)
         elif activation == 'gelu':
-            self.activation = nn.GELU
+            self.activation = nn.GELU()  # Apply GELU non-linearity
         elif activation == 'none':
-            self.activation = None
+            self.activation = None  # No activation
         else:
             raise ValueError(f'{activation} is not supported')
 
     def forward(self, x):
         '''
-        input x: (batchsize, channel width, x_grid, y_grid, t_grid)
+        Input x: (batchsize, in_channels, x_grid, y_grid, t_grid)
         '''
+        # Apply spectral convolution (3D Hartley convolution)
         x1 = self.speconv(x)
+        
+        # Apply 1D convolution across the channel dimension
+        # Flattening the last three dimensions into one while keeping the batch and channel
         x2 = self.linear(x.view(x.shape[0], self.in_channel, -1))
-        out = x1 + x2.view(x.shape[0], self.out_channel, x.shape[2], x.shape[3], x.shape[4])
+        
+        # Reshape x2 back to match the original spatial and temporal grid structure
+        x2 = x2.view(x.shape[0], self.out_channel, x.shape[2], x.shape[3], x.shape[4])
+        
+        # Combine spectral and linear outputs (skip connection)
+        out = x1 + x2
+        
+        # Apply activation function (non-linearity)
         if self.activation is not None:
             out = self.activation(out)
+        
         return out
+
 
