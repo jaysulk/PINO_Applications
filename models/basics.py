@@ -1,12 +1,10 @@
-import numpy as np
 import torch
 import torch.nn as nn
-from functools import partial
 import torch.nn.functional as F
 
 def dht_fft(x: torch.Tensor, dim: int) -> torch.Tensor:
     # Compute the 1D FFT of the input tensor along the specified dimension
-    X_fft = torch.fft.fftn(x, dim=dim, norm="ortho")
+    X_fft = torch.fft.fft(x, dim=dim, norm="ortho")
     
     # Compute the real and imaginary parts
     real_part = X_fft.real
@@ -15,21 +13,7 @@ def dht_fft(x: torch.Tensor, dim: int) -> torch.Tensor:
     # DHT is the sum of the real part and the negative of the imaginary part
     dht_result = real_part - imag_part
     
-    # Compute the shape needed to match the input tensor's shape
-    input_shape = x.shape
-    
-    # Adjust the shape of dht_result to match input_shape if needed
-    if dht_result.shape != input_shape:
-        # Create an output tensor with the same shape as the input
-        dht_adjusted = torch.zeros_like(x)
-        
-        # Calculate slices to insert the dht_result into the padded tensor
-        slices = tuple(slice(0, s) for s in dht_result.shape)
-        dht_adjusted[slices] = dht_result
-        
-        return dht_adjusted
-    else:
-        return dht_result
+    return dht_result
 
 def dht(x: torch.Tensor) -> torch.Tensor:
     if x.ndim == 3:  # For 1D DHT
@@ -50,7 +34,7 @@ def idht(x: torch.Tensor) -> torch.Tensor:
     
     # Determine normalization factor
     if x.ndim == 3:
-        N = x.size(1)
+        N = x.size(2)
         normalization_factor = N
     elif x.ndim == 4:
         M, N = x.size(2), x.size(3)
@@ -121,19 +105,12 @@ class SpectralConv1d(nn.Module):
         batchsize = x.shape[0]
         
         x_ht = dht(x)
-        x_ht_flip = dht(x.flip(dims=[-1]))
-
-        cos_part = x_ht
-        sin_part = x_ht_flip
-        z = torch.complex(cos_part, sin_part)
-        phase = torch.angle(z)
 
         out_ht = torch.zeros(batchsize, self.in_channels, x.size(-1)//2 + 1, device=x.device)
-        out_ht[:, :, :self.modes1] = compl_mul1d(cos_part[:, :, :self.modes1], self.weights1)
+        out_ht[:, :, :self.modes1] = compl_mul1d(x_ht[:, :, :self.modes1], self.weights1)
 
         x = idht(out_ht)
-        reconstructed_signal = x * torch.cos(phase)
-        return reconstructed_signal
+        return x
 
 ################################################################
 # 2D Hartley convolution layer
@@ -157,20 +134,13 @@ class SpectralConv2d(nn.Module):
         size2 = x.shape[-1]
         
         x_dht = dht(x)
-        x_dht_flip = dht(x.flip(dims=[-2, -1]))
-
-        cos_part = x_dht
-        sin_part = x_dht_flip
-        z = torch.complex(cos_part, sin_part)
-        phase = torch.angle(z)
 
         out_dht = torch.zeros(batchsize, self.out_channels, size1, size2, device=x.device)
-        out_dht[:, :, :self.modes1, :self.modes2] = compl_mul2d(cos_part[:, :, :self.modes1, :self.modes2], self.weights1)
-        out_dht[:, :, -self.modes1:, :self.modes2] = compl_mul2d(cos_part[:, :, -self.modes1:, :self.modes2], self.weights2)
+        out_dht[:, :, :self.modes1, :self.modes2] = compl_mul2d(x_dht[:, :, :self.modes1, :self.modes2], self.weights1)
+        out_dht[:, :, -self.modes1:, :self.modes2] = compl_mul2d(x_dht[:, :, -self.modes1:, :self.modes2], self.weights2)
 
         x = idht(out_dht)
-        reconstructed_signal = x * torch.cos(phase)
-        return reconstructed_signal
+        return x
 
 ################################################################
 # 3D Hartley convolution layer
@@ -195,26 +165,19 @@ class SpectralConv3d(nn.Module):
         batchsize = x.shape[0]
         
         x_ht = dht(x)
-        x_ht_flip = dht(x.flip(dims=[2, 3, 4]))
-
-        cos_part = x_ht
-        sin_part = x_ht_flip
-        z = torch.complex(cos_part, sin_part)
-        phase = torch.angle(z)
 
         out_ht = torch.zeros(batchsize, self.out_channels, x.size(2), x.size(3), x.size(4)//2 + 1, device=x.device)
         out_ht[:, :, :self.modes1, :self.modes2, :self.modes3] = \
-            compl_mul3d(cos_part[:, :, :self.modes1, :self.modes2, :self.modes3], self.weights1)
+            compl_mul3d(x_ht[:, :, :self.modes1, :self.modes2, :self.modes3], self.weights1)
         out_ht[:, :, -self.modes1:, :self.modes2, :self.modes3] = \
-            compl_mul3d(cos_part[:, :, -self.modes1:, :self.modes2, :self.modes3], self.weights2)
+            compl_mul3d(x_ht[:, :, -self.modes1:, :self.modes2, :self.modes3], self.weights2)
         out_ht[:, :, :self.modes1, -self.modes2:, :self.modes3] = \
-            compl_mul3d(cos_part[:, :, :self.modes1, -self.modes2:, :self.modes3], self.weights3)
+            compl_mul3d(x_ht[:, :, :self.modes1, -self.modes2:, :self.modes3], self.weights3)
         out_ht[:, :, -self.modes1:, -self.modes2:, :self.modes3] = \
-            compl_mul3d(cos_part[:, :, -self.modes1:, -self.modes2:, :self.modes3], self.weights4)
+            compl_mul3d(x_ht[:, :, -self.modes1:, -self.modes2:, :self.modes3], self.weights4)
 
         x = idht(out_ht)
-        reconstructed_signal = x * torch.cos(phase)
-        return reconstructed_signal
+        return x
 
 ################################################################
 # Fourier Block
