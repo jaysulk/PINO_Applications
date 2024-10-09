@@ -230,12 +230,12 @@ class SpectralConv1d(nn.Module):
 
         # Return to physical space
         x = idht(out_ht)
-        
-        # Now perform the element-wise multiplication
-        reconstructed_signal = torch.mul(x, torch.cos(phase))
-        
-        # If you want to print or use the result:
-        print(reconstructed_signal)
+
+        phase_cos = torch.cos(phase)
+        phase_cos = torch.broadcast_to(phase_cos, x.shape)
+    
+        reconstructed_signal = torch.mul(x, phase_cos)
+        return reconstructed_signal
 
 
 ################################################################
@@ -286,11 +286,11 @@ class SpectralConv2d(nn.Module):
         # Return to physical space
         x = idht(out_dht)
 
-        # Now perform the element-wise multiplication
-        reconstructed_signal = torch.mul(x, torch.cos(phase))
-        
-        # If you want to print or use the result:
-        print(reconstructed_signal)
+        phase_cos = torch.cos(phase)
+        phase_cos = torch.broadcast_to(phase_cos, x.shape)
+    
+        reconstructed_signal = torch.mul(x, phase_cos)
+        return reconstructed_signal
 
 
 ################################################################
@@ -345,11 +345,11 @@ class SpectralConv3d(nn.Module):
         # Return to physical space
         x = idht(out_ht)
 
-        # Now perform the element-wise multiplication
-        reconstructed_signal = torch.mul(x, torch.cos(phase))
-        
-        # If you want to print or use the result:
-        print(reconstructed_signal)
+        phase_cos = torch.cos(phase)
+        phase_cos = torch.broadcast_to(phase_cos, x.shape)
+    
+        reconstructed_signal = torch.mul(x, phase_cos)
+        return reconstructed_signal
 
 ################################################################
 # FourierBlock (Using SpectralConv3d)
