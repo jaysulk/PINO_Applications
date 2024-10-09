@@ -4,10 +4,6 @@ import torch.nn as nn
 from functools import partial
 import torch.nn.functional as F
 
-import torch
-
-import torch
-
 def dht_fft(x: torch.Tensor, dim: int) -> torch.Tensor:
     # Compute the 1D FFT of the input tensor along the specified dimension
     X_fft = torch.rfft.fftn(x, dim=dim, norm="ortho")
