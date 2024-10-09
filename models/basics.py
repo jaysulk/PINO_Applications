@@ -227,9 +227,10 @@ class SpectralConv1d(nn.Module):
         phase = phase[:, :, :x.size(-1)]  # Ensure phase matches the output size of x
 
         # Combine magnitude (x) and phase
-        reconstructed_signal = x * torch.cos(phase)
+        #reconstructed_signal = x * torch.cos(phase)
         
-        return reconstructed_signal
+        #return reconstructed_signal
+        return x
 
 ################################################################
 # 2D Hartley convolution layer
@@ -276,9 +277,10 @@ class SpectralConv2d(nn.Module):
         phase = phase[:, :, :x.size(-2), :x.size(-1)]  # Ensure phase matches the output size of x
 
         # Combine magnitude (x) and phase
-        reconstructed_signal = x * torch.cos(phase)
+        #reconstructed_signal = x * torch.cos(phase)
         
-        return reconstructed_signal
+        #return reconstructed_signal
+        return x
 
 ################################################################
 # 3D Hartley convolution layer
@@ -332,9 +334,10 @@ class SpectralConv3d(nn.Module):
         phase = phase[:, :, :x.size(2), :x.size(3), :x.size(4)]  # Ensure phase matches the output size of x
 
         # Combine magnitude (x) and phase
-        reconstructed_signal = x * torch.cos(phase)
+        #reconstructed_signal = x * torch.cos(phase)
         
-        return reconstructed_signal
+        #return reconstructed_signal
+        return x
 
 ################################################################
 # FourierBlock (Using SpectralConv3d)
