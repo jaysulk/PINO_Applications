@@ -118,7 +118,58 @@ def compl_mul3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     return result
 
 ################################################################
-# 1d fourier layer
+# Low-Pass Filter Function
+################################################################
+
+#def low_pass_filter(x_ht, cutoff):
+#    """
+#    Applies a low-pass filter to the spectral coefficients (DHT output).
+#    Frequencies higher than `cutoff` are dampened.
+#    """
+#    size = x_ht.shape[-1]  # Get the last dimension (frequency axis)
+#    frequencies = torch.fft.fftfreq(size, d=1.0)  # Compute frequency bins
+#    filter_mask = torch.abs(frequencies) <= cutoff  # Mask for low frequencies
+#    return x_ht * filter_mask.to(x_ht.device)
+
+################################################################
+# Gaussian Smoothing Function
+################################################################
+
+#def gaussian_smoothing(x, kernel_size=5, sigma=1.0):
+#    """
+#    Applies Gaussian smoothing to the output.
+#    """
+#    # Apply Gaussian blur (use 2D or 3D kernel as needed)
+#    return F.gaussian_blur(x, kernel_size=[kernel_size], sigma=[sigma])
+
+################################################################
+# Data Augmentation Function
+################################################################
+
+#def augment_data(inputs, shift_range=0.1, scale_range=0.05):
+#    """
+#    Augment input data by applying random shifts and scaling.
+#    
+#    Parameters:
+#    - inputs: torch.Tensor, the input data to be augmented
+#    - shift_range: float, the maximum range for random shifts
+#    - scale_range: float, the maximum range for random scaling
+#    
+#    Returns:
+#    - augmented_inputs: torch.Tensor, the augmented input data
+#    """
+#    # Apply random shifts
+#    shifts = torch.rand(inputs.size()) * shift_range
+#    augmented_inputs = inputs + shifts
+#    
+#    # Apply random scaling
+#    scales = 1 + torch.rand(inputs.size()) * scale_range
+#    augmented_inputs = augmented_inputs * scales
+#    
+#    return augmented_inputs
+
+################################################################
+# 1D Hartley convolution layer
 ################################################################
 
 class SpectralConv1d(nn.Module):
@@ -126,7 +177,7 @@ class SpectralConv1d(nn.Module):
         super(SpectralConv1d, self).__init__()
 
         """
-        1D Hartley layer. It does HHT, linear transform, and Inverse HHT.    
+        1D Hartley layer. It does DHT, linear transform, and Inverse DHT.    
         """
 
         self.in_channels = in_channels
@@ -136,25 +187,42 @@ class SpectralConv1d(nn.Module):
 
         self.scale = (1 / (in_channels*out_channels))
         self.weights1 = nn.Parameter(
-            self.scale * torch.rand(in_channels, out_channels, self.modes1, 2))
+            self.scale * torch.rand(in_channels, out_channels, self.modes1))
 
     def forward(self, x):
         batchsize = x.shape[0]
+        
+        # Augment the input data
+        #x = augment_data(x)
+        
         # Compute Hartley coefficients up to factor of h^(- something constant)
         x_ht = dht(x)
+        # Compute DHT of the flipped input to simulate sine part
+        x_ht_flip = dht(x.flip(dims=[-1]))
 
-        # Multiply relevant Hartley modes
-        out_ht = torch.zeros(batchsize, self.in_channels, x.size(-1)//2 + 1, device=x.device, dtype=torch.cfloat)
-        out_ht[:, :, :self.modes1] = compl_mul1d(x_ht[:, :, :self.modes1], self.weights1)
+        # Combine the Hartley and flipped-Hartley (cosine and sine components)
+        cos_part = x_ht
+        sin_part = x_ht_flip
+        # Construct a complex representation from the cosine and sine components
+        z = torch.complex(cos_part, sin_part)
+
+        # Calculate phase information
+        phase = torch.angle(z)  # Extract phase as arctan(imag/real)
+
+        # Multiply relevant Hartley modes (magnitude component)
+        out_ht = torch.zeros(batchsize, self.in_channels, x.size(-1)//2 + 1, device=x.device)
+        out_ht[:, :, :self.modes1] = compl_mul1d(cos_part[:, :, :self.modes1], self.weights1)
 
         # Return to physical space
         x = idht(out_ht)
-        return x
 
+        # Combine magnitude (x) and phase into a real-valued signal
+        reconstructed_signal = x * torch.cos(phase)  # Reconstruction with magnitude and phase
+        return reconstructed_signal
 
 
 ################################################################
-# 2d fourier layer
+# 2D Hartley convolution layer
 ################################################################
 
 class SpectralConv2d(nn.Module):
@@ -176,18 +244,39 @@ class SpectralConv2d(nn.Module):
         size1 = x.shape[-2]
         size2 = x.shape[-1]
         
+        # Augment the input data
+        #x = augment_data(x)
+        
         # Compute DHT
         x_dht = dht(x)
-        
-        # Multiply relevant Hartley modes
+        # Compute DHT of the flipped input to simulate sine part
+        x_dht_flip = dht(x.flip(dims=[-2, -1]))
+
+        # Combine the Hartley and flipped-Hartley (cosine and sine components)
+        cos_part = x_dht
+        sin_part = x_dht_flip
+        # Construct a complex representation from the cosine and sine components
+        z = torch.complex(cos_part, sin_part)
+
+        # Calculate phase information
+        phase = torch.angle(z)  # Extract phase as arctan(imag/real)
+
+        # Multiply relevant Hartley modes (magnitude component)
         out_dht = torch.zeros(batchsize, self.out_channels, size1, size2, device=x.device)
-        out_dht[:, :, :self.modes1, :self.modes2] = compl_mul2d(x_dht[:, :, :self.modes1, :self.modes2], self.weights1)
-        out_dht[:, :, -self.modes1:, :self.modes2] = compl_mul2d(x_dht[:, :, -self.modes1:, :self.modes2], self.weights2)
-        
+        out_dht[:, :, :self.modes1, :self.modes2] = compl_mul2d(cos_part[:, :, :self.modes1, :self.modes2], self.weights1)
+        out_dht[:, :, -self.modes1:, :self.modes2] = compl_mul2d(cos_part[:, :, -self.modes1:, :self.modes2], self.weights2)
+
         # Return to physical space
         x = idht(out_dht)
-        
-        return x
+
+        # Combine magnitude (x) and phase into a real-valued signal
+        reconstructed_signal = x * torch.cos(phase)  # Reconstruction with magnitude and phase
+        return reconstructed_signal
+
+
+################################################################
+# 3D Hartley convolution layer
+################################################################
 
 class SpectralConv3d(nn.Module):
     def __init__(self, in_channels, out_channels, modes1, modes2, modes3):
@@ -199,32 +288,46 @@ class SpectralConv3d(nn.Module):
         self.modes3 = modes3
 
         self.scale = (1 / (in_channels * out_channels))
-        self.weights1 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3, dtype=torch.cfloat))
-        self.weights2 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3, dtype=torch.cfloat))
-        self.weights3 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3, dtype=torch.cfloat))
-        self.weights4 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3, dtype=torch.cfloat))
+        self.weights1 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3))
+        self.weights2 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3))
+        self.weights3 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3))
+        self.weights4 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3))
 
     def forward(self, x):
         batchsize = x.shape[0]
-        # Compute Hartley coefficients up to factor of h^(- something constant)
-        x_ft = torch.fft.rfftn(x, dim=[2, 3, 4])
-        x_ft_mirror = torch.fft.rfftn(x.flip(dims=[2, 3, 4]), dim=[2, 3, 4])  # F(-u)
-        x_ht = x_ft + x_ft_mirror
 
-        # Multiply relevant Hartley modes
-        out_ht = torch.zeros(batchsize, self.out_channels, x.size(2), x.size(3), x.size(4)//2 + 1, device=x.device, dtype=torch.cfloat)
+        # Augment the input data
+        #x = augment_data(x)
+
+        # Compute Hartley coefficients up to factor of h^(- something constant)
+        x_ht = dht(x)
+        x_ht_flip = dht(x.flip(dims=[2, 3, 4]))
+
+        # Combine the Hartley and flipped-Hartley (cosine and sine components)
+        cos_part = x_ht
+        sin_part = x_ht_flip
+        # Construct a complex representation from the cosine and sine components
+        z = torch.complex(cos_part, sin_part)
+
+        # Calculate phase information
+        phase = torch.angle(z)  # Extract phase as arctan(imag/real)
+
+        # Multiply relevant Hartley modes (magnitude component)
+        out_ht = torch.zeros(batchsize, self.out_channels, x.size(2), x.size(3), x.size(4)//2 + 1, device=x.device)
         out_ht[:, :, :self.modes1, :self.modes2, :self.modes3] = \
-            compl_mul3d(x_ht[:, :, :self.modes1, :self.modes2, :self.modes3], self.weights1)
+            compl_mul3d(cos_part[:, :, :self.modes1, :self.modes2, :self.modes3], self.weights1)
         out_ht[:, :, -self.modes1:, :self.modes2, :self.modes3] = \
-            compl_mul3d(x_ht[:, :, -self.modes1:, :self.modes2, :self.modes3], self.weights2)
+            compl_mul3d(cos_part[:, :, -self.modes1:, :self.modes2, :self.modes3], self.weights2)
         out_ht[:, :, :self.modes1, -self.modes2:, :self.modes3] = \
-            compl_mul3d(x_ht[:, :, :self.modes1, -self.modes2:, :self.modes3], self.weights3)
+            compl_mul3d(cos_part[:, :, :self.modes1, -self.modes2:, :self.modes3], self.weights3)
         out_ht[:, :, -self.modes1:, -self.modes2:, :self.modes3] = \
-            compl_mul3d(x_ht[:, :, -self.modes1:, -self.modes2:, :self.modes3], self.weights4)
+            compl_mul3d(cos_part[:, :, -self.modes1:, -self.modes2:, :self.modes3], self.weights4)
 
         # Return to physical space
-        x = torch.fft.irfftn(out_ht, s=(x.size(2), x.size(3), x.size(4)), dim=[2, 3, 4])
-        return x
+        x = idht(out_ht)
+
+        # Combine magnitude (x) and phase into a real-valued signal
+        reconstructed_signal = x * torch.cos(phase)  #
 
 
 class FourierBlock(nn.Module):
