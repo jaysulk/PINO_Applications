@@ -40,28 +40,33 @@ def dht(x: torch.Tensor, dims=None) -> torch.Tensor:
         # Reshape to original size
         return X.reshape(B, D, M, N)
 
-    elif x.ndim == 5:
-        # 3D case (5D tensor)
-        B, C, D, M, N = x.size()
-        d = torch.arange(D, device=x.device).float()
-        m = torch.arange(M, device=x.device).float()
-        n = torch.arange(N, device=x.device).float()
+elif x.ndim == 5:
+    # 3D case (5D tensor)
+    B, C, D, M, N = x.size()
+    d = torch.arange(D, device=x.device).float()
+    m = torch.arange(M, device=x.device).float()
+    n = torch.arange(N, device=x.device).float()
 
-        # Hartley kernels for depth, rows, and columns
-        cas_depth = torch.cos(2 * torch.pi * d.view(-1, 1) * d / D) + torch.sin(2 * torch.pi * d.view(-1, 1) * d / D)
-        cas_row = torch.cos(2 * torch.pi * m.view(-1, 1) * m / M) + torch.sin(2 * torch.pi * m.view(-1, 1) * m / M)
-        cas_col = torch.cos(2 * torch.pi * n.view(-1, 1) * n / N) + torch.sin(2 * torch.pi * n.view(-1, 1) * n / N)
+    # Hartley kernels for depth, rows, and columns
+    cas_depth = torch.cos(2 * torch.pi * d.view(-1, 1) * d / D) + torch.sin(2 * torch.pi * d.view(-1, 1) * d / D)
+    cas_row = torch.cos(2 * torch.pi * m.view(-1, 1) * m / M) + torch.sin(2 * torch.pi * m.view(-1, 1) * m / M)
+    cas_col = torch.cos(2 * torch.pi * n.view(-1, 1) * n / N) + torch.sin(2 * torch.pi * n.view(-1, 1) * n / N)
 
-        # Perform the DHT
-        x_reshaped = x.reshape(B * C, D, M, N)
+    # Perform the DHT
+    x_reshaped = x.reshape(B * C * D, M, N)
 
-        # Apply depth, row, and column transforms (no reduction in size)
-        intermediate = torch.matmul(cas_depth, x_reshaped)
-        intermediate = torch.matmul(intermediate, cas_row)
-        X = torch.matmul(intermediate, cas_col)
+    # Apply depth transform first
+    intermediate = torch.matmul(cas_depth, x_reshaped.view(B * C, D, M * N))
 
-        # Reshape to original size
-        return X.reshape(B, C, D, M, N)
+    # Apply row transform (note the correct reshaping)
+    intermediate = intermediate.view(B * C * D, M, N)
+    intermediate = torch.matmul(intermediate, cas_row)
+
+    # Apply column transform
+    X = torch.matmul(intermediate, cas_col)
+
+    # Reshape to original size
+    return X.reshape(B, C, D, M, N)
 
     else:
         raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
