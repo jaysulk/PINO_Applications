@@ -7,7 +7,7 @@ import torch.nn.functional as F
 def dht(x: torch.Tensor, dims=None) -> torch.Tensor:
     if dims is None:
         dims = [2] if x.ndim == 3 else [2, 3] if x.ndim == 4 else [2, 3, 4]
-    
+
     if x.ndim == 3:
         # 1D case (3D tensor)
         D, M, N = x.size()
@@ -33,11 +33,9 @@ def dht(x: torch.Tensor, dims=None) -> torch.Tensor:
         # Perform the DHT
         x_reshaped = x.reshape(B * D, M, N)
 
-        # Apply the column transform
-        intermediate = torch.matmul(x_reshaped, cas_col.T)
-        
-        # Apply the row transform
-        X = torch.matmul(cas_row.T, intermediate)
+        # Apply the row and column transform (full-size DHT, no reduction in size)
+        intermediate = torch.matmul(cas_row, x_reshaped)
+        X = torch.matmul(intermediate, cas_col)
 
         # Reshape to original size
         return X.reshape(B, D, M, N)
@@ -57,10 +55,10 @@ def dht(x: torch.Tensor, dims=None) -> torch.Tensor:
         # Perform the DHT
         x_reshaped = x.reshape(B * C, D, M, N)
 
-        # Apply depth, row, and column transforms
-        intermediate = torch.matmul(x_reshaped, cas_col.T)
-        intermediate = torch.matmul(cas_row.T, intermediate)
-        X = torch.matmul(cas_depth.T, intermediate)
+        # Apply depth, row, and column transforms (no reduction in size)
+        intermediate = torch.matmul(cas_depth, x_reshaped)
+        intermediate = torch.matmul(intermediate, cas_row)
+        X = torch.matmul(intermediate, cas_col)
 
         # Reshape to original size
         return X.reshape(B, C, D, M, N)
@@ -68,11 +66,12 @@ def dht(x: torch.Tensor, dims=None) -> torch.Tensor:
     else:
         raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
 
+
 def idht(x: torch.Tensor) -> torch.Tensor:
     # Compute the DHT (Direct Hartley Transform)
     transformed = dht(x)
     
-    # Determine normalization factor
+    # Determine normalization factor (size of the tensor along spatial dimensions)
     if x.ndim == 3:
         # 1D case (3D tensor input)
         N = x.size(2)  # N is the size of the last dimension
