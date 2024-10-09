@@ -185,11 +185,7 @@ def compl_mul3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
 #    return augmented_inputs
 
 ################################################################
-# 1D Hartley convolution layer
-################################################################
-
-################################################################
-# 1D Hartley convolution layer with phase reconstruction
+# 1D Hartley convolution layer with signal reconstruction
 ################################################################
 
 class SpectralConv1d(nn.Module):
@@ -206,27 +202,31 @@ class SpectralConv1d(nn.Module):
     def forward(self, x):
         batchsize = x.shape[0]
         
+        # Apply the Hartley transform (frequency domain)
         x_ht = dht(x)
 
-        out_ht = torch.zeros(batchsize, self.in_channels, x.size(-1)//2 + 1, device=x.device)
-        out_ht[:, :, :self.modes1] = compl_mul1d(x_ht[:, :, :self.modes1], self.weights1)
-
-        x = idht(out_ht)
-
-        # Cosine part is the real part
-        cos_part = x
-        
-        # Sine part is the flipped tensor
-        sin_part = torch.flip(x, dims=[-1])
+        # Real part (cosine) and imaginary part (sine) for phase reconstruction
+        cos_part = x_ht  # Cosine part from the Hartley transform
+        sin_part = torch.flip(x_ht, dims=[-1])  # Sine part (flipped)
 
         # Create complex tensor and reconstruct phase
         complex_tensor = torch.complex(cos_part, sin_part)
         phase_reconstructed = torch.angle(complex_tensor)
 
-        return phase_reconstructed
+        # Apply spectral convolution in the frequency domain
+        out_ht = torch.zeros(batchsize, self.in_channels, x.size(-1)//2 + 1, device=x.device)
+        out_ht[:, :, :self.modes1] = compl_mul1d(x_ht[:, :, :self.modes1], self.weights1)
+
+        # Inverse Hartley transform (IDHT) to return to the time/spatial domain
+        x = idht(out_ht)
+
+        # Reconstruct signal using the phase
+        reconstructed_signal = x * torch.cos(phase_reconstructed)
+
+        return reconstructed_signal
 
 ################################################################
-# 2D Hartley convolution layer with phase reconstruction
+# 2D Hartley convolution layer with signal reconstruction
 ################################################################
 
 class SpectralConv2d(nn.Module):
@@ -246,28 +246,32 @@ class SpectralConv2d(nn.Module):
         size1 = x.shape[-2]
         size2 = x.shape[-1]
         
+        # Apply Hartley transform (frequency domain)
         x_dht = dht(x)
 
-        out_dht = torch.zeros(batchsize, self.out_channels, size1, size2, device=x.device)
-        out_dht[:, :, :self.modes1, :self.modes2] = compl_mul2d(x_dht[:, :, :self.modes1, :self.modes2], self.weights1)
-        out_dht[:, :, -self.modes1:, :self.modes2] = compl_mul2d(x_dht[:, :, -self.modes1:, :self.modes2], self.weights2)
-
-        x = idht(out_dht)
-
-        # Cosine part is the real part
-        cos_part = x
-        
-        # Sine part is the flipped tensor along both dimensions
-        sin_part = torch.flip(x, dims=[-2, -1])
+        # Real part (cosine) and imaginary part (sine) for phase reconstruction
+        cos_part = x_dht  # Cosine part
+        sin_part = torch.flip(x_dht, dims=[-2, -1])  # Sine part (flipped)
 
         # Create complex tensor and reconstruct phase
         complex_tensor = torch.complex(cos_part, sin_part)
         phase_reconstructed = torch.angle(complex_tensor)
 
-        return phase_reconstructed
+        # Apply spectral convolution in the frequency domain
+        out_dht = torch.zeros(batchsize, self.out_channels, size1, size2, device=x.device)
+        out_dht[:, :, :self.modes1, :self.modes2] = compl_mul2d(x_dht[:, :, :self.modes1, :self.modes2], self.weights1)
+        out_dht[:, :, -self.modes1:, :self.modes2] = compl_mul2d(x_dht[:, :, -self.modes1:, :self.modes2], self.weights2)
+
+        # Inverse Hartley transform (IDHT)
+        x = idht(out_dht)
+
+        # Reconstruct signal using the phase
+        reconstructed_signal = x * torch.cos(phase_reconstructed)
+
+        return reconstructed_signal
 
 ################################################################
-# 3D Hartley convolution layer with phase reconstruction
+# 3D Hartley convolution layer with signal reconstruction
 ################################################################
 
 class SpectralConv3d(nn.Module):
@@ -288,8 +292,18 @@ class SpectralConv3d(nn.Module):
     def forward(self, x):
         batchsize = x.shape[0]
         
+        # Apply Hartley transform (frequency domain)
         x_ht = dht(x)
 
+        # Real part (cosine) and imaginary part (sine) for phase reconstruction
+        cos_part = x_ht  # Cosine part
+        sin_part = torch.flip(x_ht, dims=[-3, -2, -1])  # Sine part (flipped)
+
+        # Create complex tensor and reconstruct phase
+        complex_tensor = torch.complex(cos_part, sin_part)
+        phase_reconstructed = torch.angle(complex_tensor)
+
+        # Apply spectral convolution in the frequency domain
         out_ht = torch.zeros(batchsize, self.out_channels, x.size(2), x.size(3), x.size(4)//2 + 1, device=x.device)
         out_ht[:, :, :self.modes1, :self.modes2, :self.modes3] = \
             compl_mul3d(x_ht[:, :, :self.modes1, :self.modes2, :self.modes3], self.weights1)
@@ -300,19 +314,13 @@ class SpectralConv3d(nn.Module):
         out_ht[:, :, -self.modes1:, -self.modes2:, :self.modes3] = \
             compl_mul3d(x_ht[:, :, -self.modes1:, -self.modes2:, :self.modes3], self.weights4)
 
+        # Inverse Hartley transform (IDHT)
         x = idht(out_ht)
 
-        # Cosine part is the real part
-        cos_part = x
-        
-        # Sine part is the flipped tensor along all three dimensions
-        sin_part = torch.flip(x, dims=[-3, -2, -1])
+        # Reconstruct signal using the phase
+        reconstructed_signal = x * torch.cos(phase_reconstructed)
 
-        # Create complex tensor and reconstruct phase
-        complex_tensor = torch.complex(cos_part, sin_part)
-        phase_reconstructed = torch.angle(complex_tensor)
-
-        return phase_reconstructed
+        return reconstructed_signal
 
 ################################################################
 # FourierBlock (Using SpectralConv3d)
