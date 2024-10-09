@@ -231,14 +231,11 @@ class SpectralConv1d(nn.Module):
         # Return to physical space
         x = idht(out_ht)
 
-        phase_cos = torch.cos(phase)
-        #phase_cos = torch.broadcast_to(phase_cos, x.shape)
-        phase_cos = phase_cos.expand(-1, x.shape[1], -1)
-    
-        reconstructed_signal = torch.mul(x, phase_cos)
-        return reconstructed_signal
-
-
+        # Combine magnitude (x) and phase into a real-valued signal
+        #reconstructed_signal = x * torch.cos(phase)  # Reconstruction with magnitude and phase
+        #return reconstructed_signal
+        return x
+        
 ################################################################
 # 2D Hartley convolution layer
 ################################################################
@@ -287,14 +284,11 @@ class SpectralConv2d(nn.Module):
         # Return to physical space
         x = idht(out_dht)
 
-        phase_cos = torch.cos(phase)
-        #phase_cos = torch.broadcast_to(phase_cos, x.shape)
-        phase_cos = phase_cos.expand(-1, x.shape[1], -1, -1)
-    
-        reconstructed_signal = torch.mul(x, phase_cos)
-        return reconstructed_signal
-
-
+        # Combine magnitude (x) and phase into a real-valued signal
+        #reconstructed_signal = x * torch.cos(phase)  # Reconstruction with magnitude and phase
+        #return reconstructed_signal
+        return x
+        
 ################################################################
 # 3D Hartley convolution layer
 ################################################################
@@ -347,12 +341,10 @@ class SpectralConv3d(nn.Module):
         # Return to physical space
         x = idht(out_ht)
 
-        phase_cos = torch.cos(phase)
-        #phase_cos = torch.broadcast_to(phase_cos, x.shape)
-        phase_cos = phase_cos.expand(-1, x.shape[1], -1, -1, -1)
-    
-        reconstructed_signal = torch.mul(x, phase_cos)
-        return reconstructed_signal
+        # Combine magnitude (x) and phase into a real-valued signal
+        #reconstructed_signal = x * torch.cos(phase)  # Reconstruction with magnitude and phase
+        #return reconstructed_signal
+        return x
 
 ################################################################
 # FourierBlock (Using SpectralConv3d)
