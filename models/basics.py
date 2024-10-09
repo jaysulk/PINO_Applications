@@ -48,43 +48,46 @@ def idht(x: torch.Tensor) -> torch.Tensor:
     return transformed / normalization_factor
 
 def compl_mul1d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
-    X1_H_k = x1
-    X2_H_k = x2
-    X1_H_neg_k = torch.roll(torch.flip(x1, dims=[-1]), shifts=1, dims=[-1])
-    X2_H_neg_k = torch.roll(torch.flip(x2, dims=[-1]), shifts=1, dims=[-1])
+#    X1_H_k = x1
+#    X2_H_k = x2
+#    X1_H_neg_k = torch.roll(torch.flip(x1, dims=[-1]), shifts=1, dims=[-1])
+#    X2_H_neg_k = torch.roll(torch.flip(x2, dims=[-1]), shifts=1, dims=[-1])
 
-    result = 0.5 * (torch.einsum('bix,iox->box', X1_H_k, X2_H_k) -
-                    torch.einsum('bix,iox->box', X1_H_neg_k, X2_H_neg_k) +
-                    torch.einsum('bix,iox->box', X1_H_k, X2_H_neg_k) +
-                    torch.einsum('bix,iox->box', X1_H_neg_k, X2_H_k))
+#    result = 0.5 * (torch.einsum('bix,iox->box', X1_H_k, X2_H_k) -
+#                    torch.einsum('bix,iox->box', X1_H_neg_k, X2_H_neg_k) +
+#                    torch.einsum('bix,iox->box', X1_H_k, X2_H_neg_k) +
+#                    torch.einsum('bix,iox->box', X1_H_neg_k, X2_H_k))
 
-    return result
+#    return result
+    return torch.einsum("bi...,io...->bo...", x1, x2)
 
 def compl_mul2d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
-    X1_H_k = x1
-    X2_H_k = x2
-    X1_H_neg_k = torch.roll(torch.flip(x1, dims=[-1, -2]), shifts=(1, 1), dims=[-1, -2])
-    X2_H_neg_k = torch.roll(torch.flip(x2, dims=[-1, -2]), shifts=(1, 1), dims=[-1, -2])
+#    X1_H_k = x1
+#    X2_H_k = x2
+#    X1_H_neg_k = torch.roll(torch.flip(x1, dims=[-1, -2]), shifts=(1, 1), dims=[-1, -2])
+#    X2_H_neg_k = torch.roll(torch.flip(x2, dims=[-1, -2]), shifts=(1, 1), dims=[-1, -2])
 
-    result = 0.5 * (torch.einsum('bixy,ioxy->boxy', X1_H_k, X2_H_k) -
-                    torch.einsum('bixy,ioxy->boxy', X1_H_neg_k, X2_H_neg_k) +
-                    torch.einsum('bixy,ioxy->boxy', X1_H_k, X2_H_neg_k) +
-                    torch.einsum('bixy,ioxy->boxy', X1_H_neg_k, X2_H_k))
+#    result = 0.5 * (torch.einsum('bixy,ioxy->boxy', X1_H_k, X2_H_k) -
+#                    torch.einsum('bixy,ioxy->boxy', X1_H_neg_k, X2_H_neg_k) +
+#                    torch.einsum('bixy,ioxy->boxy', X1_H_k, X2_H_neg_k) +
+#                    torch.einsum('bixy,ioxy->boxy', X1_H_neg_k, X2_H_k))
 
-    return result
+#    return result
+    return torch.einsum("bixy...,ioxy...->boxy...", x1, x2)
 
 def compl_mul3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
-    X1_H_k = x1
-    X2_H_k = x2
-    X1_H_neg_k = torch.roll(torch.flip(x1, dims=[-3, -2, -1]), shifts=(1, 1, 1), dims=[-3, -2, -1])
-    X2_H_neg_k = torch.roll(torch.flip(x2, dims=[-3, -2, -1]), shifts=(1, 1, 1), dims=[-3, -2, -1])
+#    X1_H_k = x1
+#    X2_H_k = x2
+#    X1_H_neg_k = torch.roll(torch.flip(x1, dims=[-3, -2, -1]), shifts=(1, 1, 1), dims=[-3, -2, -1])
+#    X2_H_neg_k = torch.roll(torch.flip(x2, dims=[-3, -2, -1]), shifts=(1, 1, 1), dims=[-3, -2, -1])
 
-    result = 0.5 * (torch.einsum('bixyz,ioxyz->boxyz', X1_H_k, X2_H_k) -
-                    torch.einsum('bixyz,ioxyz->boxyz', X1_H_neg_k, X2_H_neg_k) +
-                    torch.einsum('bixyz,ioxyz->boxyz', X1_H_k, X2_H_neg_k) +
-                    torch.einsum('bixyz,ioxyz->boxyz', X1_H_neg_k, X2_H_k))
+#    result = 0.5 * (torch.einsum('bixyz,ioxyz->boxyz', X1_H_k, X2_H_k) -
+#                    torch.einsum('bixyz,ioxyz->boxyz', X1_H_neg_k, X2_H_neg_k) +
+#                    torch.einsum('bixyz,ioxyz->boxyz', X1_H_k, X2_H_neg_k) +
+#                    torch.einsum('bixyz,ioxyz->boxyz', X1_H_neg_k, X2_H_k))
 
-    return result
+#    return result
+    return torch.einsum("bixyz...,ioxyz...->boxyz...", a, b)
 
 ################################################################
 # 1D Hartley convolution layer with phase reconstruction
