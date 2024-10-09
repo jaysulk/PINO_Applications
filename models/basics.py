@@ -336,7 +336,10 @@ class SpectralConv3d(nn.Module):
             phase_reconstructed = F.pad(phase_reconstructed, (0, pad_size[0], 0, pad_size[1], 0, pad_size[2]))
 
         # Reconstruct signal using the phase
-        reconstructed_signal = x * torch.cos(phase
+        reconstructed_signal = x * torch.cos(phase_reconstructed)
+
+        return reconstructed_signal
+
 
 ################################################################
 # FourierBlock (Using SpectralConv3d)
