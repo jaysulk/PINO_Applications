@@ -6,7 +6,7 @@ import torch.nn.functional as F
 
 def dht_fft(x: torch.Tensor, dim: int) -> torch.Tensor:
     # Compute the 1D FFT of the input tensor along the specified dimension
-    X_fft = torch.fft.fftn(x, dim=[dim], norm="ortho")
+    X_fft = torch.fft.fftn(x, dim=dim, norm="ortho")
     
     # Compute the real and imaginary parts
     real_part = X_fft.real
@@ -15,7 +15,21 @@ def dht_fft(x: torch.Tensor, dim: int) -> torch.Tensor:
     # DHT is the sum of the real part and the negative of the imaginary part
     dht_result = real_part - imag_part
     
-    return dht_result
+    # Compute the shape needed to match the input tensor's shape
+    input_shape = x.shape
+    
+    # Adjust the shape of dht_result to match input_shape if needed
+    if dht_result.shape != input_shape:
+        # Create an output tensor with the same shape as the input
+        dht_adjusted = torch.zeros_like(x)
+        
+        # Calculate slices to insert the dht_result into the padded tensor
+        slices = tuple(slice(0, s) for s in dht_result.shape)
+        dht_adjusted[slices] = dht_result
+        
+        return dht_adjusted
+    else:
+        return dht_result
 
 def dht(x: torch.Tensor) -> torch.Tensor:
     if x.ndim == 3:  # For 1D DHT
