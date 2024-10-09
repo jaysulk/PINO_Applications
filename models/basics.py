@@ -230,16 +230,9 @@ class SpectralConv1d(nn.Module):
 
         # Return to physical space
         x = idht(out_ht)
-
-        # Calculate the required padding based on the difference in sizes
-        if phase.size(0) < x.size(0):
-            pad_size = x.size(0) - phase.size(0)
-            padded_phase = torch.nn.functional.pad(phase, (0, pad_size))
-        else:
-            padded_phase = phase  # No padding needed if phase is already the same size
         
         # Now perform the element-wise multiplication
-        reconstructed_signal = x * torch.cos(padded_phase)
+        reconstructed_signal = torch.mul(x, torch.cos(phase))
         
         # If you want to print or use the result:
         print(reconstructed_signal)
@@ -293,15 +286,8 @@ class SpectralConv2d(nn.Module):
         # Return to physical space
         x = idht(out_dht)
 
-        # Calculate the required padding based on the difference in sizes
-        if phase.size(0) < x.size(0):
-            pad_size = x.size(0) - phase.size(0)
-            padded_phase = torch.nn.functional.pad(phase, (0, pad_size))
-        else:
-            padded_phase = phase  # No padding needed if phase is already the same size
-        
         # Now perform the element-wise multiplication
-        reconstructed_signal = x * torch.cos(padded_phase)
+        reconstructed_signal = torch.mul(x, torch.cos(phase))
         
         # If you want to print or use the result:
         print(reconstructed_signal)
@@ -359,15 +345,8 @@ class SpectralConv3d(nn.Module):
         # Return to physical space
         x = idht(out_ht)
 
-        # Calculate the required padding based on the difference in sizes
-        if phase.size(0) < x.size(0):
-            pad_size = x.size(0) - phase.size(0)
-            padded_phase = torch.nn.functional.pad(phase, (0, pad_size))
-        else:
-            padded_phase = phase  # No padding needed if phase is already the same size
-        
         # Now perform the element-wise multiplication
-        reconstructed_signal = x * torch.cos(padded_phase)
+        reconstructed_signal = torch.mul(x, torch.cos(phase))
         
         # If you want to print or use the result:
         print(reconstructed_signal)
