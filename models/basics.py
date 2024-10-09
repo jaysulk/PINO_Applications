@@ -220,9 +220,13 @@ class SpectralConv1d(nn.Module):
         # Inverse Hartley transform (IDHT) to return to the time/spatial domain
         x = idht(out_ht)
 
-        # Reconstruct signal using the phase with einsum for element-wise multiplication
-        # Broadcast the cos(phase_reconstructed) over batch and channels dimensions
-        reconstructed_signal = torch.einsum('bix, bix -> bix', x, torch.cos(phase_reconstructed))
+        # Manually broadcast phase_reconstructed to match x's size
+        phase_reconstructed = torch.cos(phase_reconstructed)
+        if phase_reconstructed.shape[-1] != x.shape[-1]:
+            phase_reconstructed = torch.broadcast_to(phase_reconstructed, x.shape)
+
+        # Use einsum to reconstruct the signal
+        reconstructed_signal = torch.einsum('bix, bix -> bix', x, phase_reconstructed)
 
         return reconstructed_signal
 
@@ -266,9 +270,13 @@ class SpectralConv2d(nn.Module):
         # Inverse Hartley transform (IDHT)
         x = idht(out_dht)
 
-        # Reconstruct signal using the phase with einsum
-        # Broadcast cos(phase_reconstructed) across spatial dimensions
-        reconstructed_signal = torch.einsum('bixy, bixy -> bixy', x, torch.cos(phase_reconstructed))
+        # Manually broadcast phase_reconstructed to match x's size
+        phase_reconstructed = torch.cos(phase_reconstructed)
+        if phase_reconstructed.shape[-2:] != x.shape[-2:]:
+            phase_reconstructed = torch.broadcast_to(phase_reconstructed, x.shape)
+
+        # Use einsum to reconstruct the signal
+        reconstructed_signal = torch.einsum('bixy, bixy -> bixy', x, phase_reconstructed)
 
         return reconstructed_signal
 
@@ -319,9 +327,13 @@ class SpectralConv3d(nn.Module):
         # Inverse Hartley transform (IDHT)
         x = idht(out_ht)
 
-        # Reconstruct signal using the phase with einsum
-        # Broadcast cos(phase_reconstructed) across spatial dimensions
-        reconstructed_signal = torch.einsum('bixyz, bixyz -> bixyz', x, torch.cos(phase_reconstructed))
+        # Manually broadcast phase_reconstructed to match x's size
+        phase_reconstructed = torch.cos(phase_reconstructed)
+        if phase_reconstructed.shape[-3:] != x.shape[-3:]:
+            phase_reconstructed = torch.broadcast_to(phase_reconstructed, x.shape)
+
+        # Use einsum to reconstruct the signal
+        reconstructed_signal = torch.einsum('bixyz, bixyz -> bixyz', x, phase_reconstructed)
 
         return reconstructed_signal
 
