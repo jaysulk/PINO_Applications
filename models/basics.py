@@ -185,7 +185,7 @@ def compl_mul3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
 #    return augmented_inputs
 
 ################################################################
-# 1D Hartley convolution layer with signal reconstruction and padding
+# 1D Hartley convolution layer with signal reconstruction using einsum
 ################################################################
 
 class SpectralConv1d(nn.Module):
@@ -220,19 +220,14 @@ class SpectralConv1d(nn.Module):
         # Inverse Hartley transform (IDHT) to return to the time/spatial domain
         x = idht(out_ht)
 
-        # Check if padding is needed and pad phase_reconstructed if necessary
-        if phase_reconstructed.shape[-1] < x.shape[-1]:
-            pad_size = x.shape[-1] - phase_reconstructed.shape[-1]
-            # Pad the phase_reconstructed tensor on the right
-            phase_reconstructed = F.pad(phase_reconstructed, (0, pad_size))
-
-        # Reconstruct signal using the phase
-        reconstructed_signal = x * torch.cos(phase_reconstructed)
+        # Reconstruct signal using the phase with einsum for element-wise multiplication
+        # Broadcast the cos(phase_reconstructed) over batch and channels dimensions
+        reconstructed_signal = torch.einsum('bix, bix -> bix', x, torch.cos(phase_reconstructed))
 
         return reconstructed_signal
 
 ################################################################
-# 2D Hartley convolution layer with signal reconstruction and padding
+# 2D Hartley convolution layer with signal reconstruction using einsum
 ################################################################
 
 class SpectralConv2d(nn.Module):
@@ -271,19 +266,14 @@ class SpectralConv2d(nn.Module):
         # Inverse Hartley transform (IDHT)
         x = idht(out_dht)
 
-        # Check if padding is needed and pad phase_reconstructed if necessary
-        if phase_reconstructed.shape[-2:] < x.shape[-2:]:
-            pad_size = [x.shape[-1] - phase_reconstructed.shape[-1], x.shape[-2] - phase_reconstructed.shape[-2]]
-            # Pad the phase_reconstructed tensor along both spatial dimensions
-            phase_reconstructed = F.pad(phase_reconstructed, (0, pad_size[0], 0, pad_size[1]))
-
-        # Reconstruct signal using the phase
-        reconstructed_signal = x * torch.cos(phase_reconstructed)
+        # Reconstruct signal using the phase with einsum
+        # Broadcast cos(phase_reconstructed) across spatial dimensions
+        reconstructed_signal = torch.einsum('bixy, bixy -> bixy', x, torch.cos(phase_reconstructed))
 
         return reconstructed_signal
 
 ################################################################
-# 3D Hartley convolution layer with signal reconstruction and padding
+# 3D Hartley convolution layer with signal reconstruction using einsum
 ################################################################
 
 class SpectralConv3d(nn.Module):
@@ -329,17 +319,11 @@ class SpectralConv3d(nn.Module):
         # Inverse Hartley transform (IDHT)
         x = idht(out_ht)
 
-        # Check if padding is needed and pad phase_reconstructed if necessary
-        if phase_reconstructed.shape[-3:] < x.shape[-3:]:
-            pad_size = [x.shape[-1] - phase_reconstructed.shape[-1], x.shape[-2] - phase_reconstructed.shape[-2], x.shape[-3] - phase_reconstructed.shape[-3]]
-            # Pad the phase_reconstructed tensor along all three spatial dimensions
-            phase_reconstructed = F.pad(phase_reconstructed, (0, pad_size[0], 0, pad_size[1], 0, pad_size[2]))
-
-        # Reconstruct signal using the phase
-        reconstructed_signal = x * torch.cos(phase_reconstructed)
+        # Reconstruct signal using the phase with einsum
+        # Broadcast cos(phase_reconstructed) across spatial dimensions
+        reconstructed_signal = torch.einsum('bixyz, bixyz -> bixyz', x, torch.cos(phase_reconstructed))
 
         return reconstructed_signal
-
 
 ################################################################
 # FourierBlock (Using SpectralConv3d)
