@@ -188,6 +188,10 @@ def compl_mul3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
 # 1D Hartley convolution layer
 ################################################################
 
+################################################################
+# 1D Hartley convolution layer with phase reconstruction
+################################################################
+
 class SpectralConv1d(nn.Module):
     def __init__(self, in_channels, out_channels, modes1):
         super(SpectralConv1d, self).__init__()
@@ -196,42 +200,33 @@ class SpectralConv1d(nn.Module):
         self.out_channels = out_channels
         self.modes1 = modes1
 
-        self.scale = (1 / (in_channels*out_channels))
+        self.scale = (1 / (in_channels * out_channels))
         self.weights1 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1))
 
     def forward(self, x):
         batchsize = x.shape[0]
-
-        # Compute Hartley coefficients
+        
         x_ht = dht(x)
-        x_ht_flip = dht(x.flip(dims=[-1]))
 
-        # Combine Hartley and flipped-Hartley
-        cos_part = x_ht
-        sin_part = x_ht_flip
-        z = torch.complex(cos_part, sin_part)
+        out_ht = torch.zeros(batchsize, self.in_channels, x.size(-1)//2 + 1, device=x.device)
+        out_ht[:, :, :self.modes1] = compl_mul1d(x_ht[:, :, :self.modes1], self.weights1)
 
-        # Calculate phase
-        phase = torch.angle(z)
-
-        # Multiply Hartley modes (convolution)
-        out_ht = torch.zeros(batchsize, self.out_channels, x.size(-1)//2 + 1, device=x.device)
-        out_ht[:, :, :self.modes1] = compl_mul1d(cos_part[:, :, :self.modes1], self.weights1)
-
-        # Inverse Hartley Transform (back to physical space)
         x = idht(out_ht)
 
-        # Reshape `phase` to match `x`'s size before combining
-        phase = phase[:, :, :x.size(-1)]  # Ensure phase matches the output size of x
-
-        # Combine magnitude (x) and phase
-        #reconstructed_signal = x * torch.cos(phase)
+        # Cosine part is the real part
+        cos_part = x
         
-        #return reconstructed_signal
-        return x
+        # Sine part is the flipped tensor
+        sin_part = torch.flip(x, dims=[-1])
+
+        # Create complex tensor and reconstruct phase
+        complex_tensor = torch.complex(cos_part, sin_part)
+        phase_reconstructed = torch.angle(complex_tensor)
+
+        return phase_reconstructed
 
 ################################################################
-# 2D Hartley convolution layer
+# 2D Hartley convolution layer with phase reconstruction
 ################################################################
 
 class SpectralConv2d(nn.Module):
@@ -250,38 +245,29 @@ class SpectralConv2d(nn.Module):
         batchsize = x.shape[0]
         size1 = x.shape[-2]
         size2 = x.shape[-1]
-
-        # Compute Hartley coefficients
+        
         x_dht = dht(x)
-        x_dht_flip = dht(x.flip(dims=[-2, -1]))
 
-        # Combine Hartley and flipped-Hartley
-        cos_part = x_dht
-        sin_part = x_dht_flip
-        z = torch.complex(cos_part, sin_part)
-
-        # Calculate phase
-        phase = torch.angle(z)
-
-        # Multiply Hartley modes (convolution)
         out_dht = torch.zeros(batchsize, self.out_channels, size1, size2, device=x.device)
-        out_dht[:, :, :self.modes1, :self.modes2] = compl_mul2d(cos_part[:, :, :self.modes1, :self.modes2], self.weights1)
-        out_dht[:, :, -self.modes1:, :self.modes2] = compl_mul2d(cos_part[:, :, -self.modes1:, :self.modes2], self.weights2)
+        out_dht[:, :, :self.modes1, :self.modes2] = compl_mul2d(x_dht[:, :, :self.modes1, :self.modes2], self.weights1)
+        out_dht[:, :, -self.modes1:, :self.modes2] = compl_mul2d(x_dht[:, :, -self.modes1:, :self.modes2], self.weights2)
 
-        # Inverse Hartley Transform (back to physical space)
         x = idht(out_dht)
 
-        # Reshape `phase` to match `x`'s size before combining
-        phase = phase[:, :, :x.size(-2), :x.size(-1)]  # Ensure phase matches the output size of x
-
-        # Combine magnitude (x) and phase
-        #reconstructed_signal = x * torch.cos(phase)
+        # Cosine part is the real part
+        cos_part = x
         
-        #return reconstructed_signal
-        return x
+        # Sine part is the flipped tensor along both dimensions
+        sin_part = torch.flip(x, dims=[-2, -1])
+
+        # Create complex tensor and reconstruct phase
+        complex_tensor = torch.complex(cos_part, sin_part)
+        phase_reconstructed = torch.angle(complex_tensor)
+
+        return phase_reconstructed
 
 ################################################################
-# 3D Hartley convolution layer
+# 3D Hartley convolution layer with phase reconstruction
 ################################################################
 
 class SpectralConv3d(nn.Module):
@@ -301,41 +287,32 @@ class SpectralConv3d(nn.Module):
 
     def forward(self, x):
         batchsize = x.shape[0]
-
-        # Compute Hartley coefficients
+        
         x_ht = dht(x)
-        x_ht_flip = dht(x.flip(dims=[2, 3, 4]))
 
-        # Combine Hartley and flipped-Hartley
-        cos_part = x_ht
-        sin_part = x_ht_flip
-        z = torch.complex(cos_part, sin_part)
-
-        # Calculate phase
-        phase = torch.angle(z)
-
-        # Multiply Hartley modes (convolution)
         out_ht = torch.zeros(batchsize, self.out_channels, x.size(2), x.size(3), x.size(4)//2 + 1, device=x.device)
         out_ht[:, :, :self.modes1, :self.modes2, :self.modes3] = \
-            compl_mul3d(cos_part[:, :, :self.modes1, :self.modes2, :self.modes3], self.weights1)
+            compl_mul3d(x_ht[:, :, :self.modes1, :self.modes2, :self.modes3], self.weights1)
         out_ht[:, :, -self.modes1:, :self.modes2, :self.modes3] = \
-            compl_mul3d(cos_part[:, :, -self.modes1:, :self.modes2, :self.modes3], self.weights2)
+            compl_mul3d(x_ht[:, :, -self.modes1:, :self.modes2, :self.modes3], self.weights2)
         out_ht[:, :, :self.modes1, -self.modes2:, :self.modes3] = \
-            compl_mul3d(cos_part[:, :, :self.modes1, -self.modes2:, :self.modes3], self.weights3)
+            compl_mul3d(x_ht[:, :, :self.modes1, -self.modes2:, :self.modes3], self.weights3)
         out_ht[:, :, -self.modes1:, -self.modes2:, :self.modes3] = \
-            compl_mul3d(cos_part[:, :, -self.modes1:, -self.modes2:, :self.modes3], self.weights4)
+            compl_mul3d(x_ht[:, :, -self.modes1:, -self.modes2:, :self.modes3], self.weights4)
 
-        # Inverse Hartley Transform (back to physical space)
         x = idht(out_ht)
 
-        # Reshape `phase` to match `x`'s size before combining
-        phase = phase[:, :, :x.size(2), :x.size(3), :x.size(4)]  # Ensure phase matches the output size of x
-
-        # Combine magnitude (x) and phase
-        #reconstructed_signal = x * torch.cos(phase)
+        # Cosine part is the real part
+        cos_part = x
         
-        #return reconstructed_signal
-        return x
+        # Sine part is the flipped tensor along all three dimensions
+        sin_part = torch.flip(x, dims=[-3, -2, -1])
+
+        # Create complex tensor and reconstruct phase
+        complex_tensor = torch.complex(cos_part, sin_part)
+        phase_reconstructed = torch.angle(complex_tensor)
+
+        return phase_reconstructed
 
 ################################################################
 # FourierBlock (Using SpectralConv3d)
