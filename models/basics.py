@@ -68,8 +68,8 @@ def dht(x: torch.Tensor, dims=None) -> torch.Tensor:
         # Reshape to original size
         return X.reshape(B, C, D, M, N)
     
-        else:
-            raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
+    else:
+        raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
 
 
 def idht(x: torch.Tensor) -> torch.Tensor:
