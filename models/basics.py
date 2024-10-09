@@ -131,7 +131,7 @@ def compl_mul3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
 #                    torch.einsum('bixyz,ioxyz->boxyz', X1_H_neg_k, X2_H_k))
 
 #    return result
-    return torch.einsum("bixyz...,ioxyz...->boxyz...", a, b)
+    return torch.einsum("bixyz...,ioxyz...->boxyz...", x1, x2)
 
 ################################################################
 # Low-Pass Filter Function
