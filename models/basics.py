@@ -233,7 +233,7 @@ class SpectralConv1d(nn.Module):
 
         phase_cos = torch.cos(phase)
         #phase_cos = torch.broadcast_to(phase_cos, x.shape)
-        phase_cos = phase_cos.expand(-1, x.shape[1], -1, -1)
+        phase_cos = phase_cos.expand(-1, x.shape[1], -1)
     
         reconstructed_signal = torch.mul(x, phase_cos)
         return reconstructed_signal
@@ -349,7 +349,7 @@ class SpectralConv3d(nn.Module):
 
         phase_cos = torch.cos(phase)
         #phase_cos = torch.broadcast_to(phase_cos, x.shape)
-        phase_cos = phase_cos.expand(-1, x.shape[1], -1, -1)
+        phase_cos = phase_cos.expand(-1, x.shape[1], -1, -1, -1)
     
         reconstructed_signal = torch.mul(x, phase_cos)
         return reconstructed_signal
