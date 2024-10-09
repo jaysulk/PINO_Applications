@@ -87,7 +87,7 @@ def compl_mul3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     return result
 
 ################################################################
-# 1D Hartley convolution layer
+# 1D Hartley convolution layer with phase reconstruction
 ################################################################
 
 class SpectralConv1d(nn.Module):
@@ -110,10 +110,21 @@ class SpectralConv1d(nn.Module):
         out_ht[:, :, :self.modes1] = compl_mul1d(x_ht[:, :, :self.modes1], self.weights1)
 
         x = idht(out_ht)
-        return x
+
+        # Cosine part is the real part
+        cos_part = x
+        
+        # Sine part is the flipped tensor
+        sin_part = torch.flip(x, dims=[-1])
+
+        # Create complex tensor and reconstruct phase
+        complex_tensor = torch.complex(cos_part, sin_part)
+        phase_reconstructed = torch.angle(complex_tensor)
+
+        return phase_reconstructed
 
 ################################################################
-# 2D Hartley convolution layer
+# 2D Hartley convolution layer with phase reconstruction
 ################################################################
 
 class SpectralConv2d(nn.Module):
@@ -140,10 +151,21 @@ class SpectralConv2d(nn.Module):
         out_dht[:, :, -self.modes1:, :self.modes2] = compl_mul2d(x_dht[:, :, -self.modes1:, :self.modes2], self.weights2)
 
         x = idht(out_dht)
-        return x
+
+        # Cosine part is the real part
+        cos_part = x
+        
+        # Sine part is the flipped tensor along both dimensions
+        sin_part = torch.flip(x, dims=[-2, -1])
+
+        # Create complex tensor and reconstruct phase
+        complex_tensor = torch.complex(cos_part, sin_part)
+        phase_reconstructed = torch.angle(complex_tensor)
+
+        return phase_reconstructed
 
 ################################################################
-# 3D Hartley convolution layer
+# 3D Hartley convolution layer with phase reconstruction
 ################################################################
 
 class SpectralConv3d(nn.Module):
@@ -177,7 +199,18 @@ class SpectralConv3d(nn.Module):
             compl_mul3d(x_ht[:, :, -self.modes1:, -self.modes2:, :self.modes3], self.weights4)
 
         x = idht(out_ht)
-        return x
+
+        # Cosine part is the real part
+        cos_part = x
+        
+        # Sine part is the flipped tensor along all three dimensions
+        sin_part = torch.flip(x, dims=[-3, -2, -1])
+
+        # Create complex tensor and reconstruct phase
+        complex_tensor = torch.complex(cos_part, sin_part)
+        phase_reconstructed = torch.angle(complex_tensor)
+
+        return phase_reconstructed
 
 ################################################################
 # Fourier Block
