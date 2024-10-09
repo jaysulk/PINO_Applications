@@ -231,10 +231,18 @@ class SpectralConv1d(nn.Module):
         # Return to physical space
         x = idht(out_ht)
 
-        # Combine magnitude (x) and phase into a real-valued signal
-        #reconstructed_signal = x * torch.cos(phase)  # Reconstruction with magnitude and phase
-        #return reconstructed_signal
-        return x
+        # Calculate the required padding based on the difference in sizes
+        if phase.size(0) < x.size(0):
+            pad_size = x.size(0) - phase.size(0)
+            padded_phase = torch.nn.functional.pad(phase, (0, pad_size))
+        else:
+            padded_phase = phase  # No padding needed if phase is already the same size
+        
+        # Now perform the element-wise multiplication
+        reconstructed_signal = x * torch.cos(padded_phase)
+        
+        # If you want to print or use the result:
+        print(reconstructed_signal)
 
 
 ################################################################
@@ -285,10 +293,18 @@ class SpectralConv2d(nn.Module):
         # Return to physical space
         x = idht(out_dht)
 
-        # Combine magnitude (x) and phase into a real-valued signal
-        #reconstructed_signal = x * torch.cos(phase)  # Reconstruction with magnitude and phase
-        #return reconstructed_signal
-        return x
+        # Calculate the required padding based on the difference in sizes
+        if phase.size(0) < x.size(0):
+            pad_size = x.size(0) - phase.size(0)
+            padded_phase = torch.nn.functional.pad(phase, (0, pad_size))
+        else:
+            padded_phase = phase  # No padding needed if phase is already the same size
+        
+        # Now perform the element-wise multiplication
+        reconstructed_signal = x * torch.cos(padded_phase)
+        
+        # If you want to print or use the result:
+        print(reconstructed_signal)
 
 
 ################################################################
@@ -343,10 +359,18 @@ class SpectralConv3d(nn.Module):
         # Return to physical space
         x = idht(out_ht)
 
-        # Combine magnitude (x) and phase into a real-valued signal
-        #reconstructed_signal = x * torch.cos(phase)  # Reconstruction with magnitude and phase
-        #return reconstructed_signal
-        return x
+        # Calculate the required padding based on the difference in sizes
+        if phase.size(0) < x.size(0):
+            pad_size = x.size(0) - phase.size(0)
+            padded_phase = torch.nn.functional.pad(phase, (0, pad_size))
+        else:
+            padded_phase = phase  # No padding needed if phase is already the same size
+        
+        # Now perform the element-wise multiplication
+        reconstructed_signal = x * torch.cos(padded_phase)
+        
+        # If you want to print or use the result:
+        print(reconstructed_signal)
 
 ################################################################
 # FourierBlock (Using SpectralConv3d)
