@@ -182,11 +182,17 @@ class SpectralConv1d(nn.Module):
             out_ht[:, :, self.modes1:] = 0
 
         # Return to physical space
-        x = idht(out_ht)
+        x_reconstructed = idht(out_ht)
+
+        # Reshape the phase tensor to match the original size
+        phase = torch.zeros(batchsize, self.in_channels, original_size, device=x.device)
+        phase[:, :, :self.modes1] = z.angle()[:, :, :self.modes1]
+        phase[:, :, self.modes1:] = 0  # Zero the unused modes in the phase tensor
 
         # Signal reconstruction using magnitude and phase (cosine)
-        reconstructed_signal = x * torch.cos(z.angle())  # Reconstruction with magnitude and phase
+        reconstructed_signal = x_reconstructed * torch.cos(phase)  # Reconstruction with magnitude and phase
         return reconstructed_signal
+
 
 
 ################################################################
@@ -231,10 +237,15 @@ class SpectralConv2d(nn.Module):
             out_dht[:, :, self.modes1:, self.modes2:] = 0
 
         # Return to physical space
-        x = idht(out_dht)
+        x_reconstructed = idht(out_dht)
+
+        # Reshape the phase tensor to match the original size
+        phase = torch.zeros(batchsize, self.in_channels, size1, size2, device=x.device)
+        phase[:, :, :self.modes1, :self.modes2] = z.angle()[:, :, :self.modes1, :self.modes2]
+        phase[:, :, self.modes1:, self.modes2:] = 0  # Zero the unused modes in the phase tensor
 
         # Signal reconstruction using magnitude and phase (cosine)
-        reconstructed_signal = x * torch.cos(z.angle())  # Reconstruction with magnitude and phase
+        reconstructed_signal = x_reconstructed * torch.cos(phase)  # Reconstruction with magnitude and phase
         return reconstructed_signal
 
 
@@ -259,9 +270,9 @@ class SpectralConv3d(nn.Module):
 
     def forward(self, x):
         batchsize = x.shape[0]
-        size1 = x.shape[2]
-        size2 = x.shape[3]
-        size3 = x.shape[4]
+        size1 = x.shape[2]  # Spatial dimension 1
+        size2 = x.shape[3]  # Spatial dimension 2
+        size3 = x.shape[4]  # Spatial dimension 3
 
         # Compute Hartley coefficients
         x_ht = dht(x)
@@ -288,10 +299,15 @@ class SpectralConv3d(nn.Module):
             out_ht[:, :, self.modes1:, self.modes2:, self.modes3:] = 0
 
         # Return to physical space
-        x = idht(out_ht)
+        x_reconstructed = idht(out_ht)
+
+        # Reshape the phase tensor to match the original size
+        phase = torch.zeros(batchsize, self.in_channels, size1, size2, size3, device=x.device)
+        phase[:, :, :self.modes1, :self.modes2, :self.modes3] = z.angle()[:, :, :self.modes1, :self.modes2, :self.modes3]
+        phase[:, :, self.modes1:, self.modes2:, self.modes3:] = 0  # Zero the unused modes in the phase tensor
 
         # Signal reconstruction using magnitude and phase (cosine)
-        reconstructed_signal = x * torch.cos(z.angle())  # Reconstruction with magnitude and phase
+        reconstructed_signal = x_reconstructed * torch.cos(phase)  # Reconstruction with magnitude and phase
         return reconstructed_signal
 
 
