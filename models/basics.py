@@ -139,11 +139,6 @@ def compl_mul3d(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
 #    
 #    return augmented_inputs
 
-import torch
-import torch.nn as nn
-
-# Assuming dht, idht, and compl_mul1d, compl_mul2d, compl_mul3d are already defined
-
 ################################################################
 # 1D Hartley convolution layer
 ################################################################
@@ -189,7 +184,9 @@ class SpectralConv1d(nn.Module):
         # Return to physical space
         x = idht(out_ht)
 
-        return x
+        # Signal reconstruction using magnitude and phase (cosine)
+        reconstructed_signal = x * torch.cos(z.angle())  # Reconstruction with magnitude and phase
+        return reconstructed_signal
 
 
 ################################################################
@@ -236,7 +233,9 @@ class SpectralConv2d(nn.Module):
         # Return to physical space
         x = idht(out_dht)
 
-        return x
+        # Signal reconstruction using magnitude and phase (cosine)
+        reconstructed_signal = x * torch.cos(z.angle())  # Reconstruction with magnitude and phase
+        return reconstructed_signal
 
 
 ################################################################
@@ -291,7 +290,10 @@ class SpectralConv3d(nn.Module):
         # Return to physical space
         x = idht(out_ht)
 
-        return x
+        # Signal reconstruction using magnitude and phase (cosine)
+        reconstructed_signal = x * torch.cos(z.angle())  # Reconstruction with magnitude and phase
+        return reconstructed_signal
+
 
 
 ################################################################
