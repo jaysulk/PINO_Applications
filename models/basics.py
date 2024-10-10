@@ -40,28 +40,24 @@ def dht(x: torch.Tensor, dims=None) -> torch.Tensor:
         return X
 
     elif x.ndim == 5:
-        # 3D case (5D tensor)
+        # 3D case (input is a 5D tensor)
         B, C, D, M, N = x.size()
         d = torch.arange(D, device=x.device).float()
         m = torch.arange(M, device=x.device).float()
         n = torch.arange(N, device=x.device).float()
 
         # Hartley kernels for depth, rows, and columns
-        cas_depth = torch.cos(2 * torch.pi * d.view(-1, 1) * d / D) + torch.sin(2 * torch.pi * d.view(-1, 1) * d / D)
-        cas_row = torch.cos(2 * torch.pi * m.view(-1, 1) * m / M) + torch.sin(2 * torch.pi * m.view(-1, 1) * m / M)
-        cas_col = torch.cos(2 * torch.pi * n.view(-1, 1) * n / N) + torch.sin(2 * torch.pi * n.view(-1, 1) * n / N)
+        cas_depth = torch.cos(2 * torch.pi * d.view(-1, 1, 1) * d / D) + torch.sin(2 * torch.pi * d.view(-1, 1, 1) * d / D)
+        cas_row = torch.cos(2 * torch.pi * m.view(1, -1, 1) * m / M) + torch.sin(2 * torch.pi * m.view(1, -1, 1) * m / M)
+        cas_col = torch.cos(2 * torch.pi * n.view(1, 1, -1) * n / N) + torch.sin(2 * torch.pi * n.view(1, 1, -1) * n / N)
 
-        # Perform the DHT using einsum
-        # Apply depth transform: [D, D] * [B, C, D, M, N] -> [B, C, D, M, N]
-        X = torch.einsum('dp,...dmn->...pmn', cas_depth, x)
-
-        # Apply row transform: [M, M] * [B, C, P, M, N] -> [B, C, P, M, N]
-        X = torch.einsum('mo,...pmn->...pon', cas_row, X)
-
-        # Apply column transform: [N, N] * [B, C, P, M, N] -> [B, C, P, M, N]
-        X = torch.einsum('np,...pon->...pom', cas_col, X)
-
-        return X
+        # Perform the DHT
+        x_reshaped = x.reshape(B * C, D, M, N)
+        intermediate = torch.einsum('bcde,cfde->bcfe', x_reshaped, cas_col)
+        intermediate = torch.einsum('bcfe,cfm->bcme', intermediate, cas_row)
+        X = torch.einsum('bcme,cfm->bcme', intermediate, cas_depth)
+        return X.reshape(B, C, D, M, N)
+        
     else:
         raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
 
