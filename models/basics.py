@@ -2,21 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-import torch
-
-def dht_fft(x: torch.Tensor, dim: int) -> torch.Tensor:
-    # Compute the 1D FFT of the input tensor along the specified dimension
-    X_fft = torch.fft.fft(x, dim=dim, norm="ortho")
-    
-    # Compute the real and imaginary parts of the FFT
-    real_part = X_fft.real
-    imag_part = X_fft.imag
-    
-    # DHT: The Hartley Transform is the sum of the real part and the negative of the imaginary part
-    dht_result = real_part - imag_part  # DHT uses real(X) - imag(X)
-    
-    return dht_result
-
 def dht(x: torch.Tensor) -> torch.Tensor:
     if x.ndim == 3:  # 1D DHT for 3D tensors
         result = dht_fft(x, dim=[2])
