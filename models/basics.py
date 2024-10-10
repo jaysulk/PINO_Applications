@@ -11,7 +11,7 @@ def dht(x: torch.Tensor) -> torch.Tensor:
         result = dht_fft(x, dim=[2,3,4])  
     else:
         raise ValueError("Unsupported input: Only 3D (1D DHT), 4D (2D DHT), and 5D (3D DHT) tensors are supported.")
-    return  result.real - result.ima
+    return  result.real - result.imag
 
 def idht(x: torch.Tensor) -> torch.Tensor:
     # Compute the DHT
