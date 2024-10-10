@@ -19,16 +19,14 @@ def dht_fft(x: torch.Tensor, dim: int) -> torch.Tensor:
 
 def dht(x: torch.Tensor) -> torch.Tensor:
     if x.ndim == 3:  # 1D DHT for 3D tensors
-        return dht_fft(x, dim=2)  # Perform DHT along the last dimension (depth-wise)
+        result = dht_fft(x, dim=[2])
     elif x.ndim == 4:  # 2D DHT for 4D tensors
-        result = dht_fft(x, dim=2)  # Apply DHT along the 2nd dimension (rows)
-        return dht_fft(result, dim=3)  # Then apply DHT along the 3rd dimension (columns)
+        result = dht_fft(x, dim=[2,3])  
     elif x.ndim == 5:  # 3D DHT for 5D tensors
-        result = dht_fft(x, dim=2)  # Apply DHT along the 2nd dimension (depth)
-        result = dht_fft(result, dim=3)  # Apply DHT along the 3rd dimension (rows)
-        return dht_fft(result, dim=4)  # Apply DHT along the 4th dimension (columns)
+        result = dht_fft(x, dim=[2,3,4])  
     else:
         raise ValueError("Unsupported input: Only 3D (1D DHT), 4D (2D DHT), and 5D (3D DHT) tensors are supported.")
+    return  result.real - result.ima
 
 def idht(x: torch.Tensor) -> torch.Tensor:
     # Compute the DHT
