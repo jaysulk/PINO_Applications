@@ -4,6 +4,8 @@ import torch.nn as nn
 from functools import partial
 import torch.nn.functional as F
 
+import torch
+
 def dht(x: torch.Tensor, dims=None) -> torch.Tensor:
     if dims is None:
         dims = [2] if x.ndim == 3 else [2, 3] if x.ndim == 4 else [2, 3, 4]
@@ -16,8 +18,8 @@ def dht(x: torch.Tensor, dims=None) -> torch.Tensor:
         # Hartley kernel for 1D
         cas = torch.cos(2 * torch.pi * n.view(-1, 1) * n / N) + torch.sin(2 * torch.pi * n.view(-1, 1) * n / N)
 
-        # Perform the DHT using einsum
-        X = torch.einsum('nm,dmn->dml', cas, x)
+        # Perform the DHT using einsum (matching dimensions: [N, N] * [D, N, M] -> [D, N, M])
+        X = torch.einsum('nm,dnm->dnm', cas, x)
         return X
 
     elif x.ndim == 4:
@@ -30,9 +32,12 @@ def dht(x: torch.Tensor, dims=None) -> torch.Tensor:
         cas_row = torch.cos(2 * torch.pi * m.view(-1, 1) * m / M) + torch.sin(2 * torch.pi * m.view(-1, 1) * m / M)
         cas_col = torch.cos(2 * torch.pi * n.view(-1, 1) * n / N) + torch.sin(2 * torch.pi * n.view(-1, 1) * n / N)
 
-        # Perform the DHT using einsum
+        # Perform the DHT using einsum (row and column transform)
+        # First einsum: [M, M] * [B, D, M, N] -> [B, D, M, N]
         X = torch.einsum('mo,bdmn->bdon', cas_row, x)
-        X = torch.einsum('np,bdop->bdmp', cas_col, X)
+
+        # Second einsum: [N, N] * [B, D, O, N] -> [B, D, O, M]
+        X = torch.einsum('np,bdon->bdmp', cas_col, X)
 
         return X
 
@@ -49,11 +54,20 @@ def dht(x: torch.Tensor, dims=None) -> torch.Tensor:
         cas_col = torch.cos(2 * torch.pi * n.view(-1, 1) * n / N) + torch.sin(2 * torch.pi * n.view(-1, 1) * n / N)
 
         # Perform the DHT using einsum
-        X = torch.einsum('dp,bcdmn->bcdpn', cas_depth, x)
-        X = torch.einsum('mo,bcdpn->bcdon', cas_row, X)
-        X = torch.einsum('np,bcdo->bcmno', cas_col, X)
+        # Apply depth transform: [D, D] * [B, C, D, M, N] -> [B, C, D, M, N]
+        X = torch.einsum('dp,bcdmn->bcmpn', cas_depth, x)
+
+        # Apply row transform: [M, M] * [B, C, D, M, N] -> [B, C, D, M, N]
+        X = torch.einsum('mo,bcmpn->bcdon', cas_row, X)
+
+        # Apply column transform: [N, N] * [B, C, D, M, N] -> [B, C, D, M, N]
+        X = torch.einsum('np,bcdon->bcdmo', cas_col, X)
 
         return X
+
+    else:
+        raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
+
 
     else:
         raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
