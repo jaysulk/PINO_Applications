@@ -68,10 +68,6 @@ def dht(x: torch.Tensor, dims=None) -> torch.Tensor:
     else:
         raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
 
-
-    else:
-        raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
-
 def idht(x: torch.Tensor) -> torch.Tensor:
     # Compute the DHT (Direct Hartley Transform)
     transformed = dht(x)
