@@ -185,57 +185,6 @@ def compl_mul3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
 #    return augmented_inputs
 
 ################################################################
-# Low-Pass Filter Function
-################################################################
-
-#def low_pass_filter(x_ht, cutoff):
-#    """
-#    Applies a low-pass filter to the spectral coefficients (DHT output).
-#    Frequencies higher than `cutoff` are dampened.
-#    """
-#    size = x_ht.shape[-1]  # Get the last dimension (frequency axis)
-#    frequencies = torch.fft.fftfreq(size, d=1.0)  # Compute frequency bins
-#    filter_mask = torch.abs(frequencies) <= cutoff  # Mask for low frequencies
-#    return x_ht * filter_mask.to(x_ht.device)
-
-################################################################
-# Gaussian Smoothing Function
-################################################################
-
-#def gaussian_smoothing(x, kernel_size=5, sigma=1.0):
-#    """
-#    Applies Gaussian smoothing to the output.
-#    """
-#    # Apply Gaussian blur (use 2D or 3D kernel as needed)
-#    return F.gaussian_blur(x, kernel_size=[kernel_size], sigma=[sigma])
-
-################################################################
-# Data Augmentation Function
-################################################################
-
-#def augment_data(inputs, shift_range=0.1, scale_range=0.05):
-#    """
-#    Augment input data by applying random shifts and scaling.
-#    
-#    Parameters:
-#    - inputs: torch.Tensor, the input data to be augmented
-#    - shift_range: float, the maximum range for random shifts
-#    - scale_range: float, the maximum range for random scaling
-#    
-#    Returns:
-#    - augmented_inputs: torch.Tensor, the augmented input data
-#    """
-#    # Apply random shifts
-#    shifts = torch.rand(inputs.size()) * shift_range
-#    augmented_inputs = inputs + shifts
-#    
-#    # Apply random scaling
-#    scales = 1 + torch.rand(inputs.size()) * scale_range
-#    augmented_inputs = augmented_inputs * scales
-#    
-#    return augmented_inputs
-
-################################################################
 # 1D Hartley convolution layer
 ################################################################
 
