@@ -4,11 +4,11 @@ import torch.nn.functional as F
 
 def dht(x: torch.Tensor) -> torch.Tensor:
     if x.ndim == 3:  # 1D DHT for 3D tensors
-        result = dht_fft(x, dim=[2])
+        result = torch.fft.rfftn(x, dim=[2])
     elif x.ndim == 4:  # 2D DHT for 4D tensors
-        result = dht_fft(x, dim=[2,3])  
+        result = torch.fft.rfftn(x, dim=[2, 3])
     elif x.ndim == 5:  # 3D DHT for 5D tensors
-        result = dht_fft(x, dim=[2,3,4])  
+        result = torch.fft.rfftn(x, dim=[2, 3, 4])
     else:
         raise ValueError("Unsupported input: Only 3D (1D DHT), 4D (2D DHT), and 5D (3D DHT) tensors are supported.")
     return  result.real - result.imag
