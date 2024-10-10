@@ -4,6 +4,8 @@ import torch.nn as nn
 from functools import partial
 import torch.nn.functional as F
 
+import torch
+
 def dht(x: torch.Tensor, dims=None) -> torch.Tensor:
     if dims is None:
         dims = [2] if x.ndim == 3 else [2, 3] if x.ndim == 4 else [2, 3, 4]
@@ -16,8 +18,8 @@ def dht(x: torch.Tensor, dims=None) -> torch.Tensor:
         # Hartley kernel for 1D
         cas = torch.cos(2 * torch.pi * n.view(-1, 1) * n / N) + torch.sin(2 * torch.pi * n.view(-1, 1) * n / N)
 
-        # Perform the DHT using einsum
-        X = torch.einsum('nm,dnm->dnm', cas, x)
+        # Perform the DHT using einsum with ellipsis
+        X = torch.einsum('nm,...nm->...nm', cas, x)
         return X
 
     elif x.ndim == 4:
@@ -30,9 +32,12 @@ def dht(x: torch.Tensor, dims=None) -> torch.Tensor:
         cas_row = torch.cos(2 * torch.pi * m.view(-1, 1) * m / M) + torch.sin(2 * torch.pi * m.view(-1, 1) * m / M)
         cas_col = torch.cos(2 * torch.pi * n.view(-1, 1) * n / N) + torch.sin(2 * torch.pi * n.view(-1, 1) * n / N)
 
-        # Perform the DHT using einsum (row and column transform)
-        X = torch.einsum('mo,bdmn->bdon', cas_row, x)
-        X = torch.einsum('np,bdon->bdmp', cas_col, X)
+        # Perform the DHT using einsum with ellipsis
+        # First apply the row transform
+        X = torch.einsum('mo,...mon->...oon', cas_row, x)
+
+        # Then apply the column transform
+        X = torch.einsum('np,...oon->...oom', cas_col, X)
 
         return X
 
@@ -48,15 +53,15 @@ def dht(x: torch.Tensor, dims=None) -> torch.Tensor:
         cas_row = torch.cos(2 * torch.pi * m.view(-1, 1) * m / M) + torch.sin(2 * torch.pi * m.view(-1, 1) * m / M)
         cas_col = torch.cos(2 * torch.pi * n.view(-1, 1) * n / N) + torch.sin(2 * torch.pi * n.view(-1, 1) * n / N)
 
-        # Perform the DHT using einsum
-        # Apply depth transform: [D, D] * [B, C, D, M, N] -> [B, C, D, M, N]
-        X = torch.einsum('dp,bcdmn->bcpnm', cas_depth, x)
+        # Perform the DHT using einsum with ellipsis
+        # First apply the depth transform
+        X = torch.einsum('dp,...dpn->...dpn', cas_depth, x)
 
-        # Apply row transform: [M, M] * [B, C, D, M, N] -> [B, C, D, M, N]
-        X = torch.einsum('mo,bcpnm->bcodn', cas_row, X)
+        # Then apply the row transform
+        X = torch.einsum('mo,...mpn->...opn', cas_row, X)
 
-        # Apply column transform: [N, N] * [B, C, D, M, N] -> [B, C, D, M, N]
-        X = torch.einsum('np,bcodn->bcdom', cas_col, X)
+        # Finally apply the column transform
+        X = torch.einsum('np,...opn->...mop', cas_col, X)
 
         return X
 
