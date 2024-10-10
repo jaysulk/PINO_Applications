@@ -2,31 +2,33 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+import torch
+
 def dht_fft(x: torch.Tensor, dim: int) -> torch.Tensor:
     # Compute the 1D FFT of the input tensor along the specified dimension
     X_fft = torch.fft.fft(x, dim=dim, norm="ortho")
     
-    # Compute the real and imaginary parts
+    # Compute the real and imaginary parts of the FFT
     real_part = X_fft.real
     imag_part = X_fft.imag
     
-    # DHT is the sum of the real part and the negative of the imaginary part
-    dht_result = real_part - imag_part
+    # DHT: The Hartley Transform is the sum of the real part and the negative of the imaginary part
+    dht_result = real_part - imag_part  # DHT uses real(X) - imag(X)
     
     return dht_result
 
 def dht(x: torch.Tensor) -> torch.Tensor:
-    if x.ndim == 3:  # For 1D DHT
-        return dht_fft(x, dim=2)
-    elif x.ndim == 4:  # For 2D DHT
-        result = dht_fft(x, dim=2)
-        return dht_fft(result, dim=3)
-    elif x.ndim == 5:  # For 3D DHT
-        result = dht_fft(x, dim=2)
-        result = dht_fft(result, dim=3)
-        return dht_fft(result, dim=4)
+    if x.ndim == 3:  # 1D DHT for 3D tensors
+        return dht_fft(x, dim=2)  # Perform DHT along the last dimension (depth-wise)
+    elif x.ndim == 4:  # 2D DHT for 4D tensors
+        result = dht_fft(x, dim=2)  # Apply DHT along the 2nd dimension (rows)
+        return dht_fft(result, dim=3)  # Then apply DHT along the 3rd dimension (columns)
+    elif x.ndim == 5:  # 3D DHT for 5D tensors
+        result = dht_fft(x, dim=2)  # Apply DHT along the 2nd dimension (depth)
+        result = dht_fft(result, dim=3)  # Apply DHT along the 3rd dimension (rows)
+        return dht_fft(result, dim=4)  # Apply DHT along the 4th dimension (columns)
     else:
-        raise ValueError("Only 1D (3D tensors), 2D (4D tensors), and 3D (5D tensors) tensors are supported.")
+        raise ValueError("Unsupported input: Only 3D (1D DHT), 4D (2D DHT), and 5D (3D DHT) tensors are supported.")
 
 def idht(x: torch.Tensor) -> torch.Tensor:
     # Compute the DHT
