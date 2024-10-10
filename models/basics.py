@@ -188,9 +188,9 @@ class SpectralConv1d(nn.Module):
         x = idht(out_ht)
 
         # Combine magnitude (x) and phase into a real-valued signal
-        #reconstructed_signal = x * torch.cos(phase)  # Reconstruction with magnitude and phase
-        #return reconstructed_signal
-        return x
+        reconstructed_signal = x * torch.cos(phase)  # Reconstruction with magnitude and phase
+        return reconstructed_signal
+        #return x
 
 
 ################################################################
@@ -242,9 +242,9 @@ class SpectralConv2d(nn.Module):
         x = idht(out_dht)
 
         # Combine magnitude (x) and phase into a real-valued signal
-        #reconstructed_signal = x * torch.cos(phase)  # Reconstruction with magnitude and phase
-        #return reconstructed_signal
-        return x
+        reconstructed_signal = x * torch.cos(phase)  # Reconstruction with magnitude and phase
+        return reconstructed_signal
+        #return x
 
 
 ################################################################
@@ -300,9 +300,9 @@ class SpectralConv3d(nn.Module):
         x = idht(out_ht)
 
         # Combine magnitude (x) and phase into a real-valued signal
-        #reconstructed_signal = x * torch.cos(phase)  # Reconstruction with magnitude and phase
-        #return reconstructed_signal
-        return x
+        reconstructed_signal = x * torch.cos(phase)  # Reconstruction with magnitude and phase
+        return reconstructed_signal
+        #return x
 
 ################################################################
 # FourierBlock (Using SpectralConv3d)
