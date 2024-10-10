@@ -4,8 +4,6 @@ import torch.nn as nn
 from functools import partial
 import torch.nn.functional as F
 
-import torch
-
 def dht(x: torch.Tensor, dims=None) -> torch.Tensor:
     if dims is None:
         dims = [2] if x.ndim == 3 else [2, 3] if x.ndim == 4 else [2, 3, 4]
@@ -54,17 +52,16 @@ def dht(x: torch.Tensor, dims=None) -> torch.Tensor:
         cas_col = torch.cos(2 * torch.pi * n.view(-1, 1) * n / N) + torch.sin(2 * torch.pi * n.view(-1, 1) * n / N)
 
         # Perform the DHT using einsum with ellipsis
-        # First apply the depth transform
-        X = torch.einsum('dp,...dpn->...dpn', cas_depth, x)
+        # Apply depth transform: [D, D] * [B, C, D, M, N] -> [B, C, D, M, N]
+        X = torch.einsum('dp,...dmn->...pmn', cas_depth, x)
 
-        # Then apply the row transform
-        X = torch.einsum('mo,...mpn->...opn', cas_row, X)
+        # Apply row transform: [M, M] * [B, C, P, M, N] -> [B, C, P, O, N]
+        X = torch.einsum('mo,...pmn->...pon', cas_row, X)
 
-        # Finally apply the column transform
-        X = torch.einsum('np,...opn->...mop', cas_col, X)
+        # Apply column transform: [N, N] * [B, C, P, O, N] -> [B, C, P, O, M]
+        X = torch.einsum('np,...pon->...pom', cas_col, X)
 
         return X
-
     else:
         raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
 
