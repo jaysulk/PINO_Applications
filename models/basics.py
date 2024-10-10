@@ -181,7 +181,7 @@ class SpectralConv1d(nn.Module):
         phase = torch.angle(z)  # Extract phase as arctan(imag/real)
 
         # Multiply relevant Hartley modes (magnitude component)
-        out_ht = torch.zeros(batchsize, self.in_channels, x.size(-1)//2 + 1, device=x.device)
+        out_ht = torch.zeros(batchsize, self.in_channels, x.size(-1), device=x.device)
         out_ht[:, :, :self.modes1] = compl_mul1d(cos_part[:, :, :self.modes1], self.weights1)
 
         # Return to physical space
@@ -286,7 +286,7 @@ class SpectralConv3d(nn.Module):
         phase = torch.angle(z)  # Extract phase as arctan(imag/real)
 
         # Multiply relevant Hartley modes (magnitude component)
-        out_ht = torch.zeros(batchsize, self.out_channels, x.size(2), x.size(3), x.size(4)//2 + 1, device=x.device)
+        out_ht = torch.zeros(batchsize, self.out_channels, x.size(2), x.size(3), x.size(4), device=x.device)
         out_ht[:, :, :self.modes1, :self.modes2, :self.modes3] = \
             compl_mul3d(cos_part[:, :, :self.modes1, :self.modes2, :self.modes3], self.weights1)
         out_ht[:, :, -self.modes1:, :self.modes2, :self.modes3] = \
