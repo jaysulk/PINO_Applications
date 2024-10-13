@@ -6,8 +6,9 @@ import torch.nn.functional as F
 
 def fht1d(x):
     N = x.shape[-1]
-    # Ensure N is a power of 2
-    if N % 2 != 0:
+    # Check if N is a power of 2
+    if (N & (N - 1)) != 0:
+        # Pad x to the next power of 2
         next_pow_two = 1 << (N - 1).bit_length()
         pad_size = next_pow_two - N
         x = F.pad(x, (0, pad_size))
@@ -25,18 +26,27 @@ def fht1d(x):
         cas = torch.cos(theta) + torch.sin(theta)
         temp = cas * fht_odd
         X = torch.cat([fht_even + temp, fht_even - temp], dim=-1)
-        return X[..., :N]  # Truncate to original length if padded
+        return X
 
 def fht_along_dim(x, dim):
     # Move the target dimension to the last dimension
     x = x.transpose(dim, -1)
     original_shape = x.shape
+    N = x.shape[-1]
     # Flatten the batch dimensions
-    x = x.reshape(-1, x.shape[-1])
+    x = x.reshape(-1, N)
     # Apply fht1d
     x = fht1d(x)
-    # Restore the original shape
-    x = x.reshape(original_shape)
+    # Now x may have a different size in the last dimension
+    new_N = x.shape[-1]
+    # Restore the original shape with the new last dimension size
+    x = x.reshape(*original_shape[:-1], new_N)
+    # Truncate or pad the last dimension back to original N
+    if new_N > N:
+        x = x[..., :N]
+    elif new_N < N:
+        pad_size = N - new_N
+        x = F.pad(x, (0, pad_size))
     # Move the last dimension back to its original position
     x = x.transpose(dim, -1)
     return x
