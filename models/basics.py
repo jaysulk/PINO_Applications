@@ -2,38 +2,34 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-def dht(x: torch.Tensor) -> torch.Tensor:
-    if x.ndim == 3:  # 1D DHT for 3D tensors
-        result = torch.fft.fftn(x, dim=[2])
-    elif x.ndim == 4:  # 2D DHT for 4D tensors
-        result = torch.fft.fftn(x, dim=[2, 3])
-    elif x.ndim == 5:  # 3D DHT for 5D tensors
-        result = torch.fft.fftn(x, dim=[2, 3, 4])
-    else:
-        raise ValueError("Unsupported input: Only 3D (1D DHT), 4D (2D DHT), and 5D (3D DHT) tensors are supported.")
-    
-    # Combine real and imaginary parts in a way that mimics DHT behavior
-    return result.real + result.imag
+import torch
 
-def idht(x: torch.Tensor) -> torch.Tensor:
-    # Compute the DHT
-    transformed = dht(x)
+def dht(x: torch.Tensor, dim=None) -> torch.Tensor:
+    # Compute the N-dimensional FFT of the input tensor
+    result = torch.fft.fftn(x, dim=dim)
     
-    # Determine normalization factor based on input dimensions
-    if x.ndim == 3:
-        N = x.size(2)
-        normalization_factor = N
-    elif x.ndim == 4:
-        M, N = x.size(2), x.size(3)
-        normalization_factor = M * N
-    elif x.ndim == 5:
-        D, M, N = x.size(2), x.size(3), x.size(4)
-        normalization_factor = D * M * N
+    # Combine real and imaginary parts to compute the DHT
+    return result.real + result.imag  # Use subtraction to match DHT definition
+
+def idht(x: torch.Tensor, dim=None) -> torch.Tensor:
+    # Compute the DHT of the input tensor
+    transformed = dht(x, dim=dim)
+    
+    # Determine normalization factor based on the specified dimensions
+    if dim is None:
+        # If dim is None, use the total number of elements
+        normalization_factor = x.numel()
     else:
-        raise ValueError(f"Input tensor must be 3D, 4D, or 5D, but got {x.ndim}D with shape {x.shape}.")
+        # Ensure dim is a list of dimensions
+        if isinstance(dim, int):
+            dim = [dim]
+        normalization_factor = 1
+        for d in dim:
+            normalization_factor *= x.size(d)
     
-    # Return the normalized inverse
+    # Return the normalized inverse DHT
     return transformed / normalization_factor
+
 
 def compl_mul1d(a, b):
     # (batch, in_channel, x ), (in_channel, out_channel, x) -> (batch, out_channel, x)
@@ -73,7 +69,7 @@ class SpectralConv1d(nn.Module):
     def forward(self, x):
         batchsize = x.shape[0]
         # Compute Fourier coeffcients up to factor of e^(- something constant)
-        x_ft = torch.fft.rfftn(x, dim=[2])
+        x_ft =dht(x, dim=[2])
 
         # Multiply relevant Fourier modes
         out_ft = torch.zeros(batchsize, self.in_channels, x.size(-1)//2 + 1, device=x.device, dtype=torch.cfloat)
