@@ -30,21 +30,53 @@ def idht(x: torch.Tensor, dim=None) -> torch.Tensor:
     # Return the normalized inverse DHT
     return transformed / normalization_factor
 
-def hilbert_transform(x):
-    # Compute the Hilbert transform of x
-    X = torch.fft.fft(x)
-    N = x.size(-1)
-    h = torch.zeros(N, device=x.device)
-    if N % 2 == 0:
-        h[0] = 1
-        h[1:N//2] = 2
-        h[N//2] = 1
-    else:
-        h[0] = 1
-        h[1:(N+1)//2] = 2
-    h = h.unsqueeze(0).unsqueeze(0)  # Adjust dimensions for batch and channels
+def hilbert_transform(x: torch.Tensor, dim=None) -> torch.Tensor:
+    """
+    Compute the Hilbert transform of x along specified dimensions.
+    
+    Parameters:
+    x (Tensor): Input tensor of shape (..., signal_dims)
+    dim (tuple or int): Dimensions along which to compute the Hilbert transform
+    
+    Returns:
+    Tensor: The Hilbert transform of x
+    """
+    # Compute the FFT along the specified dimensions
+    X = torch.fft.fftn(x, dim=dim)
+    
+    # Generate the frequency multiplier h
+    shape = x.shape
+    h = torch.ones_like(x, dtype=torch.float, device=x.device)
+    
+    for d in dim:
+        N = shape[d]
+        freq = torch.arange(N, device=x.device)
+        h_dim = torch.zeros(N, device=x.device)
+        
+        # Create the frequency multiplier for the Hilbert transform along this dimension
+        if N % 2 == 0:
+            # Even length
+            h_dim[0] = 1
+            h_dim[1:N//2] = 2
+            h_dim[N//2] = 1
+        else:
+            # Odd length
+            h_dim[0] = 1
+            h_dim[1:(N+1)//2] = 2
+        
+        # Reshape h_dim to broadcast correctly
+        shape_h = [1] * x.dim()
+        shape_h[d] = N
+        h_dim = h_dim.view(shape_h)
+        
+        # Multiply h with h_dim
+        h = h * h_dim
+
+    # Apply the frequency multiplier
     X = X * h
-    x_hilbert = torch.fft.ifft(X).real
+
+    # Compute the inverse FFT to get the Hilbert transform
+    x_hilbert = torch.fft.ifftn(X, dim=dim).real
     return x_hilbert
 
 def compl_mul1d(a, b):
