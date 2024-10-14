@@ -13,7 +13,7 @@ def dht(x: torch.Tensor) -> torch.Tensor:
         raise ValueError("Unsupported input: Only 3D (1D DHT), 4D (2D DHT), and 5D (3D DHT) tensors are supported.")
     
     # Combine real and imaginary parts in a way that mimics DHT behavior
-    return torch.sum(result.real,result.imag)
+    return result.real + result.imag
 
 def idht(x: torch.Tensor) -> torch.Tensor:
     # Compute the DHT
