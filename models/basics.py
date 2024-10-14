@@ -91,7 +91,7 @@ def compl_mul1d(a, b):
     term2 = torch.einsum("bix,iox->box", H_tilde_a, H_tilde_b)
     return term1 + term2
 
-def compl_mul2d((a, b):
+def compl_mul2d(a, b):
     # a: (batch, in_channel, x, y)
     # b: (in_channel, out_channel, x, y)
     Ha = dht(a)
@@ -102,7 +102,7 @@ def compl_mul2d((a, b):
     term2 = torch.einsum("bixy,ioxy->boxy", H_tilde_a, H_tilde_b)
     return term1 + term2
 
-def compl_mul3d((a, b):
+def compl_mul3d(a, b):
     # a: (batch, in_channel, x, y, z)
     # b: (in_channel, out_channel, x, y, z)
     Ha = dht(a)
