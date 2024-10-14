@@ -82,10 +82,11 @@ def hilbert_transform(x: torch.Tensor, dim=None) -> torch.Tensor:
 def compl_mul1d(a, b):
     # a: (batch, in_channel, x)
     # b: (in_channel, out_channel, x)
-    Ha = dht(a)
-    Hb = dht(b)
-    H_tilde_a = dht(hilbert_transform(a))
-    H_tilde_b = dht(hilbert_transform(b))
+    dim = [2]
+    Ha = dht(a, dim=dim)
+    Hb = dht(b,dim=dim)
+    H_tilde_a = dht(hilbert_transform(a,dim=dim))
+    H_tilde_b = dht(hilbert_transform(b,dim=dim))
     # Compute the convolution according to the Hartley convolution theorem
     term1 = torch.einsum("bix,iox->box", Ha, Hb)
     term2 = torch.einsum("bix,iox->box", H_tilde_a, H_tilde_b)
@@ -94,10 +95,11 @@ def compl_mul1d(a, b):
 def compl_mul2d(a, b):
     # a: (batch, in_channel, x, y)
     # b: (in_channel, out_channel, x, y)
-    Ha = dht(a)
-    Hb = dht(b)
-    H_tilde_a = dht(hilbert_transform(a))
-    H_tilde_b = dht(hilbert_transform(b))
+    dim = [2,3]
+    Ha = dht(a, dim=dim)
+    Hb = dht(b,dim=dim)
+    H_tilde_a = dht(hilbert_transform(a,dim=dim))
+    H_tilde_b = dht(hilbert_transform(b,dim=dim))
     term1 = torch.einsum("bixy,ioxy->boxy", Ha, Hb)
     term2 = torch.einsum("bixy,ioxy->boxy", H_tilde_a, H_tilde_b)
     return term1 + term2
@@ -105,10 +107,11 @@ def compl_mul2d(a, b):
 def compl_mul3d(a, b):
     # a: (batch, in_channel, x, y, z)
     # b: (in_channel, out_channel, x, y, z)
-    Ha = dht(a)
-    Hb = dht(b)
-    H_tilde_a = dht(hilbert_transform(a))
-    H_tilde_b = dht(hilbert_transform(b))
+    dim = [2,3,4]
+    Ha = dht(a, dim=dim)
+    Hb = dht(b,dim=dim)
+    H_tilde_a = dht(hilbert_transform(a,dim=dim))
+    H_tilde_b = dht(hilbert_transform(b,dim=dim))
     term1 = torch.einsum("bixyz,ioxyz->boxyz", Ha, Hb)
     term2 = torch.einsum("bixyz,ioxyz->boxyz", H_tilde_a, H_tilde_b)
     return term1 + term2
