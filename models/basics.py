@@ -30,19 +30,56 @@ def idht(x: torch.Tensor, dim=None) -> torch.Tensor:
     # Return the normalized inverse DHT
     return transformed / normalization_factor
 
+def hilbert_transform(x):
+    # Compute the Hilbert transform of x
+    X = torch.fft.fft(x)
+    N = x.size(-1)
+    h = torch.zeros(N, device=x.device)
+    if N % 2 == 0:
+        h[0] = 1
+        h[1:N//2] = 2
+        h[N//2] = 1
+    else:
+        h[0] = 1
+        h[1:(N+1)//2] = 2
+    h = h.unsqueeze(0).unsqueeze(0)  # Adjust dimensions for batch and channels
+    X = X * h
+    x_hilbert = torch.fft.ifft(X).real
+    return x_hilbert
 
 def compl_mul1d(a, b):
-    # (batch, in_channel, x ), (in_channel, out_channel, x) -> (batch, out_channel, x)
-    return torch.einsum("bix,iox->box", a, b)
+    # a: (batch, in_channel, x)
+    # b: (in_channel, out_channel, x)
+    Ha = dht(a)
+    Hb = dht(b)
+    H_tilde_a = dht(hilbert_transform(a))
+    H_tilde_b = dht(hilbert_transform(b))
+    # Compute the convolution according to the Hartley convolution theorem
+    term1 = torch.einsum("bix,iox->box", Ha, Hb)
+    term2 = torch.einsum("bix,iox->box", H_tilde_a, H_tilde_b)
+    return term1 + term2
 
+def compl_mul2d((a, b):
+    # a: (batch, in_channel, x, y)
+    # b: (in_channel, out_channel, x, y)
+    Ha = dht(a)
+    Hb = dht(b)
+    H_tilde_a = dht(hilbert_transform(a))
+    H_tilde_b = dht(hilbert_transform(b))
+    term1 = torch.einsum("bixy,ioxy->boxy", Ha, Hb)
+    term2 = torch.einsum("bixy,ioxy->boxy", H_tilde_a, H_tilde_b)
+    return term1 + term2
 
-def compl_mul2d(a, b):
-    # (batch, in_channel, x,y,t ), (in_channel, out_channel, x,y,t) -> (batch, out_channel, x,y,t)
-    return torch.einsum("bixy,ioxy->boxy", a, b)
-
-
-def compl_mul3d(a, b):
-    return torch.einsum("bixyz,ioxyz->boxyz", a, b)
+def compl_mul3d((a, b):
+    # a: (batch, in_channel, x, y, z)
+    # b: (in_channel, out_channel, x, y, z)
+    Ha = dht(a)
+    Hb = dht(b)
+    H_tilde_a = dht(hilbert_transform(a))
+    H_tilde_b = dht(hilbert_transform(b))
+    term1 = torch.einsum("bixyz,ioxyz->boxyz", Ha, Hb)
+    term2 = torch.einsum("bixyz,ioxyz->boxyz", H_tilde_a, H_tilde_b)
+    return term1 + term2
 
 ################################################################
 # 1d fourier layer
