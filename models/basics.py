@@ -30,92 +30,19 @@ def idht(x: torch.Tensor, dim=None) -> torch.Tensor:
     # Return the normalized inverse DHT
     return transformed / normalization_factor
 
-def hilbert_transform(x: torch.Tensor, dim=None) -> torch.Tensor:
-    """
-    Compute the Hilbert transform of x along specified dimensions.
-    
-    Parameters:
-    x (Tensor): Input tensor of shape (..., signal_dims)
-    dim (tuple or int): Dimensions along which to compute the Hilbert transform
-    
-    Returns:
-    Tensor: The Hilbert transform of x
-    """
-    # Compute the FFT along the specified dimensions
-    X = torch.fft.fftn(x, dim=dim)
-    
-    # Generate the frequency multiplier h
-    shape = x.shape
-    h = torch.ones_like(x, dtype=torch.float, device=x.device)
-    
-    for d in dim:
-        N = shape[d]
-        freq = torch.arange(N, device=x.device)
-        h_dim = torch.zeros(N, device=x.device)
-        
-        # Create the frequency multiplier for the Hilbert transform along this dimension
-        if N % 2 == 0:
-            # Even length
-            h_dim[0] = 1
-            h_dim[1:N//2] = 2
-            h_dim[N//2] = 1
-        else:
-            # Odd length
-            h_dim[0] = 1
-            h_dim[1:(N+1)//2] = 2
-        
-        # Reshape h_dim to broadcast correctly
-        shape_h = [1] * x.dim()
-        shape_h[d] = N
-        h_dim = h_dim.view(shape_h)
-        
-        # Multiply h with h_dim
-        h = h * h_dim
-
-    # Apply the frequency multiplier
-    X = X * h
-
-    # Compute the inverse FFT to get the Hilbert transform
-    x_hilbert = torch.fft.ifftn(X, dim=dim).real
-    return x_hilbert
-
 def compl_mul1d(a, b):
-    # a: (batch, in_channel, x)
-    # b: (in_channel, out_channel, x)
-    dim = [2]
-    Ha = dht(a, dim=dim)
-    Hb = dht(b,dim=dim)
-    H_tilde_a = dht(hilbert_transform(a,dim=dim))
-    H_tilde_b = dht(hilbert_transform(b,dim=dim))
-    # Compute the convolution according to the Hartley convolution theorem
-    term1 = torch.einsum("bix,iox->box", Ha, Hb)
-    term2 = torch.einsum("bix,iox->box", H_tilde_a, H_tilde_b)
-    return term1 + term2
+    # (batch, in_channel, x ), (in_channel, out_channel, x) -> (batch, out_channel, x)
+    return torch.einsum("bix,iox->box", a, b)
+
 
 def compl_mul2d(a, b):
-    # a: (batch, in_channel, x, y)
-    # b: (in_channel, out_channel, x, y)
-    dim = [2,3]
-    Ha = dht(a, dim=dim)
-    Hb = dht(b,dim=dim)
-    H_tilde_a = dht(hilbert_transform(a,dim=dim))
-    H_tilde_b = dht(hilbert_transform(b,dim=dim))
-    term1 = torch.einsum("bixy,ioxy->boxy", Ha, Hb)
-    term2 = torch.einsum("bixy,ioxy->boxy", H_tilde_a, H_tilde_b)
-    return term1 + term2
+    # (batch, in_channel, x,y,t ), (in_channel, out_channel, x,y,t) -> (batch, out_channel, x,y,t)
+    return torch.einsum("bixy,ioxy->boxy", a, b)
+
 
 def compl_mul3d(a, b):
-    # a: (batch, in_channel, x, y, z)
-    # b: (in_channel, out_channel, x, y, z)
-    dim = [2,3,4]
-    Ha = dht(a, dim=dim)
-    Hb = dht(b,dim=dim)
-    H_tilde_a = dht(hilbert_transform(a,dim=dim))
-    H_tilde_b = dht(hilbert_transform(b,dim=dim))
-    term1 = torch.einsum("bixyz,ioxyz->boxyz", Ha, Hb)
-    term2 = torch.einsum("bixyz,ioxyz->boxyz", H_tilde_a, H_tilde_b)
-    return term1 + term2
-
+    return torch.einsum("bixyz,ioxyz->boxyz", a, b)
+    
 ################################################################
 # 1d fourier layer
 ################################################################
