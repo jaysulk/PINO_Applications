@@ -35,269 +35,199 @@ def idht(x: torch.Tensor) -> torch.Tensor:
     # Return the normalized inverse
     return transformed / normalization_factor
 
-#def compl_mul1d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
-#    X1_H_k = x1
-#    X2_H_k = x2
-#    X1_H_neg_k = torch.roll(torch.flip(x1, dims=[-1]), shifts=1, dims=[-1])
-#    X2_H_neg_k = torch.roll(torch.flip(x2, dims=[-1]), shifts=1, dims=[-1])
+def compl_mul1d(a, b):
+    # (batch, in_channel, x ), (in_channel, out_channel, x) -> (batch, out_channel, x)
+    return torch.einsum("bix,iox->box", a, b)
 
-#    result = 0.5 * (torch.einsum('bix,iox->box', X1_H_k, X2_H_k) -
-#                    torch.einsum('bix,iox->box', X1_H_neg_k, X2_H_neg_k) +
-#                    torch.einsum('bix,iox->box', X1_H_k, X2_H_neg_k) +
-#                    torch.einsum('bix,iox->box', X1_H_neg_k, X2_H_k))
 
-#    return result
+def compl_mul2d(a, b):
+    # (batch, in_channel, x,y,t ), (in_channel, out_channel, x,y,t) -> (batch, out_channel, x,y,t)
+    return torch.einsum("bixy,ioxy->boxy", a, b)
 
-#def compl_mul2d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
-#    X1_H_k = x1
-#    X2_H_k = x2
-#    X1_H_neg_k = torch.roll(torch.flip(x1, dims=[-1, -2]), shifts=(1, 1), dims=[-1, -2])
-#    X2_H_neg_k = torch.roll(torch.flip(x2, dims=[-1, -2]), shifts=(1, 1), dims=[-1, -2])
 
-#    result = 0.5 * (torch.einsum('bixy,ioxy->boxy', X1_H_k, X2_H_k) -
-#                    torch.einsum('bixy,ioxy->boxy', X1_H_neg_k, X2_H_neg_k) +
-#                    torch.einsum('bixy,ioxy->boxy', X1_H_k, X2_H_neg_k) +
-#                    torch.einsum('bixy,ioxy->boxy', X1_H_neg_k, X2_H_k))
-
-#    return result
-
-#def compl_mul3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
-#    X1_H_k = x1
-#    X2_H_k = x2
-#    X1_H_neg_k = torch.roll(torch.flip(x1, dims=[-3, -2, -1]), shifts=(1, 1, 1), dims=[-3, -2, -1])
-#    X2_H_neg_k = torch.roll(torch.flip(x2, dims=[-3, -2, -1]), shifts=(1, 1, 1), dims=[-3, -2, -1])
-
-#    result = 0.5 * (torch.einsum('bixyz,ioxyz->boxyz', X1_H_k, X2_H_k) -
-#                    torch.einsum('bixyz,ioxyz->boxyz', X1_H_neg_k, X2_H_neg_k) +
-#                    torch.einsum('bixyz,ioxyz->boxyz', X1_H_k, X2_H_neg_k) +
-#                    torch.einsum('bixyz,ioxyz->boxyz', X1_H_neg_k, X2_H_k))
-
-#    return result
+def compl_mul3d(a, b):
+    return torch.einsum("bixyz,ioxyz->boxyz", a, b)
 
 ################################################################
-# Low-Pass Filter Function
+# 1d fourier layer
 ################################################################
 
-#def low_pass_filter(x_ht, cutoff):
-#    """
-#    Applies a low-pass filter to the spectral coefficients (DHT output).
-#    Frequencies higher than `cutoff` are dampened.
-#    """
-#    size = x_ht.shape[-1]  # Get the last dimension (frequency axis)
-#    frequencies = torch.fft.fftfreq(size, d=1.0)  # Compute frequency bins
-#    filter_mask = torch.abs(frequencies) <= cutoff  # Mask for low frequencies
-#    return x_ht * filter_mask.to(x_ht.device)
-
-################################################################
-# Gaussian Smoothing Function
-################################################################
-
-#def gaussian_smoothing(x, kernel_size=5, sigma=1.0):
-#    """
-#    Applies Gaussian smoothing to the output.
-#    """
-#    # Apply Gaussian blur (use 2D or 3D kernel as needed)
-#    return F.gaussian_blur(x, kernel_size=[kernel_size], sigma=[sigma])
-
-################################################################
-# Data Augmentation Function
-################################################################
-
-#def augment_data(inputs, shift_range=0.1, scale_range=0.05):
-#    """
-#    Augment input data by applying random shifts and scaling.
-#    
-#    Parameters:
-#    - inputs: torch.Tensor, the input data to be augmented
-#    - shift_range: float, the maximum range for random shifts
-#    - scale_range: float, the maximum range for random scaling
-#    
-#    Returns:
-#    - augmented_inputs: torch.Tensor, the augmented input data
-#    """
-#    # Apply random shifts
-#    shifts = torch.rand(inputs.size()) * shift_range
-#    augmented_inputs = inputs + shifts
-#    
-#    # Apply random scaling
-#    scales = 1 + torch.rand(inputs.size()) * scale_range
-#    augmented_inputs = augmented_inputs * scales
-#    
-#    return augmented_inputs
-
-################################################################
-# 1D Hartley layer
-################################################################
 
 class SpectralConv1d(nn.Module):
     def __init__(self, in_channels, out_channels, modes1):
         super(SpectralConv1d, self).__init__()
 
         """
-        1D Hartley layer. It does DHT, linear transform, and Inverse DHT.
+        1D Fourier layer. It does FFT, linear transform, and Inverse FFT.    
         """
 
         self.in_channels = in_channels
         self.out_channels = out_channels
-        self.modes1 = modes1  # Number of Hartley modes to multiply, at most floor(N/2) + 1
+        # Number of Fourier modes to multiply, at most floor(N/2) + 1
+        self.modes1 = modes1
 
-        self.scale = (1 / (in_channels * out_channels))
-        self.weights1 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1))
-
-    def compl_mul1d(self, input, weights):
-        # Element-wise multiplication of the input by the weights in the Hartley space
-        return torch.einsum("bix,iow->bow", input, weights)
+        self.scale = (1 / (in_channels*out_channels))
+        self.weights1 = nn.Parameter(
+            self.scale * torch.rand(in_channels, out_channels, self.modes1, 2))
 
     def forward(self, x):
         batchsize = x.shape[0]
+        # Compute Fourier coeffcients up to factor of e^(- something constant)
+        x_ft = torch.fft.rfftn(x, dim=[2])
 
-        # Step 1: Compute Hartley Transform of x
-        x_ht = dht(x)
+        # Multiply relevant Fourier modes
+        out_ft = torch.zeros(batchsize, self.in_channels, x.size(-1)//2 + 1, device=x.device, dtype=torch.cfloat)
+        out_ft[:, :, :self.modes1] = compl_mul1d(x_ft[:, :, :self.modes1], self.weights1)
 
-        # Step 2: Multiply relevant Hartley modes in frequency space
-        out_ht = torch.zeros(batchsize, self.out_channels, x.size(-1), device=x.device)
-        out_ht[:, :, :self.modes1] = self.compl_mul1d(x_ht[:, :, :self.modes1], self.weights1)
-
-        # Step 3: Return to physical space using inverse Hartley transform (IDHT)
-        x_reconstructed = idht(out_ht)
-
-        return x_reconstructed
+        # Return to physical space
+        x = torch.fft.irfft(out_ft, s=[x.size(-1)], dim=[2])
+        return x
 
 ################################################################
-# 2D Hartley layer
+# 2d fourier layer
 ################################################################
+
 
 class SpectralConv2d(nn.Module):
     def __init__(self, in_channels, out_channels, modes1, modes2):
         super(SpectralConv2d, self).__init__()
-
-        """
-        2D Hartley layer. It does DHT, linear transform, and Inverse DHT.
-        """
-
         self.in_channels = in_channels
         self.out_channels = out_channels
-        self.modes1 = modes1  # Number of Hartley modes to multiply in the first dimension
-        self.modes2 = modes2  # Number of Hartley modes to multiply in the second dimension
+        # Number of Fourier modes to multiply, at most floor(N/2) + 1
+        self.modes1 = modes1
+        self.modes2 = modes2
 
         self.scale = (1 / (in_channels * out_channels))
-        self.weights1 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, modes1, modes2))
-        self.weights2 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, modes1, modes2))
+        self.weights1 = nn.Parameter(
+            self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, dtype=torch.cfloat))
+        self.weights2 = nn.Parameter(
+            self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, dtype=torch.cfloat))
 
-    def compl_mul2d(self, input, weights):
-        # Element-wise multiplication of the input by the weights in the Hartley space
-        return torch.einsum("bixy,ioxy->boxy", input, weights)
-
-    def forward(self, x):
+    def forward(self, x, gridy=None):
         batchsize = x.shape[0]
         size1 = x.shape[-2]
         size2 = x.shape[-1]
+        # Compute Fourier coeffcients up to factor of e^(- something constant)
+        x_ft = torch.fft.rfftn(x, dim=[2, 3])
 
-        # Step 1: Compute Hartley Transform of x
-        x_ht = dht(x)
+        if gridy is None:
+            # Multiply relevant Fourier modes
+            out_ft = torch.zeros(batchsize, self.out_channels, x.size(-2), x.size(-1) // 2 + 1, device=x.device,
+                                 dtype=torch.cfloat)
+            out_ft[:, :, :self.modes1, :self.modes2] = \
+                compl_mul2d(x_ft[:, :, :self.modes1, :self.modes2], self.weights1)
+            out_ft[:, :, -self.modes1:, :self.modes2] = \
+                compl_mul2d(x_ft[:, :, -self.modes1:, :self.modes2], self.weights2)
 
-        # Step 2: Multiply relevant Hartley modes in frequency space
-        out_ht = torch.zeros(batchsize, self.out_channels, size1, size2, device=x.device)
-        out_ht[:, :, :self.modes1, :self.modes2] = self.compl_mul2d(x_ht[:, :, :self.modes1, :self.modes2], self.weights1)
-        out_ht[:, :, -self.modes1:, :self.modes2] = self.compl_mul2d(x_ht[:, :, -self.modes1:, :self.modes2], self.weights2)
+            # Return to physical space
+            x = torch.fft.irfftn(out_ft, s=(x.size(-2), x.size(-1)), dim=[2, 3])
+        else:
+            factor1 = compl_mul2d(x_ft[:, :, :self.modes1, :self.modes2], self.weights1)
+            factor2 = compl_mul2d(x_ft[:, :, -self.modes1:, :self.modes2], self.weights2)
+            x = self.ifft2d(gridy, factor1, factor2, self.modes1, self.modes2) / (size1 * size2)
+        return x
 
-        # Step 3: Return to physical space using inverse Hartley transform (IDHT)
-        x_reconstructed = idht(out_ht)
+    def ifft2d(self, gridy, coeff1, coeff2, k1, k2):
 
-        return x_reconstructed
+        # y (batch, N, 2) locations in [0,1]*[0,1]
+        # coeff (batch, channels, kmax, kmax)
 
-################################################################
-# 3D Hartley layer
-################################################################
+        batchsize = gridy.shape[0]
+        N = gridy.shape[1]
+        device = gridy.device
+        m1 = 2 * k1
+        m2 = 2 * k2 - 1
+
+        # wavenumber (m1, m2)
+        k_x1 =  torch.cat((torch.arange(start=0, end=k1, step=1), \
+                            torch.arange(start=-(k1), end=0, step=1)), 0).reshape(m1,1).repeat(1,m2).to(device)
+        k_x2 =  torch.cat((torch.arange(start=0, end=k2, step=1), \
+                            torch.arange(start=-(k2-1), end=0, step=1)), 0).reshape(1,m2).repeat(m1,1).to(device)
+
+        # K = <y, k_x>,  (batch, N, m1, m2)
+        K1 = torch.outer(gridy[:,:,0].view(-1), k_x1.view(-1)).reshape(batchsize, N, m1, m2)
+        K2 = torch.outer(gridy[:,:,1].view(-1), k_x2.view(-1)).reshape(batchsize, N, m1, m2)
+        K = K1 + K2
+
+        # basis (N, m1, m2)
+        basis = torch.exp( 1j * 2* np.pi * K).to(device)
+
+        # coeff (batch, channels, m1, m2)
+        coeff3 = coeff1[:,:,1:,1:].flip(-1, -2).conj()
+        coeff4 = torch.cat([coeff1[:,:,0:1,1:].flip(-1).conj(), coeff2[:,:,:,1:].flip(-1, -2).conj()], dim=-2)
+        coeff12 = torch.cat([coeff1, coeff2], dim=-2)
+        coeff43 = torch.cat([coeff4, coeff3], dim=-2)
+        coeff = torch.cat([coeff12, coeff43], dim=-1)
+
+        # Y (batch, channels, N)
+        Y = torch.einsum("bcxy,bnxy->bcn", coeff, basis)
+        Y = Y.real
+        return Y
+
 
 class SpectralConv3d(nn.Module):
     def __init__(self, in_channels, out_channels, modes1, modes2, modes3):
         super(SpectralConv3d, self).__init__()
-
-        """
-        3D Hartley layer. It does DHT, linear transform, and Inverse DHT.
-        """
-
         self.in_channels = in_channels
         self.out_channels = out_channels
-        self.modes1 = modes1  # Number of Hartley modes to multiply in the first dimension
-        self.modes2 = modes2  # Number of Hartley modes to multiply in the second dimension
-        self.modes3 = modes3  # Number of Hartley modes to multiply in the third dimension
+        self.modes1 = modes1  #Number of Fourier modes to multiply, at most floor(N/2) + 1
+        self.modes2 = modes2
+        self.modes3 = modes3
 
         self.scale = (1 / (in_channels * out_channels))
-        self.weights1 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, modes1, modes2, modes3))
-        self.weights2 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, modes1, modes2, modes3))
-        self.weights3 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, modes1, modes2, modes3))
-        self.weights4 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, modes1, modes2, modes3))
-
-    def compl_mul3d(self, input, weights):
-        # Element-wise multiplication of the input by the weights in the Hartley space
-        return torch.einsum("bixyz,ioxyz->boxyz", input, weights)
+        self.weights1 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3, dtype=torch.cfloat))
+        self.weights2 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3, dtype=torch.cfloat))
+        self.weights3 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3, dtype=torch.cfloat))
+        self.weights4 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3, dtype=torch.cfloat))
 
     def forward(self, x):
         batchsize = x.shape[0]
-        size1 = x.shape[2]  # Spatial dimension 1
-        size2 = x.shape[3]  # Spatial dimension 2
-        size3 = x.shape[4]  # Spatial dimension 3
+        # Compute Fourier coeffcients up to factor of e^(- something constant)
+        x_ft = torch.fft.rfftn(x, dim=[2,3,4])
+        # Multiply relevant Fourier modes
+        out_ft = torch.zeros(batchsize, self.out_channels, x.size(2), x.size(3), x.size(4)//2 + 1, device=x.device, dtype=torch.cfloat)
+        out_ft[:, :, :self.modes1, :self.modes2, :self.modes3] = \
+            compl_mul3d(x_ft[:, :, :self.modes1, :self.modes2, :self.modes3], self.weights1)
+        out_ft[:, :, -self.modes1:, :self.modes2, :self.modes3] = \
+            compl_mul3d(x_ft[:, :, -self.modes1:, :self.modes2, :self.modes3], self.weights2)
+        out_ft[:, :, :self.modes1, -self.modes2:, :self.modes3] = \
+            compl_mul3d(x_ft[:, :, :self.modes1, -self.modes2:, :self.modes3], self.weights3)
+        out_ft[:, :, -self.modes1:, -self.modes2:, :self.modes3] = \
+            compl_mul3d(x_ft[:, :, -self.modes1:, -self.modes2:, :self.modes3], self.weights4)
 
-        # Step 1: Compute Hartley Transform of x
-        x_ht = dht(x)
+        #Return to physical space
+        x = torch.fft.irfftn(out_ft, s=(x.size(2), x.size(3), x.size(4)), dim=[2,3,4])
+        return x
 
-        # Step 2: Multiply relevant Hartley modes in frequency space
-        out_ht = torch.zeros(batchsize, self.out_channels, size1, size2, size3, device=x.device)
-        out_ht[:, :, :self.modes1, :self.modes2, :self.modes3] = self.compl_mul3d(x_ht[:, :, :self.modes1, :self.modes2, :self.modes3], self.weights1)
-        out_ht[:, :, -self.modes1:, :self.modes2, :self.modes3] = self.compl_mul3d(x_ht[:, :, -self.modes1:, :self.modes2, :self.modes3], self.weights2)
-        out_ht[:, :, :self.modes1, -self.modes2:, :self.modes3] = self.compl_mul3d(x_ht[:, :, :self.modes1, -self.modes2:, :self.modes3], self.weights3)
-        out_ht[:, :, -self.modes1:, -self.modes2:, :self.modes3] = self.compl_mul3d(x_ht[:, :, -self.modes1:, -self.modes2:, :self.modes3], self.weights4)
-
-        # Step 3: Return to physical space using inverse Hartley transform (IDHT)
-        x_reconstructed = idht(out_ht)
-
-        return x_reconstructed
-
-################################################################
-# FourierBlock (Using SpectralConv3d)
-################################################################
 
 class FourierBlock(nn.Module):
     def __init__(self, in_channels, out_channels, modes1, modes2, modes3, activation='tanh'):
         super(FourierBlock, self).__init__()
-        
-        # Spectral convolution layer (using 3D Hartley transform)
-        self.speconv = SpectralConv3d(in_channels, out_channels, modes1, modes2, modes3)
-        
-        # Linear layer applied across the channel dimension
+        self.in_channel = in_channels
+        self.out_channel = out_channels
+        self.speconv = SpectralConv3d(in_channels, out_channels, modes1, modes2, modes3)  # Assuming you have this defined elsewhere
         self.linear = nn.Conv1d(in_channels, out_channels, 1)
-        
-        # Activation function selection
+
         if activation == 'tanh':
-            self.activation = nn.Tanh()  # Use nn.Tanh() for module (not in-place operation)
+            self.activation = torch.tanh_
         elif activation == 'gelu':
-            self.activation = nn.GELU()  # Apply GELU non-linearity
+            self.activation = nn.GELU()
+        elif activation == 'swish':
+            self.activation = self.swish
         elif activation == 'none':
-            self.activation = None  # No activation
-        else:
-            raise ValueError(f'{activation} is not supported')
+            self.activation = None
+
+    @staticmethod
+    def swish(x):
+        return x * torch.sigmoid(x)
 
     def forward(self, x):
         '''
-        Input x: (batchsize, in_channels, x_grid, y_grid, t_grid)
+        input x: (batchsize, channel width, x_grid, y_grid, t_grid)
         '''
-        # Apply spectral convolution (3D Hartley convolution)
         x1 = self.speconv(x)
-        
-        # Apply 1D convolution across the channel dimension
-        # Flattening the last three dimensions into one while keeping the batch and channel
         x2 = self.linear(x.view(x.shape[0], self.in_channel, -1))
-        
-        # Reshape x2 back to match the original spatial and temporal grid structure
-        x2 = x2.view(x.shape[0], self.out_channel, x.shape[2], x.shape[3], x.shape[4])
-        
-        # Combine spectral and linear outputs (skip connection)
-        out = x1 + x2
-        
-        # Apply activation function (non-linearity)
+        out = x1 + x2.view(x.shape[0], self.out_channel, x.shape[2], x.shape[3], x.shape[4])
         if self.activation is not None:
             out = self.activation(out)
-        
         return out
