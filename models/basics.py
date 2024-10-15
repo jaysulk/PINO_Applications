@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 def dht(x: torch.Tensor, dim=None) -> torch.Tensor:
     # Compute the N-dimensional FFT of the input tensor with orthonormal normalization
-    result = torch.fft.fftn(x, dim=dim, norm='ortho')
+    result = torch.fft.fftn(x, dim=dim)
     
     # Combine real and imaginary parts to compute the DHT
     return result.real - result.imag  # Use subtraction to match DHT definition
