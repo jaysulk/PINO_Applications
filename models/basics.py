@@ -58,12 +58,15 @@ def compl_mul(x1: torch.Tensor, x2: torch.Tensor, num_transform_dims: int) -> to
 def flip_periodic(x: torch.Tensor) -> torch.Tensor:
     """
     Perform a periodic flip of the tensor along each transform dimension individually.
-    
+    For each transform dimension, the tensor is modified such that:
+    - The first element remains the same.
+    - The remaining elements are flipped.
+
     Args:
-        x (torch.Tensor): Input tensor.
-        
+        x (torch.Tensor): Input tensor of shape (Batch, Channels, ...).
+
     Returns:
-        torch.Tensor: Periodically flipped tensor.
+        torch.Tensor: Periodically flipped tensor with the same shape as input.
     """
     transform_dims = get_transform_dims(x)
     num_transform_dims = len(transform_dims)
@@ -71,18 +74,27 @@ def flip_periodic(x: torch.Tensor) -> torch.Tensor:
     # Ensure transform dimensions are the last N dimensions
     expected_transform_dims = list(range(x.dim() - num_transform_dims, x.dim()))
     if transform_dims != expected_transform_dims:
-        raise NotImplementedError("Transform dimensions must be the last N dimensions of the tensor.")
+        raise NotImplementedError(
+            "Transform dimensions must be the last N dimensions of the tensor."
+        )
     
-    # Initialize Z as a copy of x
+    # Initialize Z as a copy of x to avoid modifying the original tensor
     Z = x.clone()
     
     for dim in transform_dims:
-        # Split the first element along the current transform dimension
-        first = Z.select(dim, 0).unsqueeze(dim)
-        remaining = Z.select(dim, slice(1, None)).flip(dims=[dim])
+        if Z.size(dim) < 1:
+            raise ValueError(f"Dimension {dim} is too small to perform flip.")
         
-        # Concatenate first and flipped remaining along the current transform dimension
-        Z = torch.cat([first, remaining], dim=dim)
+        # Split the first element along the current transform dimension
+        first = Z.select(dim, 0).unsqueeze(dim)  # Shape: same as x with dim size=1
+        if Z.size(dim) > 1:
+            # Select all elements from index 1 onwards and flip them
+            remaining = Z.select(dim, slice(1, None)).flip(dims=[dim])
+            # Concatenate first and flipped remaining along the current dimension
+            Z = torch.cat([first, remaining], dim=dim)
+        else:
+            # If there's only one element, no flipping needed
+            Z = first
     
     return Z
 
