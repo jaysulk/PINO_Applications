@@ -57,9 +57,7 @@ def compl_mul(x1: torch.Tensor, x2: torch.Tensor, num_transform_dims: int) -> to
 
 def flip_periodic(x: torch.Tensor) -> torch.Tensor:
     """
-    Perform a periodic flip of the tensor along the transform dimensions.
-    
-    For each set of transform dimensions, concatenate the first element with the flipped remaining elements.
+    Perform a periodic flip of the tensor along each transform dimension individually.
     
     Args:
         x (torch.Tensor): Input tensor.
@@ -75,26 +73,17 @@ def flip_periodic(x: torch.Tensor) -> torch.Tensor:
     if transform_dims != expected_transform_dims:
         raise NotImplementedError("Transform dimensions must be the last N dimensions of the tensor.")
     
-    # Compute the total number of elements along transform dims
-    # Flatten the transform dims into one dimension
-    batch_shape = x.shape[:-num_transform_dims]
-    flattened_dim = 1
+    # Initialize Z as a copy of x
+    Z = x.clone()
+    
     for dim in transform_dims:
-        flattened_dim *= x.shape[dim]
-    x_flat = x.view(*batch_shape, flattened_dim)
+        # Split the first element along the current transform dimension
+        first = Z.select(dim, 0).unsqueeze(dim)
+        remaining = Z.select(dim, slice(1, None)).flip(dims=[dim])
+        
+        # Concatenate first and flipped remaining along the current transform dimension
+        Z = torch.cat([first, remaining], dim=dim)
     
-    # Split the first element and the remaining
-    first = x_flat[..., :1]  # Shape: (..., 1)
-    remaining = x_flat[..., 1:]  # Shape: (..., flattened_dim - 1)
-    
-    # Flip the remaining elements
-    remaining_flipped = torch.flip(remaining, dims=[-1])
-    
-    # Concatenate first and flipped remaining
-    Z_flat = torch.cat([first, remaining_flipped], dim=-1)
-    
-    # Reshape back to original shape
-    Z = Z_flat.view_as(x)
     return Z
 
 def dht(x: torch.Tensor) -> torch.Tensor:
