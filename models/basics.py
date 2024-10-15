@@ -2,8 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-import torch
-
 def dht(x: torch.Tensor, dim=None) -> torch.Tensor:
     # Compute the N-dimensional FFT of the input tensor
     result = torch.fft.fftn(x, dim=dim)
@@ -42,10 +40,10 @@ def compl_mul1d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     X2_H_Nk = torch.roll(torch.flip(x2, dims=[-1]), shifts=1, dims=[-1])
 
     # Compute the convolution using the DHT convolution theorem
-    term1 = torch.einsum('bix,iox->box', X1_H_k, X2_H_k)
-    term2 = torch.einsum('bix,iox->box', X1_H_Nk, X2_H_Nk)
-
-    result = 0.5 * (term1 + term2)
+    result = 0.5 * (torch.einsum('bix,iox->box', X1_H_k, X2_H_k) -
+                    torch.einsum('bix,iox->box', X1_H_neg_k, X2_H_neg_k) +
+                    torch.einsum('bix,iox->box', X1_H_k, X2_H_neg_k) +
+                    torch.einsum('bix,iox->box', X1_H_neg_k, X2_H_k))
 
     return result
 
@@ -58,10 +56,10 @@ def compl_mul2d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     X1_H_Nk = torch.roll(torch.flip(x1, dims=[-2, -1]), shifts=(1, 1), dims=[-2, -1])
     X2_H_Nk = torch.roll(torch.flip(x2, dims=[-2, -1]), shifts=(1, 1), dims=[-2, -1])
 
-    term1 = torch.einsum('bixy,ioxy->boxy', X1_H_k, X2_H_k)
-    term2 = torch.einsum('bixy,ioxy->boxy', X1_H_Nk, X2_H_Nk)
-
-    result = 0.5 * (term1 + term2)
+    result = 0.5 * (torch.einsum('bixy,ioxy->boxy', X1_H_k, X2_H_k) -
+                    torch.einsum('bixy,ioxy->boxy', X1_H_neg_k, X2_H_neg_k) +
+                    torch.einsum('bixy,ioxy->boxy', X1_H_k, X2_H_neg_k) +
+                    torch.einsum('bixy,ioxy->boxy', X1_H_neg_k, X2_H_k))
 
     return result
 
@@ -74,10 +72,10 @@ def compl_mul3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     X1_H_Nk = torch.roll(torch.flip(x1, dims=[-3, -2, -1]), shifts=(1, 1, 1), dims=[-3, -2, -1])
     X2_H_Nk = torch.roll(torch.flip(x2, dims=[-3, -2, -1]), shifts=(1, 1, 1), dims=[-3, -2, -1])
 
-    term1 = torch.einsum('bixyz,ioxyz->boxyz', X1_H_k, X2_H_k)
-    term2 = torch.einsum('bixyz,ioxyz->boxyz', X1_H_Nk, X2_H_Nk)
-
-    result = 0.5 * (term1 + term2)
+    result = 0.5 * (torch.einsum('bixyz,ioxyz->boxyz', X1_H_k, X2_H_k) -
+                    torch.einsum('bixyz,ioxyz->boxyz', X1_H_neg_k, X2_H_neg_k) +
+                    torch.einsum('bixyz,ioxyz->boxyz', X1_H_k, X2_H_neg_k) +
+                    torch.einsum('bixyz,ioxyz->boxyz', X1_H_neg_k, X2_H_k))
 
     return result
 
