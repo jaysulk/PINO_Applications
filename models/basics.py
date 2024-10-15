@@ -2,8 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-import torch
-
 # Define the DHT and IDHT functions with corrections
 def dht(x: torch.Tensor, dim=None) -> torch.Tensor:
     result = torch.fft.fftn(x, dim=dim, norm='ortho')
