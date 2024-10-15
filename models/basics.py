@@ -2,8 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-import torch
-
 def get_transform_dims(x: torch.Tensor):
     """
     Determine the transform dimensions based on the input tensor's dimensionality.
