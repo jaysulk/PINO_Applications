@@ -57,26 +57,18 @@ def compl_mul(x1: torch.Tensor, x2: torch.Tensor, num_transform_dims: int) -> to
 
 def flip_periodic(x: torch.Tensor) -> torch.Tensor:
     """
-    Perform a periodic flip of the tensor along each transform dimension individually.
+    Perform a periodic flip of the tensor along specified transform dimensions.
     For each transform dimension, the tensor is modified such that:
-    - The first element remains the same.
-    - The remaining elements are flipped.
-
+        - The first element remains the same.
+        - The remaining elements are flipped.
+    
     Args:
         x (torch.Tensor): Input tensor of shape (Batch, Channels, ...).
-
+    
     Returns:
         torch.Tensor: Periodically flipped tensor with the same shape as input.
     """
     transform_dims = get_transform_dims(x)
-    num_transform_dims = len(transform_dims)
-    
-    # Ensure transform dimensions are the last N dimensions
-    expected_transform_dims = list(range(x.dim() - num_transform_dims, x.dim()))
-    if transform_dims != expected_transform_dims:
-        raise NotImplementedError(
-            "Transform dimensions must be the last N dimensions of the tensor."
-        )
     
     # Initialize Z as a copy of x to avoid modifying the original tensor
     Z = x.clone()
@@ -105,7 +97,7 @@ def flip_periodic(x: torch.Tensor) -> torch.Tensor:
             Z = first
     
     return Z
-    
+
 def dht(x: torch.Tensor) -> torch.Tensor:
     """
     Compute the Discrete Hartley Transform (DHT) of the input tensor.
