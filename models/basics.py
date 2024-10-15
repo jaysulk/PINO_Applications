@@ -45,7 +45,7 @@ def compl_mul1d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
                     torch.einsum('bix,iox->box', X1_H_k, X2_H_neg_k) +
                     torch.einsum('bix,iox->box', X1_H_neg_k, X2_H_k))
 
-    return result
+    return result.real
 
 def compl_mul2d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     # x1: (batch_size, in_channels, height, width)
@@ -61,7 +61,7 @@ def compl_mul2d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
                     torch.einsum('bixy,ioxy->boxy', X1_H_k, X2_H_neg_k) +
                     torch.einsum('bixy,ioxy->boxy', X1_H_neg_k, X2_H_k))
 
-    return result
+    return result.real
 
 def compl_mul3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     # x1: (batch_size, in_channels, depth, height, width)
@@ -77,7 +77,7 @@ def compl_mul3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
                     torch.einsum('bixyz,ioxyz->boxyz', X1_H_k, X2_H_neg_k) +
                     torch.einsum('bixyz,ioxyz->boxyz', X1_H_neg_k, X2_H_k))
 
-    return result
+    return result.real
 
     
 ################################################################
