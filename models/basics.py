@@ -42,8 +42,8 @@ def compl_mul1d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     X2_H_Nk = torch.roll(torch.flip(x2, dims=[-1]), shifts=1, dims=[-1])
 
     # Compute the convolution using the DHT convolution theorem
-    term1 = torch.einsum('bik,iok->bok', X1_H_k, X2_H_k)
-    term2 = torch.einsum('bik,iok->bok', X1_H_Nk, X2_H_Nk)
+    term1 = torch.einsum('bix,iox->box', X1_H_k, X2_H_k)
+    term2 = torch.einsum('bix,iox->box', X1_H_Nk, X2_H_Nk)
 
     result = 0.5 * (term1 + term2)
 
@@ -58,8 +58,8 @@ def compl_mul2d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     X1_H_Nk = torch.roll(torch.flip(x1, dims=[-2, -1]), shifts=(1, 1), dims=[-2, -1])
     X2_H_Nk = torch.roll(torch.flip(x2, dims=[-2, -1]), shifts=(1, 1), dims=[-2, -1])
 
-    term1 = torch.einsum('bikhw,iokhw->bokhw', X1_H_k, X2_H_k)
-    term2 = torch.einsum('bikhw,iokhw->bokhw', X1_H_Nk, X2_H_Nk)
+    term1 = torch.einsum('bixy,ioxy->boxy', X1_H_k, X2_H_k)
+    term2 = torch.einsum('bixy,ioxy->boxy', X1_H_Nk, X2_H_Nk)
 
     result = 0.5 * (term1 + term2)
 
@@ -74,8 +74,8 @@ def compl_mul3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     X1_H_Nk = torch.roll(torch.flip(x1, dims=[-3, -2, -1]), shifts=(1, 1, 1), dims=[-3, -2, -1])
     X2_H_Nk = torch.roll(torch.flip(x2, dims=[-3, -2, -1]), shifts=(1, 1, 1), dims=[-3, -2, -1])
 
-    term1 = torch.einsum('bikdhw,iokdhw->bokdhw', X1_H_k, X2_H_k)
-    term2 = torch.einsum('bikdhw,iokdhw->bokdhw', X1_H_Nk, X2_H_Nk)
+    term1 = torch.einsum('bixyz,ioxyz->boxyz', X1_H_k, X2_H_k)
+    term2 = torch.einsum('bixyz,ioxyz->boxyz', X1_H_Nk, X2_H_Nk)
 
     result = 0.5 * (term1 + term2)
 
