@@ -2,91 +2,193 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-def get_transform_dims(x: torch.Tensor):
-    """
-    Determine the transform dimensions based on the input tensor's dimensionality.
-    
-    - 3D tensor: [batch, channel, length] -> dim=[2]
-    - 4D tensor: [batch, channel, height, width] -> dim=[2, 3]
-    - 5D tensor: [batch, channel, depth, height, width] -> dim=[2, 3, 4]
-    
-    Raises:
-        ValueError: If tensor dimensionality is not 3, 4, or 5.
-    
-    Returns:
-        List[int]: List of dimensions to perform the transform on.
-    """
-    if x.dim() == 3:
-        return [2]
-    elif x.dim() == 4:
-        return [2, 3]
-    elif x.dim() == 5:
-        return [2, 3, 4]
-    else:
-        raise ValueError(f"Unsupported tensor dimension: {x.dim()}. Supported dimensions are 3, 4, or 5.")
+################################################################
+# 1D Functions
+################################################################
 
-def compl_mul(x1: torch.Tensor, x2: torch.Tensor, num_transform_dims: int) -> torch.Tensor:
+def compl_mul_1d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     """
-    Generalized convolution using torch.einsum for 1D, 2D, and 3D cases.
-    
+    1D convolution using torch.einsum.
+
     Args:
-        x1 (torch.Tensor): Input tensor with shape [batch, in_channels, ...]
-        x2 (torch.Tensor): Kernel tensor with shape [in_channels, out_channels, ...]
-        num_transform_dims (int): Number of dimensions to transform (1, 2, or 3)
-    
+        x1 (torch.Tensor): Input tensor with shape [batch, in_channels, length]
+        x2 (torch.Tensor): Kernel tensor with shape [in_channels, out_channels, modes1]
+
     Returns:
-        torch.Tensor: Convolved tensor with shape [batch, out_channels, ...]
+        torch.Tensor: Convolved tensor with shape [batch, out_channels, length]
     """
-    # Define letters for transform dimensions
-    letters = ['x', 'y', 'z']
-    if num_transform_dims > len(letters):
-        raise ValueError(f"Number of transform dimensions {num_transform_dims} exceeds supported letters {letters}.")
-    
-    transform_letters = ''.join(letters[:num_transform_dims])
-    
-    # Construct einsum equation
-    # x1: 'b i' + transform_letters
-    # x2: 'i o' + transform_letters
-    # output: 'b o' + transform_letters
-    x1_subscript = 'bi' + transform_letters
-    x2_subscript = 'io' + transform_letters
-    output_subscript = 'bo' + transform_letters
-    equation = f'{x1_subscript},{x2_subscript}->{output_subscript}'
-    
+    # Define the einsum equation for 1D
+    equation = 'bix,iox->box'
     return torch.einsum(equation, x1, x2)
 
-def flip_periodic(x: torch.Tensor) -> torch.Tensor:
+def flip_periodic_1d(x: torch.Tensor) -> torch.Tensor:
     """
-    Perform a periodic flip of the tensor along specified transform dimensions.
-    For each transform dimension, the tensor is modified such that:
-        - The first element remains the same.
-        - The remaining elements are flipped.
-    
+    Perform a periodic flip of the tensor along the length dimension.
+
     Args:
-        x (torch.Tensor): Input tensor of shape (Batch, Channels, ...).
-    
+        x (torch.Tensor): Input tensor of shape [batch, channels, length].
+
     Returns:
         torch.Tensor: Periodically flipped tensor with the same shape as input.
     """
-    transform_dims = get_transform_dims(x)
-    
+    dim = 2  # Length dimension
+
+    if x.size(dim) < 1:
+        raise ValueError(f"Dimension {dim} is too small to perform flip.")
+
     # Initialize Z as a copy of x to avoid modifying the original tensor
     Z = x.clone()
-    
-    for dim in transform_dims:
+
+    # Prepare slicing indices
+    idx_first = [slice(None)] * Z.dim()
+    idx_first[dim] = 0  # Select the first element along 'dim'
+
+    idx_remaining = [slice(None)] * Z.dim()
+    idx_remaining[dim] = slice(1, None)  # Select elements from index 1 onwards
+
+    # Extract the first element
+    first = Z[tuple(idx_first)].unsqueeze(dim)  # Shape: [batch, channels, 1]
+
+    if Z.size(dim) > 1:
+        # Select all elements from index 1 onwards and flip them
+        remaining = Z[tuple(idx_remaining)].flip(dims=[dim])
+        # Concatenate first and flipped remaining along the current dimension
+        Z = torch.cat([first, remaining], dim=dim)
+    else:
+        # If there's only one element, no flipping needed
+        Z = first
+
+    return Z
+
+def dht_1d(x: torch.Tensor) -> torch.Tensor:
+    """
+    Compute the 1D Discrete Hartley Transform (DHT) of the input tensor.
+
+    Args:
+        x (torch.Tensor): Input tensor with shape [batch, channels, length].
+
+    Returns:
+        torch.Tensor: DHT of the input tensor.
+    """
+    transform_dims = [2]  # Length dimension
+    X = torch.fft.fftn(x, dim=transform_dims)
+    X = X.real - X.imag
+    return X
+
+def idht_1d(X: torch.Tensor) -> torch.Tensor:
+    """
+    Compute the Inverse 1D Discrete Hartley Transform (IDHT) of the input tensor.
+
+    Since the DHT is involutory, IDHT(x) = (1/n) * DHT(DHT(x))
+
+    Args:
+        X (torch.Tensor): Input tensor in the DHT domain with shape [batch, channels, length].
+
+    Returns:
+        torch.Tensor: Inverse DHT of the input tensor.
+    """
+    transform_dims = [2]  # Length dimension
+    n = X.shape[2]  # Length
+    x = dht_1d(X)
+    x = x / n
+    return x
+
+def dht_conv_1d(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+    """
+    Compute the DHT of the convolution of two 1D tensors using the convolution theorem.
+
+    Args:
+        x (torch.Tensor): First input tensor with shape [batch, in_channels, length]
+        y (torch.Tensor): Second input tensor with shape [in_channels, out_channels, modes1]
+
+    Returns:
+        torch.Tensor: DHT of the convolution of x and y.
+    """
+    # Ensure x and y have compatible shapes
+    assert x.dim() == y.dim() + 1, "For 1D, x should have one more dimension than y."
+    assert y.shape[0] == x.shape[1], "y's in_channels must match x's in_channels."
+
+    # Compute DHTs
+    X = dht_1d(x)  # [batch, in_channels, length]
+    Y = dht_1d(y)  # [in_channels, out_channels, length]
+
+    # Compute flipped versions
+    Xflip = flip_periodic_1d(X)
+    Yflip = flip_periodic_1d(Y)
+
+    # Compute even and odd components
+    Yeven = 0.5 * (Y + Yflip)
+    Yodd  = 0.5 * (Y - Yflip)
+
+    # Perform convolution using compl_mul
+    term1 = compl_mul_1d(X, Yeven)
+    term2 = compl_mul_1d(Xflip, Yodd)
+
+    # Combine terms
+    Z = term1 + term2  # [batch, out_channels, length]
+
+    return Z
+
+def conv_1d(x_ht: torch.Tensor, weights: torch.Tensor) -> torch.Tensor:
+    """
+    Perform 1D convolution in the Hartley domain.
+
+    Args:
+        x_ht (torch.Tensor): Hartley-transformed input tensor [batch, in_channels, modes1]
+        weights (torch.Tensor): Hartley-transformed weights [in_channels, out_channels, modes1]
+
+    Returns:
+        torch.Tensor: Convolved tensor in the Hartley domain [batch, out_channels, modes1]
+    """
+    return compl_mul_1d(x_ht, weights)
+
+################################################################
+# 2D Functions
+################################################################
+
+def compl_mul_2d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
+    """
+    2D convolution using torch.einsum.
+
+    Args:
+        x1 (torch.Tensor): Input tensor with shape [batch, in_channels, height, width]
+        x2 (torch.Tensor): Kernel tensor with shape [in_channels, out_channels, modes1, modes2]
+
+    Returns:
+        torch.Tensor: Convolved tensor with shape [batch, out_channels, height, width]
+    """
+    # Define the einsum equation for 2D
+    equation = 'bixy,ioxy->boxy'
+    return torch.einsum(equation, x1, x2)
+
+def flip_periodic_2d(x: torch.Tensor) -> torch.Tensor:
+    """
+    Perform a periodic flip of the tensor along height and width dimensions.
+
+    Args:
+        x (torch.Tensor): Input tensor of shape [batch, channels, height, width].
+
+    Returns:
+        torch.Tensor: Periodically flipped tensor with the same shape as input.
+    """
+    dims = [2, 3]  # Height and Width dimensions
+
+    Z = x.clone()
+
+    for dim in dims:
         if Z.size(dim) < 1:
             raise ValueError(f"Dimension {dim} is too small to perform flip.")
-        
+
         # Prepare slicing indices
         idx_first = [slice(None)] * Z.dim()
         idx_first[dim] = 0  # Select the first element along 'dim'
-        
+
         idx_remaining = [slice(None)] * Z.dim()
         idx_remaining[dim] = slice(1, None)  # Select elements from index 1 onwards
-        
+
         # Extract the first element
         first = Z[tuple(idx_first)].unsqueeze(dim)  # Shape: same as x with dim size=1
-        
+
         if Z.size(dim) > 1:
             # Select all elements from index 1 onwards and flip them
             remaining = Z[tuple(idx_remaining)].flip(dims=[dim])
@@ -95,107 +197,242 @@ def flip_periodic(x: torch.Tensor) -> torch.Tensor:
         else:
             # If there's only one element, no flipping needed
             Z = first
-    
+
     return Z
 
-def dht(x: torch.Tensor) -> torch.Tensor:
+def dht_2d(x: torch.Tensor) -> torch.Tensor:
     """
-    Compute the Discrete Hartley Transform (DHT) of the input tensor.
-    
+    Compute the 2D Discrete Hartley Transform (DHT) of the input tensor.
+
     Args:
-        x (torch.Tensor): Input tensor.
-        
+        x (torch.Tensor): Input tensor with shape [batch, channels, height, width].
+
     Returns:
         torch.Tensor: DHT of the input tensor.
     """
-    transform_dims = get_transform_dims(x)
+    transform_dims = [2, 3]  # Height and Width dimensions
     X = torch.fft.fftn(x, dim=transform_dims)
     X = X.real - X.imag
     return X
 
-def idht(X: torch.Tensor) -> torch.Tensor:
+def idht_2d(X: torch.Tensor) -> torch.Tensor:
     """
-    Compute the Inverse Discrete Hartley Transform (IDHT) of the input tensor.
-    
+    Compute the Inverse 2D Discrete Hartley Transform (IDHT) of the input tensor.
+
     Since the DHT is involutory, IDHT(x) = (1/n) * DHT(DHT(x))
-    
+
     Args:
-        X (torch.Tensor): Input tensor in the DHT domain.
-        
+        X (torch.Tensor): Input tensor in the DHT domain with shape [batch, channels, height, width].
+
     Returns:
         torch.Tensor: Inverse DHT of the input tensor.
     """
-    transform_dims = get_transform_dims(X)
-    # Compute the product of sizes along transform dims
-    n = 1
-    for dim in transform_dims:
-        n *= X.shape[dim]
-    x = dht(X)
+    transform_dims = [2, 3]  # Height and Width dimensions
+    n = X.shape[2] * X.shape[3]  # Height * Width
+    x = dht_2d(X)
     x = x / n
     return x
 
-def dht_conv(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+def dht_conv_2d(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
     """
-    Compute the DHT of the convolution of two tensors using the convolution theorem and torch.einsum.
-    
+    Compute the DHT of the convolution of two 2D tensors using the convolution theorem.
+
     Args:
-        x (torch.Tensor): First input tensor with shape [batch, in_channels, ...]
-        y (torch.Tensor): Second input tensor with shape [in_channels, out_channels, ...]
-        
+        x (torch.Tensor): First input tensor with shape [batch, in_channels, height, width]
+        y (torch.Tensor): Second input tensor with shape [in_channels, out_channels, modes1, modes2]
+
     Returns:
         torch.Tensor: DHT of the convolution of x and y.
-        
-    Raises:
-        AssertionError: If x and y do not have the same shape except for the out_channels dimension.
     """
     # Ensure x and y have compatible shapes
-    # x: [batch, in_channels, ...]
-    # y: [in_channels, out_channels, ...]
-    assert x.dim() == y.dim(), "x and y must have the same number of dimensions."
+    assert x.dim() == y.dim(), "x and y must have the same number of dimensions for 2D."
     assert y.shape[0] == x.shape[1], "y's in_channels must match x's in_channels."
-    num_transform_dims = x.dim() - 2  # Exclude batch and channel dimensions
-    
+
     # Compute DHTs
-    X = dht(x)  # [batch, in_channels, ...]
-    Y = dht(y)  # [in_channels, out_channels, ...]
-    
+    X = dht_2d(x)  # [batch, in_channels, height, width]
+    Y = dht_2d(y)  # [in_channels, out_channels, height, width]
+
     # Compute flipped versions
-    Xflip = flip_periodic(X)
-    Yflip = flip_periodic(Y)
-    
+    Xflip = flip_periodic_2d(X)
+    Yflip = flip_periodic_2d(Y)
+
     # Compute even and odd components
     Yeven = 0.5 * (Y + Yflip)
     Yodd  = 0.5 * (Y - Yflip)
-    
-    # Perform convolution using the generalized compl_mul with torch.einsum
-    # Z = X * Yeven + Xflip * Yodd
-    # We'll use compl_mul for the tensor contractions
-    
-    # First term: compl_mul(X, Yeven)
-    term1 = compl_mul(X, Yeven, num_transform_dims)
-    
-    # Second term: compl_mul(Xflip, Yodd)
-    term2 = compl_mul(Xflip, Yodd, num_transform_dims)
-    
+
+    # Perform convolution using compl_mul
+    term1 = compl_mul_2d(X, Yeven)
+    term2 = compl_mul_2d(Xflip, Yodd)
+
     # Combine terms
-    Z = term1 + term2  # [batch, out_channels, ...]
-    
+    Z = term1 + term2  # [batch, out_channels, height, width]
+
     return Z
 
-def conv(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+def conv_2d(x_ht: torch.Tensor, weights: torch.Tensor) -> torch.Tensor:
     """
-    Compute the convolution of two tensors using the DHT.
-    
+    Perform 2D convolution in the Hartley domain.
+
     Args:
-        x (torch.Tensor): First input tensor with shape [batch, in_channels, ...]
-        y (torch.Tensor): Second input tensor with shape [in_channels, out_channels, ...]
-        
+        x_ht (torch.Tensor): Hartley-transformed input tensor [batch, in_channels, modes1, modes2]
+        weights (torch.Tensor): Hartley-transformed weights [in_channels, out_channels, modes1, modes2]
+
     Returns:
-        torch.Tensor: Convolution of x and y with shape [batch, out_channels, ...]
+        torch.Tensor: Convolved tensor in the Hartley domain [batch, out_channels, modes1, modes2]
     """
-    Z = dht_conv(x, y)
-    z = idht(Z)
-    return z
+    return compl_mul_2d(x_ht, weights)
+
+################################################################
+# 3D Functions
+################################################################
+
+def compl_mul_3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
+    """
+    3D convolution using torch.einsum.
+
+    Args:
+        x1 (torch.Tensor): Input tensor with shape [batch, in_channels, depth, height, width]
+        x2 (torch.Tensor): Kernel tensor with shape [in_channels, out_channels, modes1, modes2, modes3]
+
+    Returns:
+        torch.Tensor: Convolved tensor with shape [batch, out_channels, depth, height, width]
+    """
+    # Define the einsum equation for 3D
+    equation = 'bixyz,ioxyz->boxyz'
+    return torch.einsum(equation, x1, x2)
+
+def flip_periodic_3d(x: torch.Tensor) -> torch.Tensor:
+    """
+    Perform a periodic flip of the tensor along depth, height, and width dimensions.
+
+    Args:
+        x (torch.Tensor): Input tensor of shape [batch, channels, depth, height, width].
+
+    Returns:
+        torch.Tensor: Periodically flipped tensor with the same shape as input.
+    """
+    dims = [2, 3, 4]  # Depth, Height, and Width dimensions
+
+    Z = x.clone()
+
+    for dim in dims:
+        if Z.size(dim) < 1:
+            raise ValueError(f"Dimension {dim} is too small to perform flip.")
+
+        # Prepare slicing indices
+        idx_first = [slice(None)] * Z.dim()
+        idx_first[dim] = 0  # Select the first element along 'dim'
+
+        idx_remaining = [slice(None)] * Z.dim()
+        idx_remaining[dim] = slice(1, None)  # Select elements from index 1 onwards
+
+        # Extract the first element
+        first = Z[tuple(idx_first)].unsqueeze(dim)  # Shape: same as x with dim size=1
+
+        if Z.size(dim) > 1:
+            # Select all elements from index 1 onwards and flip them
+            remaining = Z[tuple(idx_remaining)].flip(dims=[dim])
+            # Concatenate first and flipped remaining along the current dimension
+            Z = torch.cat([first, remaining], dim=dim)
+        else:
+            # If there's only one element, no flipping needed
+            Z = first
+
+    return Z
+
+def dht_3d(x: torch.Tensor) -> torch.Tensor:
+    """
+    Compute the 3D Discrete Hartley Transform (DHT) of the input tensor.
+
+    Args:
+        x (torch.Tensor): Input tensor with shape [batch, channels, depth, height, width].
+
+    Returns:
+        torch.Tensor: DHT of the input tensor.
+    """
+    transform_dims = [2, 3, 4]  # Depth, Height, and Width dimensions
+    X = torch.fft.fftn(x, dim=transform_dims)
+    X = X.real - X.imag
+    return X
+
+def idht_3d(X: torch.Tensor) -> torch.Tensor:
+    """
+    Compute the Inverse 3D Discrete Hartley Transform (IDHT) of the input tensor.
+
+    Since the DHT is involutory, IDHT(x) = (1/n) * DHT(DHT(x))
+
+    Args:
+        X (torch.Tensor): Input tensor in the DHT domain with shape [batch, channels, depth, height, width].
+
+    Returns:
+        torch.Tensor: Inverse DHT of the input tensor.
+    """
+    transform_dims = [2, 3, 4]  # Depth, Height, and Width dimensions
+    n = X.shape[2] * X.shape[3] * X.shape[4]  # Depth * Height * Width
+    x = dht_3d(X)
+    x = x / n
+    return x
+
+def dht_conv_3d(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+    """
+    Compute the DHT of the convolution of two 3D tensors using the convolution theorem.
+
+    Args:
+        x (torch.Tensor): First input tensor with shape [batch, in_channels, depth, height, width]
+        y (torch.Tensor): Second input tensor with shape [in_channels, out_channels, modes1, modes2, modes3]
+
+    Returns:
+        torch.Tensor: DHT of the convolution of x and y.
+    """
+    # Ensure x and y have compatible shapes
+    assert x.dim() == y.dim(), "x and y must have the same number of dimensions for 3D."
+    assert y.shape[0] == x.shape[1], "y's in_channels must match x's in_channels."
+
+    # Compute DHTs
+    X = dht_3d(x)  # [batch, in_channels, depth, height, width]
+    Y = dht_3d(y)  # [in_channels, out_channels, depth, height, width]
+
+    # Compute flipped versions
+    Xflip = flip_periodic_3d(X)
+    Yflip = flip_periodic_3d(Y)
+
+    # Compute even and odd components
+    Yeven = 0.5 * (Y + Yflip)
+    Yodd  = 0.5 * (Y - Yflip)
+
+    # Perform convolution using compl_mul
+    term1 = compl_mul_3d(X, Yeven)
+    term2 = compl_mul_3d(Xflip, Yodd)
+
+    # Combine terms
+    Z = term1 + term2  # [batch, out_channels, depth, height, width]
+
+    return Z
+
+def conv_3d(x_ht: torch.Tensor, weights: torch.Tensor) -> torch.Tensor:
+    """
+    Perform 3D convolution in the Hartley domain.
+
+    Args:
+        x_ht (torch.Tensor): Hartley-transformed input tensor [batch, in_channels, modes1, modes2, modes3]
+        weights (torch.Tensor): Hartley-transformed weights [in_channels, out_channels, modes1, modes2, modes3]
+
+    Returns:
+        torch.Tensor: Convolved tensor in the Hartley domain [batch, out_channels, modes1, modes2, modes3]
+    """
+    return compl_mul_3d(x_ht, weights)
+
+################################################################
+# Generalized DHT and Convolution Functions (Removed)
+################################################################
+
+# The generalized functions like get_transform_dims, compl_mul, flip_periodic,
+# dht, idht, dht_conv, and conv are no longer needed as we have separate
+# functions for each dimensionality.
+
+################################################################
+# Spectral Convolution Layers
+################################################################
 
 ################################################################
 # 1D Hartley convolution layer
@@ -222,14 +459,14 @@ class SpectralConv1d(nn.Module):
         batchsize = x.shape[0]
 
         # Compute Hartley coefficients
-        x_ht = dht(x)
+        x_ht = dht_1d(x)  # [batch, in_channels, length]
 
         # Multiply relevant Hartley modes
         out_ht = torch.zeros(batchsize, self.out_channels, x.size(-1), device=x.device, dtype=x.dtype)
-        out_ht[:, :, :self.modes1] = conv(x_ht[:, :, :self.modes1], self.weights1)
+        out_ht[:, :, :self.modes1] = conv_1d(x_ht[:, :, :self.modes1], self.weights1)
 
         # Return to physical space
-        x = idht(out_ht)
+        x = idht_1d(out_ht)  # [batch, out_channels, length]
 
         return x
 
@@ -255,15 +492,15 @@ class SpectralConv2d(nn.Module):
         size2 = x.shape[-1]
 
         # Compute Hartley coefficients
-        x_ht = dht(x)
+        x_ht = dht_2d(x)  # [batch, in_channels, height, width]
 
         # Multiply relevant Hartley modes
         out_ht = torch.zeros(batchsize, self.out_channels, size1, size2, device=x.device, dtype=x.dtype)
-        out_ht[:, :, :self.modes1, :self.modes2] = conv(
+        out_ht[:, :, :self.modes1, :self.modes2] = conv_2d(
             x_ht[:, :, :self.modes1, :self.modes2], self.weights1)
 
         # Return to physical space
-        x = idht(out_ht)
+        x = idht_2d(out_ht)  # [batch, out_channels, height, width]
 
         return x
 
@@ -291,25 +528,91 @@ class SpectralConv3d(nn.Module):
         size3 = x.shape[-1]
 
         # Compute Hartley coefficients
-        x_ht = dht(x)
+        x_ht = dht_3d(x)  # [batch, in_channels, depth, height, width]
 
         # Multiply relevant Hartley modes
         out_ht = torch.zeros(batchsize, self.out_channels, size1, size2, size3, device=x.device, dtype=x.dtype)
-        out_ht[:, :, :self.modes1, :self.modes2, :self.modes3] = conv(
+        out_ht[:, :, :self.modes1, :self.modes2, :self.modes3] = conv_3d(
             x_ht[:, :, :self.modes1, :self.modes2, :self.modes3], self.weights1)
 
         # Return to physical space
-        x = idht(out_ht)
+        x = idht_3d(out_ht)  # [batch, out_channels, depth, height, width]
 
         return x
 
 ################################################################
-# FourierBlock (Using SpectralConv3d)
+# FourierBlock (Using SpectralConv1d, SpectralConv2d, SpectralConv3d)
 ################################################################
 
-class FourierBlock(nn.Module):
+class FourierBlock1d(nn.Module):
+    def __init__(self, in_channels, out_channels, modes1, activation='tanh'):
+        super(FourierBlock1d, self).__init__()
+
+        # Spectral convolution layer (using 1D Hartley transform)
+        self.speconv = SpectralConv1d(in_channels, out_channels, modes1)
+
+        # Linear layer applied across the channel dimension
+        self.linear = nn.Conv1d(in_channels, out_channels, kernel_size=1)
+
+        # Activation function selection
+        if activation == 'tanh':
+            self.activation = nn.Tanh()
+        elif activation == 'gelu':
+            self.activation = nn.GELU()
+        elif activation == 'none':
+            self.activation = None
+        else:
+            raise ValueError(f'{activation} is not supported')
+
+    def forward(self, x):
+        '''
+        Input x: (batchsize, in_channels, length)
+        '''
+        x1 = self.speconv(x)
+        x2 = self.linear(x)
+        x = x1 + x2
+
+        if self.activation is not None:
+            x = self.activation(x)
+
+        return x
+
+class FourierBlock2d(nn.Module):
+    def __init__(self, in_channels, out_channels, modes1, modes2, activation='tanh'):
+        super(FourierBlock2d, self).__init__()
+
+        # Spectral convolution layer (using 2D Hartley transform)
+        self.speconv = SpectralConv2d(in_channels, out_channels, modes1, modes2)
+
+        # Linear layer applied across the channel dimension
+        self.linear = nn.Conv2d(in_channels, out_channels, kernel_size=1)
+
+        # Activation function selection
+        if activation == 'tanh':
+            self.activation = nn.Tanh()
+        elif activation == 'gelu':
+            self.activation = nn.GELU()
+        elif activation == 'none':
+            self.activation = None
+        else:
+            raise ValueError(f'{activation} is not supported')
+
+    def forward(self, x):
+        '''
+        Input x: (batchsize, in_channels, height, width)
+        '''
+        x1 = self.speconv(x)
+        x2 = self.linear(x)
+        x = x1 + x2
+
+        if self.activation is not None:
+            x = self.activation(x)
+
+        return x
+
+class FourierBlock3d(nn.Module):
     def __init__(self, in_channels, out_channels, modes1, modes2, modes3, activation='tanh'):
-        super(FourierBlock, self).__init__()
+        super(FourierBlock3d, self).__init__()
 
         # Spectral convolution layer (using 3D Hartley transform)
         self.speconv = SpectralConv3d(in_channels, out_channels, modes1, modes2, modes3)
@@ -329,7 +632,7 @@ class FourierBlock(nn.Module):
 
     def forward(self, x):
         '''
-        Input x: (batchsize, in_channels, x_grid, y_grid, t_grid)
+        Input x: (batchsize, in_channels, depth, height, width)
         '''
         x1 = self.speconv(x)
         x2 = self.linear(x)
