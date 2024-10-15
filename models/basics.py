@@ -7,7 +7,7 @@ def dht(x: torch.Tensor, dim=None) -> torch.Tensor:
     result = torch.fft.fftn(x, dim=dim, norm="ortho")
     
     # Combine real and imaginary parts to compute the DHT
-    return result.real - result.imag  # Use subtraction to match DHT definition
+    return result.real + result.imag  # Use subtraction to match DHT definition
 
 def idht(x: torch.Tensor, dim=None) -> torch.Tensor:
     # Since the DHT is its own inverse (up to a scaling factor), we can use the same function
