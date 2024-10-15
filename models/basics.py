@@ -85,11 +85,19 @@ def flip_periodic(x: torch.Tensor) -> torch.Tensor:
         if Z.size(dim) < 1:
             raise ValueError(f"Dimension {dim} is too small to perform flip.")
         
-        # Split the first element along the current transform dimension
-        first = Z.select(dim, 0).unsqueeze(dim)  # Shape: same as x with dim size=1
+        # Prepare slicing indices
+        idx_first = [slice(None)] * Z.dim()
+        idx_first[dim] = 0  # Select the first element along 'dim'
+        
+        idx_remaining = [slice(None)] * Z.dim()
+        idx_remaining[dim] = slice(1, None)  # Select elements from index 1 onwards
+        
+        # Extract the first element
+        first = Z[tuple(idx_first)].unsqueeze(dim)  # Shape: same as x with dim size=1
+        
         if Z.size(dim) > 1:
             # Select all elements from index 1 onwards and flip them
-            remaining = Z.select(dim, slice(1, None)).flip(dims=[dim])
+            remaining = Z[tuple(idx_remaining)].flip(dims=[dim])
             # Concatenate first and flipped remaining along the current dimension
             Z = torch.cat([first, remaining], dim=dim)
         else:
@@ -97,7 +105,7 @@ def flip_periodic(x: torch.Tensor) -> torch.Tensor:
             Z = first
     
     return Z
-
+    
 def dht(x: torch.Tensor) -> torch.Tensor:
     """
     Compute the Discrete Hartley Transform (DHT) of the input tensor.
