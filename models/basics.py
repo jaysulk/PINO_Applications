@@ -7,7 +7,7 @@ def dht(x: torch.Tensor, dim=None) -> torch.Tensor:
     result = torch.fft.fftn(x, dim=dim)
     
     # Combine real and imaginary parts to compute the DHT
-    return result.real + result.imag  # Use subtraction to match DHT definition
+    return result.real - result.imag  # Use subtraction to match DHT definition
 
 def idht(x: torch.Tensor, dim=None) -> torch.Tensor:
     # Compute the DHT of the input tensor
