@@ -3,32 +3,15 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 def dht(x: torch.Tensor, dim=None) -> torch.Tensor:
-    # Compute the N-dimensional FFT of the input tensor
-    result = torch.fft.fftn(x, dim=dim, norm="ortho")
+    # Compute the N-dimensional FFT of the input tensor with orthonormal normalization
+    result = torch.fft.fftn(x, dim=dim, norm='ortho')
     
     # Combine real and imaginary parts to compute the DHT
     return result.real - result.imag  # Use subtraction to match DHT definition
 
 def idht(x: torch.Tensor, dim=None) -> torch.Tensor:
-    # Compute the DHT of the input tensor
-    transformed = dht(x, dim=dim)
-    
-    # Determine normalization factor based on the specified dimensions
-    if dim is None:
-        # If dim is None, use the total number of elements
-        normalization_factor = x.numel()
-    else:
-        # Ensure dim is a list of dimensions
-        if isinstance(dim, int):
-            dim = [dim]
-        normalization_factor = 1
-        for d in dim:
-            normalization_factor *= x.size(d)
-    
-    # Return the normalized inverse DHT
-    return transformed / normalization_factor
-
-import torch
+    # Since the DHT is its own inverse (up to a scaling factor), we can use the same function
+    return dht(x, dim=dim)
 
 def compl_mul1d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     # x1: (batch_size, in_channels, sequence_length)
