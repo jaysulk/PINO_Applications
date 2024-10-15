@@ -105,14 +105,14 @@ class SpectralConv1d(nn.Module):
     def forward(self, x):
         batchsize = x.shape[0]
         # Compute Fourier coeffcients up to factor of e^(- something constant)
-        x_ft =dht(x, dim=[2])
+        x_ft = dht(x, dim=[2])
 
         # Multiply relevant Fourier modes
         out_ft = torch.zeros(batchsize, self.in_channels, x.size(-1)//2 + 1, device=x.device, dtype=torch.cfloat)
         out_ft[:, :, :self.modes1] = compl_mul1d(x_ft[:, :, :self.modes1], self.weights1)
 
         # Return to physical space
-        x = idht(x)
+        x = idht(x, dim=[2])
         return x
 
 ################################################################
@@ -140,7 +140,7 @@ class SpectralConv2d(nn.Module):
         size1 = x.shape[-2]
         size2 = x.shape[-1]
         # Compute Fourier coeffcients up to factor of e^(- something constant)
-        x_ft = dht(x)
+        x_ft = dht(x,dim=[2,3])
 
         if gridy is None:
             # Multiply relevant Fourier modes
@@ -152,7 +152,7 @@ class SpectralConv2d(nn.Module):
                 compl_mul2d(x_ft[:, :, -self.modes1:, :self.modes2], self.weights2)
 
             # Return to physical space
-            x = idht(x)
+            x = idht(x,dim=[2,3])
         else:
             factor1 = compl_mul2d(x_ft[:, :, :self.modes1, :self.modes2], self.weights1)
             factor2 = compl_mul2d(x_ft[:, :, -self.modes1:, :self.modes2], self.weights2)
@@ -215,7 +215,7 @@ class SpectralConv3d(nn.Module):
     def forward(self, x):
         batchsize = x.shape[0]
         # Compute Fourier coeffcients up to factor of e^(- something constant)
-        x_ft = dht(x)
+        x_ft = dht(x,dim=[2,3,4])
         # Multiply relevant Fourier modes
         out_ft = torch.zeros(batchsize, self.out_channels, x.size(2), x.size(3), x.size(4)//2 + 1, device=x.device, dtype=torch.cfloat)
         out_ft[:, :, :self.modes1, :self.modes2, :self.modes3] = \
@@ -228,7 +228,7 @@ class SpectralConv3d(nn.Module):
             compl_mul3d(x_ft[:, :, -self.modes1:, -self.modes2:, :self.modes3], self.weights4)
 
         #Return to physical space
-        x = idht(x)
+        x = idht(x,dim=[2,3,4])
         return x
 
 
