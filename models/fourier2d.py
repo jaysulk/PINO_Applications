@@ -321,3 +321,4 @@ class FNN2d_AD(nn.Module):
         x = self.activation(x)
         x = self.fc2(x)
         return x
+
