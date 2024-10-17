@@ -228,9 +228,48 @@ def flip_periodic_2d(x: torch.Tensor) -> torch.Tensor:
 
     return Z
 
+#def flip_periodic_3d(x: torch.Tensor) -> torch.Tensor:
+#    """
+#    Perform a periodic flip of the tensor along depth, height, and width dimensions.
+#
+#    Args:
+#        x (torch.Tensor): Input tensor of shape [batch, channels, depth, height, width].
+#
+#    Returns:
+#        torch.Tensor: Periodically flipped tensor with the same shape as input.
+#    """
+#    dims = [2, 3, 4]  # Depth, Height, and Width dimensions
+#
+#    Z = x.clone()
+#
+#    for dim in dims:
+#        if Z.size(dim) < 1:
+#            raise ValueError(f"Dimension {dim} is too small to perform flip.")
+#
+#        # Prepare slicing indices
+#        idx_first = [slice(None)] * Z.dim()
+#        idx_first[dim] = 0  # Select the first element along 'dim'
+#
+#        idx_remaining = [slice(None)] * Z.dim()
+#        idx_remaining[dim] = slice(1, None)  # Select elements from index 1 onwards
+#
+#        # Extract the first element
+#        first = Z[tuple(idx_first)].unsqueeze(dim)  # Shape: same as x with dim size=1
+#
+#        if Z.size(dim) > 1:
+#            # Select all elements from index 1 onwards and flip them
+#            remaining = Z[tuple(idx_remaining)].flip(dims=[dim])
+#            # Concatenate first and flipped remaining along the current dimension
+#            Z = torch.cat([first, remaining], dim=dim)
+#        else:
+#            # If there's only one element, no flipping needed
+#            Z = first
+#
+#    return Z
+
 def flip_periodic_3d(x: torch.Tensor) -> torch.Tensor:
     """
-    Perform a periodic flip of the tensor along depth, height, and width dimensions.
+    Perform a periodic flip by mirroring the tensor around each spatial dimension.
 
     Args:
         x (torch.Tensor): Input tensor of shape [batch, channels, depth, height, width].
@@ -239,33 +278,23 @@ def flip_periodic_3d(x: torch.Tensor) -> torch.Tensor:
         torch.Tensor: Periodically flipped tensor with the same shape as input.
     """
     dims = [2, 3, 4]  # Depth, Height, and Width dimensions
-
     Z = x.clone()
 
     for dim in dims:
-        if Z.size(dim) < 1:
-            raise ValueError(f"Dimension {dim} is too small to perform flip.")
+        if Z.size(dim) < 2:
+            continue  # Skip flipping if dimension is too small
 
-        # Prepare slicing indices
-        idx_first = [slice(None)] * Z.dim()
-        idx_first[dim] = 0  # Select the first element along 'dim'
+        # Flip the tensor along the current dimension
+        flipped = Z.flip(dims=[dim])
 
-        idx_remaining = [slice(None)] * Z.dim()
-        idx_remaining[dim] = slice(1, None)  # Select elements from index 1 onwards
+        # Combine the original and flipped tensors to achieve periodicity
+        Z = torch.cat([Z, flipped], dim=dim)
 
-        # Extract the first element
-        first = Z[tuple(idx_first)].unsqueeze(dim)  # Shape: same as x with dim size=1
-
-        if Z.size(dim) > 1:
-            # Select all elements from index 1 onwards and flip them
-            remaining = Z[tuple(idx_remaining)].flip(dims=[dim])
-            # Concatenate first and flipped remaining along the current dimension
-            Z = torch.cat([first, remaining], dim=dim)
-        else:
-            # If there's only one element, no flipping needed
-            Z = first
+        # Optionally, trim or adjust to maintain original size
+        Z = Z.narrow(dim, 0, x.size(dim))
 
     return Z
+
 
 def dht_conv_1d(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
     """
