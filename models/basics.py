@@ -160,7 +160,7 @@ def idht_3d(X: torch.Tensor) -> torch.Tensor:
 # Convolutions
 ################################################################
 
-def compl_mul1d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
+def compl_mul_1d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     """
     1D convolution using torch.einsum.
 
@@ -171,10 +171,9 @@ def compl_mul1d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     Returns:
         torch.Tensor: Convolved tensor with shape [batch, out_channels, length]
     """
-    # (batch, in_channel, x ), (in_channel, out_channel, x) -> (batch, out_channel, x)
     return torch.einsum("bix,iox->box", x1, x2)
 
-def compl_mul2d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
+def compl_mul_2d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     """
     2D convolution using torch.einsum.
 
@@ -185,10 +184,9 @@ def compl_mul2d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     Returns:
         torch.Tensor: Convolved tensor with shape [batch, out_channels, height, width]
     """
-    # (batch, in_channel, x,y,t ), (in_channel, out_channel, x,y,t) -> (batch, out_channel, x,y,t)
     return torch.einsum("bixy,ioxy->boxy", x1, x2)
 
-def compl_mul3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
+def compl_mul_3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     """
     3D convolution using torch.einsum.
 
