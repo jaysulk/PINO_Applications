@@ -441,6 +441,9 @@ class SpectralConv1d(nn.Module):
 
         self.in_channels = in_channels
         self.out_channels = out_channels
+        # Ensure in_channels equals out_channels for error computation
+        assert self.in_channels == self.out_channels, "For adaptive refinement, in_channels must equal out_channels in SpectralConv1d."
+
         # Number of Hartley modes to multiply
         self.modes1 = modes1
 
@@ -472,8 +475,7 @@ class SpectralConv1d(nn.Module):
         x_reconstructed = idht_1d(out_ht)  # [batch, out_channels, length]
 
         # Compute reconstruction error
-        # Assuming original input and reconstructed have the same dimensions
-        # Here, we compute the absolute difference as error
+        # Since in_channels == out_channels, shapes match
         error = torch.abs(x - x_reconstructed)  # [batch, out_channels, length]
 
         # Create a mask where error exceeds the threshold
@@ -509,6 +511,9 @@ class SpectralConv2d(nn.Module):
         self.modes1 = modes1
         self.modes2 = modes2
 
+        # Ensure in_channels equals out_channels for error computation
+        assert self.in_channels == self.out_channels, "For adaptive refinement, in_channels must equal out_channels in SpectralConv2d."
+
         # Additional modes for refinement
         self.refine_modes1 = modes1  # Hardcoded as the same number; can be changed if needed
         self.refine_modes2 = modes2  # Hardcoded as the same number; can be changed if needed
@@ -541,6 +546,7 @@ class SpectralConv2d(nn.Module):
         x_reconstructed = idht_2d(out_ht)  # [batch, out_channels, height, width]
 
         # Compute reconstruction error
+        # Since in_channels == out_channels, shapes match
         error = torch.abs(x - x_reconstructed)  # [batch, out_channels, height, width]
 
         # Create a mask where error exceeds the threshold
@@ -578,6 +584,9 @@ class SpectralConv3d(nn.Module):
         self.modes2 = modes2
         self.modes3 = modes3
 
+        # Ensure in_channels equals out_channels for error computation
+        assert self.in_channels == self.out_channels, "For adaptive refinement, in_channels must equal out_channels in SpectralConv3d."
+
         # Additional modes for refinement
         self.refine_modes1 = modes1  # Hardcoded as the same number; can be changed if needed
         self.refine_modes2 = modes2
@@ -612,6 +621,7 @@ class SpectralConv3d(nn.Module):
         x_reconstructed = idht_3d(out_ht)  # [batch, out_channels, depth, height, width]
 
         # Compute reconstruction error
+        # Since in_channels == out_channels, shapes match
         error = torch.abs(x - x_reconstructed)  # [batch, out_channels, depth, height, width]
 
         # Create a mask where error exceeds the threshold
@@ -644,6 +654,9 @@ class FourierBlock1d(nn.Module):
     def __init__(self, in_channels, out_channels, modes1, activation='tanh'):
         super(FourierBlock1d, self).__init__()
 
+        # Ensure in_channels equals out_channels for adaptive refinement
+        assert in_channels == out_channels, "For adaptive refinement, in_channels must equal out_channels in FourierBlock1d."
+
         # Spectral convolution layer (using 1D Hartley transform with adaptive refinement)
         self.speconv = SpectralConv1d(in_channels, out_channels, modes1)
 
@@ -664,9 +677,9 @@ class FourierBlock1d(nn.Module):
         '''
         Input x: (batchsize, in_channels, length)
         '''
-        x1 = self.speconv(x)
-        x2 = self.linear(x)
-        x = x1 + x2
+        x1 = self.speconv(x)  # [batch, out_channels, length]
+        x2 = self.linear(x)   # [batch, out_channels, length]
+        x = x1 + x2           # [batch, out_channels, length]
 
         if self.activation is not None:
             x = self.activation(x)
@@ -676,6 +689,9 @@ class FourierBlock1d(nn.Module):
 class FourierBlock2d(nn.Module):
     def __init__(self, in_channels, out_channels, modes1, modes2, activation='tanh'):
         super(FourierBlock2d, self).__init__()
+
+        # Ensure in_channels equals out_channels for adaptive refinement
+        assert in_channels == out_channels, "For adaptive refinement, in_channels must equal out_channels in FourierBlock2d."
 
         # Spectral convolution layer (using 2D Hartley transform with adaptive refinement)
         self.speconv = SpectralConv2d(in_channels, out_channels, modes1, modes2)
@@ -697,9 +713,9 @@ class FourierBlock2d(nn.Module):
         '''
         Input x: (batchsize, in_channels, height, width)
         '''
-        x1 = self.speconv(x)
-        x2 = self.linear(x)
-        x = x1 + x2
+        x1 = self.speconv(x)  # [batch, out_channels, height, width]
+        x2 = self.linear(x)   # [batch, out_channels, height, width]
+        x = x1 + x2           # [batch, out_channels, height, width]
 
         if self.activation is not None:
             x = self.activation(x)
@@ -709,6 +725,9 @@ class FourierBlock2d(nn.Module):
 class FourierBlock3d(nn.Module):
     def __init__(self, in_channels, out_channels, modes1, modes2, modes3, activation='tanh'):
         super(FourierBlock3d, self).__init__()
+
+        # Ensure in_channels equals out_channels for adaptive refinement
+        assert in_channels == out_channels, "For adaptive refinement, in_channels must equal out_channels in FourierBlock3d."
 
         # Spectral convolution layer (using 3D Hartley transform with adaptive refinement)
         self.speconv = SpectralConv3d(in_channels, out_channels, modes1, modes2, modes3)
@@ -730,9 +749,9 @@ class FourierBlock3d(nn.Module):
         '''
         Input x: (batchsize, in_channels, depth, height, width)
         '''
-        x1 = self.speconv(x)
-        x2 = self.linear(x)
-        x = x1 + x2
+        x1 = self.speconv(x)  # [batch, out_channels, depth, height, width]
+        x2 = self.linear(x)   # [batch, out_channels, depth, height, width]
+        x = x1 + x2           # [batch, out_channels, depth, height, width]
 
         if self.activation is not None:
             x = self.activation(x)
