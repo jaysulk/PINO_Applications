@@ -69,6 +69,78 @@ def idht(x: torch.Tensor, dims=None) -> torch.Tensor:
     # Normalize the result
     return transformed / N
 
+def dht_1d(x: torch.Tensor) -> torch.Tensor:
+    """
+    Perform the 1D Discrete Hartley Transform along the last dimension.
+
+    Args:
+        x (torch.Tensor): Input tensor of shape [..., N]
+
+    Returns:
+        torch.Tensor: DHT-transformed tensor of the same shape.
+    """
+    return dht(x, dims=[-1])
+
+def idht_1d(x: torch.Tensor) -> torch.Tensor:
+    """
+    Perform the inverse 1D Discrete Hartley Transform along the last dimension.
+
+    Args:
+        x (torch.Tensor): DHT-transformed tensor of shape [..., N]
+
+    Returns:
+        torch.Tensor: Inverse DHT-transformed tensor of the same shape.
+    """
+    return idht(x, dims=[-1])
+
+def dht_2d(x: torch.Tensor) -> torch.Tensor:
+    """
+    Perform the 2D Discrete Hartley Transform along the last two dimensions.
+
+    Args:
+        x (torch.Tensor): Input tensor of shape [..., H, W]
+
+    Returns:
+        torch.Tensor: DHT-transformed tensor of the same shape.
+    """
+    return dht(x, dims=[-2, -1])
+
+def idht_2d(x: torch.Tensor) -> torch.Tensor:
+    """
+    Perform the inverse 2D Discrete Hartley Transform along the last two dimensions.
+
+    Args:
+        x (torch.Tensor): DHT-transformed tensor of shape [..., H, W]
+
+    Returns:
+        torch.Tensor: Inverse DHT-transformed tensor of the same shape.
+    """
+    return idht(x, dims=[-2, -1])
+
+def dht_3d(x: torch.Tensor) -> torch.Tensor:
+    """
+    Perform the 3D Discrete Hartley Transform along the last three dimensions.
+
+    Args:
+        x (torch.Tensor): Input tensor of shape [..., D, H, W]
+
+    Returns:
+        torch.Tensor: DHT-transformed tensor of the same shape.
+    """
+    return dht(x, dims=[-3, -2, -1])
+
+def idht_3d(x: torch.Tensor) -> torch.Tensor:
+    """
+    Perform the inverse 3D Discrete Hartley Transform along the last three dimensions.
+
+    Args:
+        x (torch.Tensor): DHT-transformed tensor of shape [..., D, H, W]
+
+    Returns:
+        torch.Tensor: Inverse DHT-transformed tensor of the same shape.
+    """
+    return idht(x, dims=[-3, -2, -1])
+
 def compl_mul1d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     return torch.einsum("bi...,io...->bo...", x1, x2)
 
