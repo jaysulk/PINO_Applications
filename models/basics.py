@@ -454,17 +454,16 @@ class SpectralConv1d(nn.Module):
             self.scale * torch.rand(in_channels, out_channels, self.modes1)
         )
 
+        # Additional parameters for phase approximation
+        self.phase_weights = nn.Parameter(torch.rand(in_channels, out_channels, self.modes1))
+
     def forward(self, x):
         batchsize = x.shape[0]
 
         # Compute Hartley coefficients
         x_ht = dht_1d(x)  # [batch, in_channels, length]
 
-        # Split into real and imaginary parts
-        real_part = x_ht[:, :, :self.modes1].real
-        imag_part = x_ht[:, :, :self.modes1].imag
-
-        # Multiply relevant Hartley modes (using both real and imaginary parts)
+        # Multiply relevant Hartley modes
         out_ht = torch.zeros(
             batchsize,
             self.out_channels,
@@ -477,9 +476,14 @@ class SpectralConv1d(nn.Module):
             self.weights1
         )
 
-        # Combine real and imaginary parts to recover phase information
-        combined_ht = torch.stack((real_part, imag_part), dim=-1)
-        x = idht_1d(combined_ht)  # [batch, out_channels, length]
+        # Estimate phase information
+        phase_estimation = torch.sin(self.phase_weights)  # Example: using sine of phase weights
+
+        # Apply phase adjustment (this is an illustrative example)
+        out_ht[:, :, :self.modes1] *= phase_estimation
+
+        # Return to physical space
+        x = idht_1d(out_ht)  # [batch, out_channels, length]
 
         return x
 
@@ -500,19 +504,17 @@ class SpectralConv2d(nn.Module):
             self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2)
         )
 
+        # Additional parameters for phase approximation
+        self.phase_weights = nn.Parameter(torch.rand(in_channels, out_channels, self.modes1, self.modes2))
+
     def forward(self, x):
         batchsize = x.shape[0]
-        size1 = x.shape[-2]
-        size2 = x.shape[-1]
+        size1, size2 = x.shape[-2], x.shape[-1]
 
         # Compute Hartley coefficients
         x_ht = dht_2d(x)  # [batch, in_channels, height, width]
 
-        # Split into real and imaginary parts
-        real_part = x_ht[:, :, :self.modes1, :self.modes2].real
-        imag_part = x_ht[:, :, :self.modes1, :self.modes2].imag
-
-        # Multiply relevant Hartley modes (using both real and imaginary parts)
+        # Multiply relevant Hartley modes
         out_ht = torch.zeros(
             batchsize,
             self.out_channels,
@@ -526,9 +528,14 @@ class SpectralConv2d(nn.Module):
             self.weights1
         )
 
-        # Combine real and imaginary parts to recover phase information
-        combined_ht = torch.stack((real_part, imag_part), dim=-1)
-        x = idht_2d(combined_ht)  # [batch, out_channels, height, width]
+        # Estimate phase information
+        phase_estimation = torch.sin(self.phase_weights)  # Example: using sine of phase weights
+
+        # Apply phase adjustment
+        out_ht[:, :, :self.modes1, :self.modes2] *= phase_estimation
+
+        # Return to physical space
+        x = idht_2d(out_ht)  # [batch, out_channels, height, width]
 
         return x
 
@@ -547,8 +554,13 @@ class SpectralConv3d(nn.Module):
 
         self.scale = (1 / (in_channels * out_channels))
         self.weights1 = nn.Parameter(
-            self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3)
+            self.scale * torch.rand(
+                in_channels, out_channels, self.modes1, self.modes2, self.modes3
+            )
         )
+
+        # Additional parameters for phase approximation
+        self.phase_weights = nn.Parameter(torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3))
 
     def forward(self, x):
         batchsize = x.shape[0]
@@ -557,11 +569,7 @@ class SpectralConv3d(nn.Module):
         # Compute Hartley coefficients
         x_ht = dht_3d(x)  # [batch, in_channels, depth, height, width]
 
-        # Split into real and imaginary parts
-        real_part = x_ht[:, :, :self.modes1, :self.modes2, :self.modes3].real
-        imag_part = x_ht[:, :, :self.modes1, :self.modes2, :self.modes3].imag
-
-        # Multiply relevant Hartley modes (using both real and imaginary parts)
+        # Multiply relevant Hartley modes
         out_ht = torch.zeros(
             batchsize,
             self.out_channels,
@@ -576,9 +584,14 @@ class SpectralConv3d(nn.Module):
             self.weights1
         )
 
-        # Combine real and imaginary parts to recover phase information
-        combined_ht = torch.stack((real_part, imag_part), dim=-1)
-        x = idht_3d(combined_ht)  # [batch, out_channels, depth, height, width]
+        # Estimate phase information
+        phase_estimation = torch.sin(self.phase_weights)  # Example: using sine of phase weights
+
+        # Apply phase adjustment
+        out_ht[:, :, :self.modes1, :self.modes2, :self.modes3] *= phase_estimation
+
+        # Return to physical space
+        x = idht_3d(out_ht)  # [batch, out_channels, depth, height, width]
 
         return x
 
