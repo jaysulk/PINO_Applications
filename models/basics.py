@@ -445,13 +445,8 @@ class SpectralConv1d(nn.Module):
     def __init__(self, in_channels, out_channels, modes1):
         super(SpectralConv1d, self).__init__()
 
-        """
-        1D Hartley layer. It does DHT, linear transform, and Inverse DHT.
-        """
-
         self.in_channels = in_channels
         self.out_channels = out_channels
-        # Number of Hartley modes to multiply
         self.modes1 = modes1
 
         self.scale = (1 / (in_channels * out_channels))
@@ -465,7 +460,11 @@ class SpectralConv1d(nn.Module):
         # Compute Hartley coefficients
         x_ht = dht_1d(x)  # [batch, in_channels, length]
 
-        # Multiply relevant Hartley modes
+        # Split into real and imaginary parts
+        real_part = x_ht[:, :, :self.modes1].real
+        imag_part = x_ht[:, :, :self.modes1].imag
+
+        # Multiply relevant Hartley modes (using both real and imaginary parts)
         out_ht = torch.zeros(
             batchsize,
             self.out_channels,
@@ -478,8 +477,9 @@ class SpectralConv1d(nn.Module):
             self.weights1
         )
 
-        # Return to physical space
-        x = idht_1d(out_ht)  # [batch, out_channels, length]
+        # Combine real and imaginary parts to recover phase information
+        combined_ht = torch.stack((real_part, imag_part), dim=-1)
+        x = idht_1d(combined_ht)  # [batch, out_channels, length]
 
         return x
 
@@ -508,7 +508,11 @@ class SpectralConv2d(nn.Module):
         # Compute Hartley coefficients
         x_ht = dht_2d(x)  # [batch, in_channels, height, width]
 
-        # Multiply relevant Hartley modes
+        # Split into real and imaginary parts
+        real_part = x_ht[:, :, :self.modes1, :self.modes2].real
+        imag_part = x_ht[:, :, :self.modes1, :self.modes2].imag
+
+        # Multiply relevant Hartley modes (using both real and imaginary parts)
         out_ht = torch.zeros(
             batchsize,
             self.out_channels,
@@ -522,8 +526,9 @@ class SpectralConv2d(nn.Module):
             self.weights1
         )
 
-        # Return to physical space
-        x = idht_2d(out_ht)  # [batch, out_channels, height, width]
+        # Combine real and imaginary parts to recover phase information
+        combined_ht = torch.stack((real_part, imag_part), dim=-1)
+        x = idht_2d(combined_ht)  # [batch, out_channels, height, width]
 
         return x
 
@@ -536,15 +541,13 @@ class SpectralConv3d(nn.Module):
         super(SpectralConv3d, self).__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
-        self.modes1 = modes1  # Number of Hartley modes to multiply
+        self.modes1 = modes1
         self.modes2 = modes2
         self.modes3 = modes3
 
         self.scale = (1 / (in_channels * out_channels))
         self.weights1 = nn.Parameter(
-            self.scale * torch.rand(
-                in_channels, out_channels, self.modes1, self.modes2, self.modes3
-            )
+            self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3)
         )
 
     def forward(self, x):
@@ -554,7 +557,11 @@ class SpectralConv3d(nn.Module):
         # Compute Hartley coefficients
         x_ht = dht_3d(x)  # [batch, in_channels, depth, height, width]
 
-        # Multiply relevant Hartley modes using the corrected dht_conv_3d
+        # Split into real and imaginary parts
+        real_part = x_ht[:, :, :self.modes1, :self.modes2, :self.modes3].real
+        imag_part = x_ht[:, :, :self.modes1, :self.modes2, :self.modes3].imag
+
+        # Multiply relevant Hartley modes (using both real and imaginary parts)
         out_ht = torch.zeros(
             batchsize,
             self.out_channels,
@@ -569,8 +576,9 @@ class SpectralConv3d(nn.Module):
             self.weights1
         )
 
-        # Return to physical space
-        x = idht_3d(out_ht)  # [batch, out_channels, depth, height, width]
+        # Combine real and imaginary parts to recover phase information
+        combined_ht = torch.stack((real_part, imag_part), dim=-1)
+        x = idht_3d(combined_ht)  # [batch, out_channels, depth, height, width]
 
         return x
 
