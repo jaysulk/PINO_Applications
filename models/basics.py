@@ -459,6 +459,7 @@ class SpectralConv1d(nn.Module):
 
     def forward(self, x):
         batchsize = x.shape[0]
+        length = x.shape[-1]
 
         # Compute Hartley coefficients
         x_ht = dht_1d(x)  # [batch, in_channels, length]
@@ -467,7 +468,7 @@ class SpectralConv1d(nn.Module):
         out_ht = torch.zeros(
             batchsize,
             self.out_channels,
-            x.size(-1),
+            length,
             device=x.device,
             dtype=x.dtype
         )
@@ -479,7 +480,7 @@ class SpectralConv1d(nn.Module):
         # Estimate phase information
         phase_estimation = torch.sin(self.phase_weights)  # Example: using sine of phase weights
 
-        # Apply phase adjustment (this is an illustrative example)
+        # Apply phase adjustment
         out_ht[:, :, :self.modes1] *= phase_estimation
 
         # Return to physical space
@@ -509,20 +510,22 @@ class SpectralConv2d(nn.Module):
 
     def forward(self, x):
         batchsize = x.shape[0]
-        size1, size2 = x.shape[-2], x.shape[-1]
+        height, width = x.shape[-2], x.shape[-1]
 
         # Compute Hartley coefficients
         x_ht = dht_2d(x)  # [batch, in_channels, height, width]
 
-        # Multiply relevant Hartley modes
+        # Prepare output tensor
         out_ht = torch.zeros(
             batchsize,
             self.out_channels,
-            size1,
-            size2,
+            height,
+            width,
             device=x.device,
             dtype=x.dtype
         )
+
+        # Multiply relevant Hartley modes
         out_ht[:, :, :self.modes1, :self.modes2] = dht_conv_2d(
             x_ht[:, :, :self.modes1, :self.modes2],
             self.weights1
@@ -564,21 +567,23 @@ class SpectralConv3d(nn.Module):
 
     def forward(self, x):
         batchsize = x.shape[0]
-        size1, size2, size3 = x.shape[-3], x.shape[-2], x.shape[-1]
+        depth, height, width = x.shape[-3], x.shape[-2], x.shape[-1]
 
         # Compute Hartley coefficients
         x_ht = dht_3d(x)  # [batch, in_channels, depth, height, width]
 
-        # Multiply relevant Hartley modes
+        # Prepare output tensor
         out_ht = torch.zeros(
             batchsize,
             self.out_channels,
-            size1,
-            size2,
-            size3,
+            depth,
+            height,
+            width,
             device=x.device,
             dtype=x.dtype
         )
+
+        # Multiply relevant Hartley modes
         out_ht[:, :, :self.modes1, :self.modes2, :self.modes3] = dht_conv_3d(
             x_ht[:, :, :self.modes1, :self.modes2, :self.modes3],
             self.weights1
