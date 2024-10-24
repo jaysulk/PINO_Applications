@@ -73,7 +73,19 @@ def dht_1d(x: torch.Tensor) -> torch.Tensor:
         torch.Tensor: DHT of the input tensor.
     """
     transform_dims = [2]  # Length dimension
-    return torch.fft.fftn(x, dim=transform_dims,norm="forward").real - torch.fft.fftn(x.flip(-1), dim=transform_dims,norm="backward").imag
+    result = torch.fft.fftn(x, dim=transform_dims).real - torch.fft.fftn(x.flip(-1), dim=transform_dims).imag
+
+    # Compute the norm of the result
+    norm = result.norm(dim=transform_dims, keepdim=True)
+    
+    # Normalize the result to make it orthonormal
+    orthonormal_result = result / norm
+    
+    # If you want to ensure no division by zero occurs
+    return torch.where(norm != 0, orthonormal_result, torch.zeros_like(orthonormal_result))
+
+# orthonormal_result is now orthonormal
+
 
 def dht_2d(x: torch.Tensor) -> torch.Tensor:
     """
@@ -86,7 +98,16 @@ def dht_2d(x: torch.Tensor) -> torch.Tensor:
         torch.Tensor: DHT of the input tensor.
     """
     transform_dims = [2, 3]  # Height and Width dimensions
-    return torch.fft.fftn(x, dim=transform_dims,norm="forward").real - torch.fft.fftn(x.flip(-2, -1), dim=transform_dims,norm="backward").imag
+    result = torch.fft.fftn(x, dim=transform_dim).real - torch.fft.fftn(x.flip(-2, -1), dim=transform_dims).imag
+
+    # Compute the norm of the result
+    norm = result.norm(dim=transform_dims, keepdim=True)
+    
+    # Normalize the result to make it orthonormal
+    orthonormal_result = result / norm
+    
+    # If you want to ensure no division by zero occurs
+    return torch.where(norm != 0, orthonormal_result, torch.zeros_like(orthonormal_result))
 
 def dht_3d(x: torch.Tensor) -> torch.Tensor:
     """
@@ -99,7 +120,16 @@ def dht_3d(x: torch.Tensor) -> torch.Tensor:
         torch.Tensor: DHT of the input tensor.
     """
     transform_dims = [2, 3, 4]  # Depth, Height, and Width dimensions
-    return torch.fft.fftn(x, dim=transform_dims,norm="forward").real - torch.fft.fftn(x.flip(-1), dim=transform_dims,norm="backward").imag
+    result = torch.fft.fftn(x, dim=transform_dims).real - torch.fft.fftn(x.flip(-1), dim=transform_dims).imag
+
+    # Compute the norm of the result
+    norm = result.norm(dim=transform_dims, keepdim=True)
+    
+    # Normalize the result to make it orthonormal
+    orthonormal_result = result / norm
+    
+    # If you want to ensure no division by zero occurs
+    return torch.where(norm != 0, orthonormal_result, torch.zeros_like(orthonormal_result))
 
 def idht_1d(X: torch.Tensor) -> torch.Tensor:
     """
