@@ -105,19 +105,6 @@ def compl_mul3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     return result
 
 ################################################################
-# Direct Convolution in Hartley Domain
-################################################################
-
-def conv_1d(x_ht: torch.Tensor, weights: torch.Tensor) -> torch.Tensor:
-    return compl_mul1d(x_ht, weights)
-
-def conv_2d(x_ht: torch.Tensor, weights: torch.Tensor) -> torch.Tensor:
-    return compl_mul2d(x_ht, weights)
-
-def conv_3d(x_ht: torch.Tensor, weights: torch.Tensor) -> torch.Tensor:
-    return compl_mul3d(x_ht, weights)
-
-################################################################
 # Spectral Convolution Layers
 ################################################################
 
@@ -134,7 +121,7 @@ class SpectralConv1d(nn.Module):
         batchsize = x.shape[0]
         x_ht = dht_1d(x)  # [batch, in_channels, length]
         out_ht = torch.zeros(batchsize, self.out_channels, x.size(-1), device=x.device, dtype=x.dtype)
-        out_ht[:, :, :self.modes1] = conv_1d(x_ht[:, :, :self.modes1], self.weights1)
+        out_ht[:, :, :self.modes1] = compl_mul1d(x_ht[:, :, :self.modes1], self.weights1)
         x = idht_1d(out_ht)  # [batch, out_channels, length]
         x = gaussian_smoothing(x, sigma=1.0)  # Apply Gaussian smoothing
         return x
@@ -154,7 +141,7 @@ class SpectralConv2d(nn.Module):
         size1, size2 = x.shape[-2], x.shape[-1]
         x_ht = dht_2d(x)  # [batch, in_channels, height, width]
         out_ht = torch.zeros(batchsize, self.out_channels, size1, size2, device=x.device, dtype=x.dtype)
-        out_ht[:, :, :self.modes1, :self.modes2] = conv_2d(x_ht[:, :, :self.modes1, :self.modes2], self.weights1)
+        out_ht[:, :, :self.modes1, :self.modes2] = compl_mul2d(x_ht[:, :, :self.modes1, :self.modes2], self.weights1)
         x = idht_2d(out_ht)  # [batch, out_channels, height, width]
         x = gaussian_smoothing(x, sigma=1.0)  # Apply Gaussian smoothing
         return x
@@ -175,7 +162,7 @@ class SpectralConv3d(nn.Module):
         size1, size2, size3 = x.shape[-3], x.shape[-2], x.shape[-1]
         x_ht = dht_3d(x)  # [batch, in_channels, depth, height, width]
         out_ht = torch.zeros(batchsize, self.out_channels, size1, size2, size3, device=x.device, dtype=x.dtype)
-        out_ht[:, :, :self.modes1, :self.modes2, :self.modes3] = conv_3d(x_ht[:, :, :self.modes1, :self.modes2, :self.modes3], self.weights1)
+        out_ht[:, :, :self.modes1, :self.modes2, :self.modes3] = compl_mul3d(x_ht[:, :, :self.modes1, :self.modes2, :self.modes3], self.weights1)
         x = idht_3d(out_ht)  # [batch, out_channels, depth, height, width]
         x = gaussian_smoothing(x, sigma=1.0)  # Apply Gaussian smoothing
         return x
