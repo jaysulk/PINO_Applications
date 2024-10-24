@@ -139,7 +139,7 @@ class SpectralConv1d(nn.Module):
         out_ht = torch.zeros(batchsize, self.out_channels, x.size(-1), device=x.device, dtype=x.dtype)
         out_ht[:, :, :self.modes1] = conv_1d(x_ht[:, :, :self.modes1], self.weights1)
         x = idht_1d(out_ht)  # [batch, out_channels, length]
-        x = gaussian_smoothing(x, kernel_size=5, sigma=1.0)  # Apply Gaussian smoothing
+        #x = gaussian_smoothing(x, kernel_size=5, sigma=1.0)  # Apply Gaussian smoothing
         return x
 
 class SpectralConv2d(nn.Module):
@@ -159,7 +159,7 @@ class SpectralConv2d(nn.Module):
         out_ht = torch.zeros(batchsize, self.out_channels, size1, size2, device=x.device, dtype=x.dtype)
         out_ht[:, :, :self.modes1, :self.modes2] = conv_2d(x_ht[:, :, :self.modes1, :self.modes2], self.weights1)
         x = idht_2d(out_ht)  # [batch, out_channels, height, width]
-        x = gaussian_smoothing(x, kernel_size=5, sigma=1.0)  # Apply Gaussian smoothing
+        #x = gaussian_smoothing(x, kernel_size=5, sigma=1.0)  # Apply Gaussian smoothing
         return x
 
 class SpectralConv3d(nn.Module):
@@ -180,7 +180,7 @@ class SpectralConv3d(nn.Module):
         out_ht = torch.zeros(batchsize, self.out_channels, size1, size2, size3, device=x.device, dtype=x.dtype)
         out_ht[:, :, :self.modes1, :self.modes2, :self.modes3] = conv_3d(x_ht[:, :, :self.modes1, :self.modes2, :self.modes3], self.weights1)
         x = idht_3d(out_ht)  # [batch, out_channels, depth, height, width]
-        x = gaussian_smoothing(x, kernel_size=5, sigma=1.0)  # Apply Gaussian smoothing
+        #x = gaussian_smoothing(x, kernel_size=5, sigma=1.0)  # Apply Gaussian smoothing
         return x
 
 ################################################################
