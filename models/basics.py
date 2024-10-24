@@ -1,34 +1,31 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from skimage.filters import gaussian
 
 ################################################################
-# Gaussian Smoothing Function
+# Gaussian Smoothing Function using scikit-image
 ################################################################
 
-def gaussian_kernel(kernel_size=5, sigma=1.0):
+def gaussian_smoothing(x, sigma=1.0):
     """
-    Creates a 1D Gaussian kernel.
+    Applies Gaussian smoothing to the output using scikit-image.
     """
-    x = torch.linspace(-sigma, sigma, kernel_size)
-    kernel = torch.exp(-0.5 * (x / sigma) ** 2)
-    return kernel / kernel.sum()
+    # Convert PyTorch tensor to NumPy array
+    x_np = x.detach().cpu().numpy()
 
-def gaussian_smoothing(x, kernel_size=5, sigma=1.0):
-    """
-    Applies Gaussian smoothing to the output.
-    """
-    kernel = gaussian_kernel(kernel_size, sigma).to(x.device)
-    if x.ndim == 3:  # 1D case
-        return F.conv1d(x.unsqueeze(1), kernel.unsqueeze(0).unsqueeze(0), padding=kernel_size // 2).squeeze(1)
-    elif x.ndim == 4:  # 2D case
-        kernel_2d = kernel.unsqueeze(1) * kernel.unsqueeze(0)
-        return F.conv2d(x, kernel_2d.unsqueeze(0), padding=(kernel_size // 2, kernel_size // 2))
-    elif x.ndim == 5:  # 3D case
-        kernel_3d = kernel.unsqueeze(1).unsqueeze(2) * kernel.unsqueeze(0).unsqueeze(2) * kernel.unsqueeze(0).unsqueeze(1)
-        return F.conv3d(x, kernel_3d.unsqueeze(0), padding=(kernel_size // 2, kernel_size // 2, kernel_size // 2))
+    # Apply Gaussian smoothing
+    if x.dim() == 3:  # 1D case
+        x_smoothed = gaussian(x_np, sigma=sigma, mode='wrap')
+    elif x.dim() == 4:  # 2D case
+        x_smoothed = gaussian(x_np, sigma=sigma, multichannel=True)
+    elif x.dim() == 5:  # 3D case
+        x_smoothed = gaussian(x_np, sigma=sigma, multichannel=True)
     else:
         raise ValueError("Input tensor must have 3, 4, or 5 dimensions.")
+    
+    # Convert back to PyTorch tensor
+    return torch.tensor(x_smoothed, device=x.device)
 
 ################################################################
 # Discrete Hartley Transforms (DHT)
@@ -139,7 +136,7 @@ class SpectralConv1d(nn.Module):
         out_ht = torch.zeros(batchsize, self.out_channels, x.size(-1), device=x.device, dtype=x.dtype)
         out_ht[:, :, :self.modes1] = conv_1d(x_ht[:, :, :self.modes1], self.weights1)
         x = idht_1d(out_ht)  # [batch, out_channels, length]
-        #x = gaussian_smoothing(x, kernel_size=5, sigma=1.0)  # Apply Gaussian smoothing
+        x = gaussian_smoothing(x, sigma=1.0)  # Apply Gaussian smoothing
         return x
 
 class SpectralConv2d(nn.Module):
@@ -159,7 +156,7 @@ class SpectralConv2d(nn.Module):
         out_ht = torch.zeros(batchsize, self.out_channels, size1, size2, device=x.device, dtype=x.dtype)
         out_ht[:, :, :self.modes1, :self.modes2] = conv_2d(x_ht[:, :, :self.modes1, :self.modes2], self.weights1)
         x = idht_2d(out_ht)  # [batch, out_channels, height, width]
-        #x = gaussian_smoothing(x, kernel_size=5, sigma=1.0)  # Apply Gaussian smoothing
+        x = gaussian_smoothing(x, sigma=1.0)  # Apply Gaussian smoothing
         return x
 
 class SpectralConv3d(nn.Module):
@@ -180,7 +177,7 @@ class SpectralConv3d(nn.Module):
         out_ht = torch.zeros(batchsize, self.out_channels, size1, size2, size3, device=x.device, dtype=x.dtype)
         out_ht[:, :, :self.modes1, :self.modes2, :self.modes3] = conv_3d(x_ht[:, :, :self.modes1, :self.modes2, :self.modes3], self.weights1)
         x = idht_3d(out_ht)  # [batch, out_channels, depth, height, width]
-        #x = gaussian_smoothing(x, kernel_size=5, sigma=1.0)  # Apply Gaussian smoothing
+        x = gaussian_smoothing(x, sigma=1.0)  # Apply Gaussian smoothing
         return x
 
 ################################################################
