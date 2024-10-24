@@ -1,63 +1,62 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from typing import List, Tuple
 
 ################################################################
 # Low-Pass Filter Function
 ################################################################
 
-#def low_pass_filter(x_ht, cutoff):
-#    """
-#    Applies a low-pass filter to the spectral coefficients (DHT output).
-#    Frequencies higher than `cutoff` are dampened.
-#    """
-#    size = x_ht.shape[-1]  # Get the last dimension (frequency axis)
-#    frequencies = torch.fft.fftfreq(size, d=1.0)  # Compute frequency bins
-#    filter_mask = torch.abs(frequencies) <= cutoff  # Mask for low frequencies
-#    return x_ht * filter_mask.to(x_ht.device)
+# def low_pass_filter(x_ht, cutoff):
+#     """
+#     Applies a low-pass filter to the spectral coefficients (DHT output).
+#     Frequencies higher than `cutoff` are dampened.
+#     """
+#     size = x_ht.shape[-1]  # Get the last dimension (frequency axis)
+#     frequencies = torch.fft.fftfreq(size, d=1.0)  # Compute frequency bins
+#     filter_mask = torch.abs(frequencies) <= cutoff  # Mask for low frequencies
+#     return x_ht * filter_mask.to(x_ht.device)
 
 ################################################################
 # Gaussian Smoothing Function
 ################################################################
 
-#def gaussian_smoothing(x, kernel_size=5, sigma=1.0):
-#    """
-#    Applies Gaussian smoothing to the output.
-#    """
-#    # Apply Gaussian blur (use 2D or 3D kernel as needed)
-#    return F.gaussian_blur(x, kernel_size=[kernel_size], sigma=[sigma])
+# def gaussian_smoothing(x, kernel_size=5, sigma=1.0):
+#     """
+#     Applies Gaussian smoothing to the output.
+#     """
+#     # Apply Gaussian blur (use 2D or 3D kernel as needed)
+#     return F.gaussian_blur(x, kernel_size=[kernel_size], sigma=[sigma])
 
 ################################################################
 # Data Augmentation Function
 ################################################################
 
-#def augment_data(inputs, shift_range=0.1, scale_range=0.05):
-#    """
-#    Augment input data by applying random shifts and scaling.
-#    
-#    Parameters:
-#    - inputs: torch.Tensor, the input data to be augmented
-#    - shift_range: float, the maximum range for random shifts
-#    - scale_range: float, the maximum range for random scaling
-#    
-#    Returns:
-#    - augmented_inputs: torch.Tensor, the augmented input data
-#    """
-#    # Apply random shifts
-#    shifts = torch.rand(inputs.size()) * shift_range
-#    augmented_inputs = inputs + shifts
-#    
-#    # Apply random scaling
-#    scales = 1 + torch.rand(inputs.size()) * scale_range
-#    augmented_inputs = augmented_inputs * scales
-#    
-#    return augmented_inputs
+# def augment_data(inputs, shift_range=0.1, scale_range=0.05):
+#     """
+#     Augment input data by applying random shifts and scaling.
+#     
+#     Parameters:
+#     - inputs: torch.Tensor, the input data to be augmented
+#     - shift_range: float, the maximum range for random shifts
+#     - scale_range: float, the maximum range for random scaling
+#     
+#     Returns:
+#     - augmented_inputs: torch.Tensor, the augmented input data
+#     """
+#     # Apply random shifts
+#     shifts = torch.rand(inputs.size()) * shift_range
+#     augmented_inputs = inputs + shifts
+#     
+#     # Apply random scaling
+#     scales = 1 + torch.rand(inputs.size()) * scale_range
+#     augmented_inputs = augmented_inputs * scales
+#     
+#     return augmented_inputs
 
 ################################################################
 # Transforms
 ################################################################
-import torch
-import torch.nn as nn
 
 ################################################################
 # Discrete Hartley Transforms (DHT)
@@ -166,9 +165,6 @@ def idht_3d(X: torch.Tensor) -> torch.Tensor:
 # Convolutions
 ################################################################
 
-import torch
-from typing import List, Tuple
-
 def compl_mult(x1: torch.Tensor, x2: torch.Tensor, dims: List[int], shifts: Tuple[int, ...]) -> torch.Tensor:
     """
     Perform complex multiplication on tensors with arbitrary dimensionality.
@@ -190,19 +186,17 @@ def compl_mult(x1: torch.Tensor, x2: torch.Tensor, dims: List[int], shifts: Tupl
     X2_H_neg_k = torch.roll(torch.flip(x2, dims=dims), shifts=shifts, dims=dims)
 
     # Prepare einsum subscripts dynamically based on tensor dimensions
-    # Example: 'bixyz,ioxyz->boxyz' for 3D
-    input_dims = 'b' + ''.join([chr(105 + i) for i in range(len(x1.shape) - 2))])  # e.g., 'bixyz'
-    input_dims_neg = input_dims
-    output_dims = 'b' + ''.join([chr(111 + i) for i in range(len(x1.shape) - 2))])  # e.g., 'boxyz'
+    input_dims = 'b' + ''.join([chr(105 + i) for i in range(len(x1.shape) - 2)])  # e.g., 'bixyz'
+    output_dims = 'b' + ''.join([chr(111 + i) for i in range(len(x1.shape) - 2)])  # e.g., 'boxyz'
 
     # Adjust subscripts based on the number of dimensions
-    spatial_dims = ''.join([chr(105 + i) for i in range(len(x1.shape) - 2))])  # e.g., 'ixyz'
+    spatial_dims = ''.join([chr(105 + i) for i in range(len(x1.shape) - 2)])  # e.g., 'ixyz'
 
     # Adjusted einsum equations
-    einsum_eq1 = 'b' + spatial_dims + ',i' + spatial_dims + '->b' + spatial_dims
-    einsum_eq2 = 'b' + spatial_dims + ',i' + spatial_dims + '->b' + spatial_dims
-    einsum_eq3 = 'b' + spatial_dims + ',i' + spatial_dims + '->b' + spatial_dims
-    einsum_eq4 = 'b' + spatial_dims + ',i' + spatial_dims + '->b' + spatial_dims
+    einsum_eq1 = f'{input_dims},i{spatial_dims}->b{spatial_dims}'
+    einsum_eq2 = f'{input_dims},i{spatial_dims}->b{spatial_dims}'
+    einsum_eq3 = f'{input_dims},i{spatial_dims}->b{spatial_dims}'
+    einsum_eq4 = f'{input_dims},i{spatial_dims}->b{spatial_dims}'
 
     # Perform the computation
     result = 0.5 * (
@@ -300,7 +294,7 @@ class SpectralConv1d(nn.Module):
             device=x.device,
             dtype=x.dtype
         )
-        out_ht[:, :, :self.modes1] = dht_conv_1d(
+        out_ht[:, :, :self.modes1] = conv_1d(
             x_ht[:, :, :self.modes1],
             self.weights1
         )
@@ -344,7 +338,7 @@ class SpectralConv2d(nn.Module):
             device=x.device,
             dtype=x.dtype
         )
-        out_ht[:, :, :self.modes1, :self.modes2] = dht_conv_2d(
+        out_ht[:, :, :self.modes1, :self.modes2] = conv_2d(
             x_ht[:, :, :self.modes1, :self.modes2],
             self.weights1
         )
@@ -381,7 +375,7 @@ class SpectralConv3d(nn.Module):
         # Compute Hartley coefficients
         x_ht = dht_3d(x)  # [batch, in_channels, depth, height, width]
 
-        # Multiply relevant Hartley modes using the corrected dht_conv_3d
+        # Multiply relevant Hartley modes using the corrected conv_3d
         out_ht = torch.zeros(
             batchsize,
             self.out_channels,
@@ -391,7 +385,7 @@ class SpectralConv3d(nn.Module):
             device=x.device,
             dtype=x.dtype
         )
-        out_ht[:, :, :self.modes1, :self.modes2, :self.modes3] = dht_conv_3d(
+        out_ht[:, :, :self.modes1, :self.modes2, :self.modes3] = conv_3d(
             x_ht[:, :, :self.modes1, :self.modes2, :self.modes3],
             self.weights1
         )
@@ -416,7 +410,7 @@ class FourierBlock(nn.Module):
         if activation == 'tanh':
             self.activation = torch.tanh
         elif activation == 'gelu':
-            self.activation = nn.GELU()
+            self.activation = nn.GELU()  # Corrected to instantiate GELU
         elif activation == 'swish':
             self.activation = self.swish
         elif activation == 'none':
@@ -438,6 +432,4 @@ class FourierBlock(nn.Module):
         out = x1 + x2
         if self.activation is not None:
             out = self.activation(out)
-        return out
-
-        return out
+        return out  # Removed the redundant return statement
