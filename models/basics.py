@@ -88,8 +88,8 @@ def dht_2d(x: torch.Tensor) -> torch.Tensor:
     """
     # Compute the DHT for each spatial dimension
     return (
-        torch.fft.fft(x, dim=[2, 3], norm='ortho').real +
-        torch.fft.fft(x.flip(-2, -1), dim=[2, 3], norm='ortho').imag
+        torch.fft.fftn(x, dim=[2, 3], norm='ortho').real +
+        torch.fft.fftn(x.flip(-2, -1), dim=[2, 3], norm='ortho').imag
     )
 
 
@@ -105,8 +105,8 @@ def dht_3d(x: torch.Tensor) -> torch.Tensor:
     """
     # Compute the DHT for each spatial dimension
     return (
-        torch.fft.fft(x, dim=[2, 3, 4], norm='ortho').real +
-        torch.fft.fft(x.flip(-3, -2, -1), dim=[2, 3, 4], norm='ortho').imag
+        torch.fft.fftn(x, dim=[2, 3, 4], norm='ortho').real +
+        torch.fft.fftn(x.flip(-3, -2, -1), dim=[2, 3, 4], norm='ortho').imag
     )
 
 
