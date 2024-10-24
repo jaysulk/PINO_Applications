@@ -28,6 +28,20 @@ def gaussian_smoothing(x, sigma=1.0):
     return torch.tensor(x_smoothed, device=x.device)
 
 ################################################################
+# Low-Pass Filter Function
+################################################################
+
+def low_pass_filter(x_ht, cutoff):
+    """
+    Applies a low-pass filter to the spectral coefficients (DHT output).
+    Frequencies higher than `cutoff` are dampened.
+    """
+    size = x_ht.shape[-1]  # Get the last dimension (frequency axis)
+    frequencies = torch.fft.fftfreq(size, d=1.0).to(x_ht.device)  # Compute frequency bins
+    filter_mask = torch.abs(frequencies) <= cutoff  # Mask for low frequencies
+    return x_ht * filter_mask.view(1, 1, -1).expand_as(x_ht)  # Apply mask
+
+################################################################
 # Discrete Hartley Transforms (DHT)
 ################################################################
 
@@ -124,6 +138,7 @@ class SpectralConv1d(nn.Module):
         out_ht[:, :, :self.modes1] = compl_mul1d(x_ht[:, :, :self.modes1], self.weights1)
         x = idht_1d(out_ht)  # [batch, out_channels, length]
         x = gaussian_smoothing(x, sigma=1.0)  # Apply Gaussian smoothing
+        x = low_pass_filter(x, self.cutoff)
         return x
 
 class SpectralConv2d(nn.Module):
@@ -144,6 +159,7 @@ class SpectralConv2d(nn.Module):
         out_ht[:, :, :self.modes1, :self.modes2] = compl_mul2d(x_ht[:, :, :self.modes1, :self.modes2], self.weights1)
         x = idht_2d(out_ht)  # [batch, out_channels, height, width]
         x = gaussian_smoothing(x, sigma=1.0)  # Apply Gaussian smoothing
+        x = low_pass_filter(x, self.cutoff)
         return x
 
 class SpectralConv3d(nn.Module):
@@ -165,6 +181,7 @@ class SpectralConv3d(nn.Module):
         out_ht[:, :, :self.modes1, :self.modes2, :self.modes3] = compl_mul3d(x_ht[:, :, :self.modes1, :self.modes2, :self.modes3], self.weights1)
         x = idht_3d(out_ht)  # [batch, out_channels, depth, height, width]
         x = gaussian_smoothing(x, sigma=1.0)  # Apply Gaussian smoothing
+        x = low_pass_filter(x, self.cutoff)
         return x
 
 ################################################################
