@@ -18,9 +18,9 @@ def gaussian_smoothing(x, sigma=1.0):
     if x.dim() == 3:  # 1D case
         x_smoothed = gaussian(x_np, sigma=sigma, mode='wrap')
     elif x.dim() == 4:  # 2D case
-        x_smoothed = gaussian(x_np, sigma=sigma, multichannel=True)
+        x_smoothed = gaussian(x_np, sigma=sigma)
     elif x.dim() == 5:  # 3D case
-        x_smoothed = gaussian(x_np, sigma=sigma, multichannel=True)
+        x_smoothed = gaussian(x_np, sigma=sigma)
     else:
         raise ValueError("Input tensor must have 3, 4, or 5 dimensions.")
     
