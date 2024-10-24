@@ -163,234 +163,53 @@ def idht_3d(X: torch.Tensor) -> torch.Tensor:
 # Convolutions
 ################################################################
 
-def compl_mul1d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
+import torch
+from typing import List, Tuple
+
+def compl_mult(x1: torch.Tensor, x2: torch.Tensor, dims: List[int], shifts: Tuple[int, ...]) -> torch.Tensor:
     """
-    1D convolution using torch.einsum.
+    Perform complex multiplication on tensors with arbitrary dimensionality.
 
     Args:
-        x1 (torch.Tensor): Input tensor with shape [batch, in_channels, length]
-        x2 (torch.Tensor): Kernel tensor with shape [in_channels, out_channels, modes1]
+        x1 (torch.Tensor): First input tensor.
+        x2 (torch.Tensor): Second input tensor.
+        dims (List[int]): Dimensions along which to perform flipping.
+        shifts (Tuple[int, ...]): Shifts for the rolling operation corresponding to 'dims'.
 
     Returns:
-        torch.Tensor: Convolved tensor with shape [batch, out_channels, length]
+        torch.Tensor: Resulting tensor after complex multiplication.
     """
-    # (batch, in_channel, x ), (in_channel, out_channel, x) -> (batch, out_channel, x)
-    return torch.einsum("bix,iox->box", x1, x2)
+    X1_H_k = x1
+    X2_H_k = x2
 
-def compl_mul2d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
-    """
-    2D convolution using torch.einsum.
+    # Flip and roll for negative frequencies/components
+    X1_H_neg_k = torch.roll(torch.flip(x1, dims=dims), shifts=shifts, dims=dims)
+    X2_H_neg_k = torch.roll(torch.flip(x2, dims=dims), shifts=shifts, dims=dims)
 
-    Args:
-        x1 (torch.Tensor): Input tensor with shape [batch, in_channels, height, width]
-        x2 (torch.Tensor): Kernel tensor with shape [in_channels, out_channels, modes1, modes2]
+    # Prepare einsum subscripts dynamically based on tensor dimensions
+    # Example: 'bixyz,ioxyz->boxyz' for 3D
+    input_dims = 'b' + ''.join([chr(105 + i) for i in range(len(x1.shape) - 2))])  # e.g., 'bixyz'
+    input_dims_neg = input_dims
+    output_dims = 'b' + ''.join([chr(111 + i) for i in range(len(x1.shape) - 2))])  # e.g., 'boxyz'
 
-    Returns:
-        torch.Tensor: Convolved tensor with shape [batch, out_channels, height, width]
-    """
-    # (batch, in_channel, x,y ), (in_channel, out_channel, x,y) -> (batch, out_channel, x,y)
-    return torch.einsum("bixy,ioxy->boxy", x1, x2)
+    # Adjust subscripts based on the number of dimensions
+    spatial_dims = ''.join([chr(105 + i) for i in range(len(x1.shape) - 2))])  # e.g., 'ixyz'
 
-def compl_mul3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
-    """
-    3D convolution using torch.einsum.
+    # Adjusted einsum equations
+    einsum_eq1 = 'b' + spatial_dims + ',i' + spatial_dims + '->b' + spatial_dims
+    einsum_eq2 = 'b' + spatial_dims + ',i' + spatial_dims + '->b' + spatial_dims
+    einsum_eq3 = 'b' + spatial_dims + ',i' + spatial_dims + '->b' + spatial_dims
+    einsum_eq4 = 'b' + spatial_dims + ',i' + spatial_dims + '->b' + spatial_dims
 
-    Args:
-        x1 (torch.Tensor): Input tensor with shape [batch, in_channels, depth, height, width]
-        x2 (torch.Tensor): Kernel tensor with shape [in_channels, out_channels, modes1, modes2, modes3]
+    # Perform the computation
+    result = 0.5 * (
+        torch.einsum(einsum_eq1, X1_H_k, X2_H_k) - 
+        torch.einsum(einsum_eq2, X1_H_neg_k, X2_H_neg_k) +
+        torch.einsum(einsum_eq3, X1_H_k, X2_H_neg_k) + 
+        torch.einsum(einsum_eq4, X1_H_neg_k, X2_H_k)
+    )
 
-    Returns:
-        torch.Tensor: Convolved tensor with shape [batch, out_channels, depth, height, width]
-    """
-    # (batch, in_channel, x,y,z ), (in_channel, out_channel, x,y,z) -> (batch, out_channel, x,y,z)
-    return torch.einsum("bixyz,ioxyz->boxyz", x1, x2)
-
-################################################################
-# Flip Periodic Functions
-################################################################
-
-def flip_periodic_1d(x: torch.Tensor) -> torch.Tensor:
-    """
-    Perform a periodic flip of the tensor along the length dimension.
-
-    Args:
-        x (torch.Tensor): Input tensor of shape [batch, channels, length].
-
-    Returns:
-        torch.Tensor: Periodically flipped tensor with the same shape as input.
-    """
-    dim = 2  # Length dimension
-
-    if x.size(dim) < 1:
-        raise ValueError(f"Dimension {dim} is too small to perform flip.")
-
-    # Initialize Z as a copy of x to avoid modifying the original tensor
-    Z = x.clone()
-
-    # Extract the first element
-    first = Z.index_select(dim, torch.tensor([0], device=x.device))
-
-    if Z.size(dim) > 1:
-        # Select all elements from index 1 onwards and flip them
-        remaining = Z.index_select(dim, torch.arange(1, Z.size(dim), device=x.device)).flip(dims=[dim])
-        # Concatenate first and flipped remaining along the current dimension
-        Z = torch.cat([first, remaining], dim=dim)
-    else:
-        # If there's only one element, no flipping needed
-        Z = first
-
-    return Z
-
-def flip_periodic_2d(x: torch.Tensor) -> torch.Tensor:
-    """
-    Perform a periodic flip of the tensor along height and width dimensions.
-
-    Args:
-        x (torch.Tensor): Input tensor of shape [batch, channels, height, width].
-
-    Returns:
-        torch.Tensor: Periodically flipped tensor with the same shape as input.
-    """
-    dims = [2, 3]  # Height and Width dimensions
-
-    Z = x.clone()
-
-    for dim in dims:
-        if Z.size(dim) < 1:
-            raise ValueError(f"Dimension {dim} is too small to perform flip.")
-
-        # Extract the first element
-        first = Z.index_select(dim, torch.tensor([0], device=x.device))
-
-        if Z.size(dim) > 1:
-            # Select all elements from index 1 onwards and flip them
-            remaining = Z.index_select(dim, torch.arange(1, Z.size(dim), device=x.device)).flip(dims=[dim])
-            # Concatenate first and flipped remaining along the current dimension
-            Z = torch.cat([first, remaining], dim=dim)
-        else:
-            # If there's only one element, no flipping needed
-            Z = first
-
-    return Z
-
-def flip_periodic_3d(x: torch.Tensor) -> torch.Tensor:
-    """
-    Perform a periodic flip of the tensor along depth, height, and width dimensions.
-
-    Args:
-        x (torch.Tensor): Input tensor of shape [batch, channels, depth, height, width].
-
-    Returns:
-        torch.Tensor: Periodically flipped tensor with the same shape as input.
-    """
-    dims = [2, 3, 4]  # Depth, Height, and Width dimensions
-    Z = x.clone()
-
-    for dim in dims:
-        if Z.size(dim) < 1:
-            raise ValueError(f"Dimension {dim} is too small to perform flip.")
-
-        # Extract the first element
-        first = Z.index_select(dim, torch.tensor([0], device=x.device))
-
-        if Z.size(dim) > 1:
-            # Select all elements from index 1 onwards and flip them
-            remaining = Z.index_select(dim, torch.arange(1, Z.size(dim), device=x.device)).flip(dims=[dim])
-            # Concatenate first and flipped remaining along the current dimension
-            Z = torch.cat([first, remaining], dim=dim)
-        else:
-            # If there's only one element, no flipping needed
-            Z = first
-
-    return Z
-
-################################################################
-# Spectral Convolution Functions
-################################################################
-
-def dht_conv_1d(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-    """
-    Compute the DHT of the convolution of two 1D tensors using the convolution theorem.
-
-    Args:
-        x (torch.Tensor): First input tensor with shape [batch, in_channels, length]
-        y (torch.Tensor): Second input tensor with shape [in_channels, out_channels, modes1]
-
-    Returns:
-        torch.Tensor: DHT of the convolution of x and y.
-    """
-    # Compute flipped versions
-    Xflip = flip_periodic_1d(x)
-    Yflip = flip_periodic_1d(y)
-
-    # Compute even and odd components
-    Yeven = 0.5 * (y + Yflip)
-    Yodd  = 0.5 * (y - Yflip)
-
-    # Perform convolution using compl_mul
-    term1 = compl_mul1d(x, Yeven)
-    term2 = compl_mul1d(Xflip, Yodd)
-
-    # Combine terms
-    Z = term1 + term2  # [batch, out_channels, length]
-
-    return Z
-
-def dht_conv_2d(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-    """
-    Compute the DHT of the convolution of two 2D tensors using the convolution theorem.
-
-    Args:
-        x (torch.Tensor): First input tensor with shape [batch, in_channels, height, width]
-        y (torch.Tensor): Second input tensor with shape [in_channels, out_channels, modes1, modes2]
-
-    Returns:
-        torch.Tensor: DHT of the convolution of x and y.
-    """
-    # Compute flipped versions
-    Xflip = flip_periodic_2d(x)
-    Yflip = flip_periodic_2d(y)
-
-    # Compute even and odd components
-    Yeven = 0.5 * (y + Yflip)
-    Yodd  = 0.5 * (y - Yflip)
-
-    # Perform convolution using compl_mul
-    term1 = compl_mul2d(x, Yeven)
-    term2 = compl_mul2d(Xflip, Yodd)
-
-    # Combine terms
-    Z = term1 + term2  # [batch, out_channels, height, width]
-
-    return Z
-
-def dht_conv_3d(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-    """
-    Compute the DHT of the convolution of two 3D tensors using the convolution theorem.
-
-    Args:
-        x (torch.Tensor): First input tensor with shape [batch, in_channels, depth, height, width]
-        y (torch.Tensor): Second input tensor with shape [in_channels, out_channels, modes1, modes2, modes3]
-
-    Returns:
-        torch.Tensor: DHT of the convolution of x and y.
-    """
-    # Compute flipped versions
-    Xflip = flip_periodic_3d(x)
-    Yflip = flip_periodic_3d(y)
-
-    # Compute even and odd components
-    Yeven = 0.5 * (y + Yflip)
-    Yodd  = 0.5 * (y - Yflip)
-
-    # Perform convolution using compl_mul
-    term1 = compl_mul3d(x, Yeven)
-    term2 = compl_mul3d(Xflip, Yodd)
-
-    # Combine terms
-    Z = term1 + term2  # [batch, out_channels, depth, height, width]
-
-    return Z
+    return result
 
 ################################################################
 # Direct Convolution in Hartley Domain
@@ -398,7 +217,7 @@ def dht_conv_3d(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
 
 def conv_1d(x_ht: torch.Tensor, weights: torch.Tensor) -> torch.Tensor:
     """
-    Perform 1D convolution in the Hartley domain.
+    Perform 1D convolution in the Hartley domain using the generalized compl_mult function.
 
     Args:
         x_ht (torch.Tensor): Hartley-transformed input tensor [batch, in_channels, modes1]
@@ -407,11 +226,12 @@ def conv_1d(x_ht: torch.Tensor, weights: torch.Tensor) -> torch.Tensor:
     Returns:
         torch.Tensor: Convolved tensor in the Hartley domain [batch, out_channels, modes1]
     """
-    return compl_mul1d(x_ht, weights)
+    # For 1D, flip and shift along the last dimension (-1)
+    return compl_mult(x_ht, weights, dims=[-1], shifts=(1,))
 
 def conv_2d(x_ht: torch.Tensor, weights: torch.Tensor) -> torch.Tensor:
     """
-    Perform 2D convolution in the Hartley domain.
+    Perform 2D convolution in the Hartley domain using the generalized compl_mult function.
 
     Args:
         x_ht (torch.Tensor): Hartley-transformed input tensor [batch, in_channels, modes1, modes2]
@@ -420,11 +240,12 @@ def conv_2d(x_ht: torch.Tensor, weights: torch.Tensor) -> torch.Tensor:
     Returns:
         torch.Tensor: Convolved tensor in the Hartley domain [batch, out_channels, modes1, modes2]
     """
-    return compl_mul2d(x_ht, weights)
+    # For 2D, flip and shift along the last two dimensions (-1, -2)
+    return compl_mult(x_ht, weights, dims=[-1, -2], shifts=(1, 1))
 
 def conv_3d(x_ht: torch.Tensor, weights: torch.Tensor) -> torch.Tensor:
     """
-    Perform 3D convolution in the Hartley domain.
+    Perform 3D convolution in the Hartley domain using the generalized compl_mult function.
 
     Args:
         x_ht (torch.Tensor): Hartley-transformed input tensor [batch, in_channels, modes1, modes2, modes3]
@@ -433,7 +254,8 @@ def conv_3d(x_ht: torch.Tensor, weights: torch.Tensor) -> torch.Tensor:
     Returns:
         torch.Tensor: Convolved tensor in the Hartley domain [batch, out_channels, modes1, modes2, modes3]
     """
-    return compl_mul3d(x_ht, weights)
+    # For 3D, flip and shift along the last three dimensions (-1, -2, -3)
+    return compl_mult(x_ht, weights, dims=[-1, -2, -3], shifts=(1, 1, 1))
 
 ################################################################
 # Spectral Convolution Layers
