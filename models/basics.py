@@ -464,7 +464,7 @@ class SpectralConv1d(nn.Module):
         # Compute Hartley coefficients
         x_ht = dht_1d(x)  # [batch, in_channels, length]
 
-        # Multiply relevant Hartley modes
+        # Prepare output tensor
         out_ht = torch.zeros(
             batchsize,
             self.out_channels,
@@ -472,16 +472,20 @@ class SpectralConv1d(nn.Module):
             device=x.device,
             dtype=x.dtype
         )
+
+        # Multiply relevant Hartley modes
         out_ht[:, :, :self.modes1] = dht_conv_1d(
             x_ht[:, :, :self.modes1],
             self.weights1
         )
 
         # Estimate phase information
-        phase_estimation = torch.sin(self.phase_weights)  # Example: using sine of phase weights
+        phase_estimation = torch.sin(self.phase_weights)  # Shape: [in_channels, out_channels, modes1]
+        phase_estimation = phase_estimation.unsqueeze(0)  # Shape: [1, in_channels, out_channels, modes1]
+        phase_estimation = phase_estimation.expand(batchsize, -1, -1, -1)  # Shape: [batchsize, in_channels, out_channels, modes1]
 
         # Apply phase adjustment
-        out_ht[:, :, :self.modes1] *= phase_estimation
+        out_ht[:, :, :self.modes1] *= phase_estimation[:, :, :, :self.modes1]
 
         # Return to physical space
         x = idht_1d(out_ht)  # [batch, out_channels, length]
@@ -532,10 +536,12 @@ class SpectralConv2d(nn.Module):
         )
 
         # Estimate phase information
-        phase_estimation = torch.sin(self.phase_weights)  # Example: using sine of phase weights
+        phase_estimation = torch.sin(self.phase_weights)  # Shape: [in_channels, out_channels, modes1, modes2]
+        phase_estimation = phase_estimation.unsqueeze(0)  # Shape: [1, in_channels, out_channels, modes1, modes2]
+        phase_estimation = phase_estimation.expand(batchsize, -1, -1, -1, -1)  # Shape: [batchsize, in_channels, out_channels, modes1, modes2]
 
         # Apply phase adjustment
-        out_ht[:, :, :self.modes1, :self.modes2] *= phase_estimation
+        out_ht[:, :, :self.modes1, :self.modes2] *= phase_estimation[:, :, :, :self.modes1, :self.modes2]
 
         # Return to physical space
         x = idht_2d(out_ht)  # [batch, out_channels, height, width]
@@ -590,15 +596,18 @@ class SpectralConv3d(nn.Module):
         )
 
         # Estimate phase information
-        phase_estimation = torch.sin(self.phase_weights)  # Example: using sine of phase weights
+        phase_estimation = torch.sin(self.phase_weights)  # Shape: [in_channels, out_channels, modes1, modes2, modes3]
+        phase_estimation = phase_estimation.unsqueeze(0)  # Shape: [1, in_channels, out_channels, modes1, modes2, modes3]
+        phase_estimation = phase_estimation.expand(batchsize, -1, -1, -1, -1, -1)  # Shape: [batchsize, in_channels, out_channels, modes1, modes2, modes3]
 
         # Apply phase adjustment
-        out_ht[:, :, :self.modes1, :self.modes2, :self.modes3] *= phase_estimation
+        out_ht[:, :, :self.modes1, :self.modes2, :self.modes3] *= phase_estimation[:, :, :, :self.modes1, :self.modes2, :self.modes3]
 
         # Return to physical space
         x = idht_3d(out_ht)  # [batch, out_channels, depth, height, width]
 
         return x
+
 
 ################################################################
 # FourierBlock 
