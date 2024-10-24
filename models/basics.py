@@ -98,7 +98,7 @@ def dht_2d(x: torch.Tensor) -> torch.Tensor:
         torch.Tensor: DHT of the input tensor.
     """
     transform_dims = [2, 3]  # Height and Width dimensions
-    result = torch.fft.fftn(x, dim=transform_dim).real - torch.fft.fftn(x.flip(-2, -1), dim=transform_dims).imag
+    result = torch.fft.fftn(x, dim=transform_dims).real - torch.fft.fftn(x.flip(-2, -1), dim=transform_dims).imag
 
     # Compute the norm of the result
     norm = result.norm(dim=transform_dims, keepdim=True)
