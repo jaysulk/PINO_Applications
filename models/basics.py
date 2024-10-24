@@ -225,7 +225,7 @@ def conv_1d(x_ht: torch.Tensor, weights: torch.Tensor) -> torch.Tensor:
         torch.Tensor: Convolved tensor in the Hartley domain [batch, out_channels, modes1]
     """
     # For 1D, flip and shift along the last dimension (-1)
-    return compl_mult_1d(x_ht, weights, dims=[-1], shifts=(1,))
+    return compl_mult1d(x_ht, weights)
 
 def conv_2d(x_ht: torch.Tensor, weights: torch.Tensor) -> torch.Tensor:
     """
@@ -239,7 +239,7 @@ def conv_2d(x_ht: torch.Tensor, weights: torch.Tensor) -> torch.Tensor:
         torch.Tensor: Convolved tensor in the Hartley domain [batch, out_channels, modes1, modes2]
     """
     # For 2D, flip and shift along the last two dimensions (-1, -2)
-    return compl_mult_2d(x_ht, weights, dims=[-1, -2], shifts=(1, 1))
+    return compl_mult2d(x_ht, weights)
 
 def conv_3d(x_ht: torch.Tensor, weights: torch.Tensor) -> torch.Tensor:
     """
@@ -253,7 +253,7 @@ def conv_3d(x_ht: torch.Tensor, weights: torch.Tensor) -> torch.Tensor:
         torch.Tensor: Convolved tensor in the Hartley domain [batch, out_channels, modes1, modes2, modes3]
     """
     # For 3D, flip and shift along the last three dimensions (-1, -2, -3)
-    return compl_mult_3d(x_ht, weights, dims=[-1, -2, -3], shifts=(1, 1, 1))
+    return compl_mult3d(x_ht, weights)
 
 ################################################################
 # Spectral Convolution Layers
