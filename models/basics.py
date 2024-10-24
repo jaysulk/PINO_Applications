@@ -165,49 +165,50 @@ def idht_3d(X: torch.Tensor) -> torch.Tensor:
 # Convolutions
 ################################################################
 
-def compl_mult(x1: torch.Tensor, x2: torch.Tensor, dims: List[int], shifts: Tuple[int, ...]) -> torch.Tensor:
-    """
-    Perform complex multiplication on tensors with arbitrary dimensionality.
-
-    Args:
-        x1 (torch.Tensor): First input tensor.
-        x2 (torch.Tensor): Second input tensor.
-        dims (List[int]): Dimensions along which to perform flipping.
-        shifts (Tuple[int, ...]): Shifts for the rolling operation corresponding to 'dims'.
-
-    Returns:
-        torch.Tensor: Resulting tensor after complex multiplication.
-    """
+def compl_mul1d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
+    # Compute the DHT of both signals
     X1_H_k = x1
     X2_H_k = x2
+    X1_H_neg_k = torch.roll(torch.flip(x1, dims=[-1]), shifts=1, dims=[-1])
+    X2_H_neg_k = torch.roll(torch.flip(x2, dims=[-1]), shifts=1, dims=[-1])
 
-    # Flip and roll for negative frequencies/components
-    X1_H_neg_k = torch.roll(torch.flip(x1, dims=dims), shifts=shifts, dims=dims)
-    X2_H_neg_k = torch.roll(torch.flip(x2, dims=dims), shifts=shifts, dims=dims)
-
-    # Prepare einsum subscripts dynamically based on tensor dimensions
-    input_dims = 'b' + ''.join([chr(105 + i) for i in range(len(x1.shape) - 2)])  # e.g., 'bixyz'
-    output_dims = 'b' + ''.join([chr(111 + i) for i in range(len(x1.shape) - 2)])  # e.g., 'boxyz'
-
-    # Adjust subscripts based on the number of dimensions
-    spatial_dims = ''.join([chr(105 + i) for i in range(len(x1.shape) - 2)])  # e.g., 'ixyz'
-
-    # Adjusted einsum equations
-    einsum_eq1 = f'{input_dims},i{spatial_dims}->b{spatial_dims}'
-    einsum_eq2 = f'{input_dims},i{spatial_dims}->b{spatial_dims}'
-    einsum_eq3 = f'{input_dims},i{spatial_dims}->b{spatial_dims}'
-    einsum_eq4 = f'{input_dims},i{spatial_dims}->b{spatial_dims}'
-
-    # Perform the computation
-    result = 0.5 * (
-        torch.einsum(einsum_eq1, X1_H_k, X2_H_k) - 
-        torch.einsum(einsum_eq2, X1_H_neg_k, X2_H_neg_k) +
-        torch.einsum(einsum_eq3, X1_H_k, X2_H_neg_k) + 
-        torch.einsum(einsum_eq4, X1_H_neg_k, X2_H_k)
-    )
+    result = 0.5 * (torch.einsum('bix,iox->box', X1_H_k, X2_H_k) - 
+                     torch.einsum('bix,iox->box', X1_H_neg_k, X2_H_neg_k) +
+                     torch.einsum('bix,iox->box', X1_H_k, X2_H_neg_k) + 
+                     torch.einsum('bix,iox->box', X1_H_neg_k, X2_H_k))
 
     return result
 
+def compl_mul2d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
+    # Compute the DHT of both signals
+    X1_H_k = x1
+    X2_H_k = x2
+    X1_H_neg_k = torch.roll(torch.flip(x1, dims=[-1, -2]), shifts=(1, 1), dims=[-1, -2])
+    X2_H_neg_k = torch.roll(torch.flip(x2, dims=[-1, -2]), shifts=(1, 1), dims=[-1, -2])
+    
+    # Perform the convolution using DHT components
+    result = 0.5 * (torch.einsum('bixy,ioxy->boxy', X1_H_k, X2_H_k) - 
+                    torch.einsum('bixy,ioxy->boxy', X1_H_neg_k, X2_H_neg_k) +
+                    torch.einsum('bixy,ioxy->boxy', X1_H_k, X2_H_neg_k) + 
+                    torch.einsum('bixy,ioxy->boxy', X1_H_neg_k, X2_H_k))
+    
+    return result
+
+    
+def compl_mul3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
+    # Compute the DHT of both signals
+    X1_H_k = x1
+    X2_H_k = x2
+    X1_H_neg_k = torch.roll(torch.flip(x1, dims=[-3, -2, -1]), shifts=(1, 1, 1), dims=[-3, -2, -1])
+    X2_H_neg_k = torch.roll(torch.flip(x2, dims=[-3, -2, -1]), shifts=(1, 1, 1), dims=[-3, -2, -1])
+
+    result = 0.5 * (torch.einsum('bixyz,ioxyz->boxyz', X1_H_k, X2_H_k) - 
+                     torch.einsum('bixyz,ioxyz->boxyz', X1_H_neg_k, X2_H_neg_k) +
+                     torch.einsum('bixyz,ioxyz->boxyz', X1_H_k, X2_H_neg_k) + 
+                     torch.einsum('bixyz,ioxyz->boxyz', X1_H_neg_k, X2_H_k))
+
+    return result
+    
 ################################################################
 # Direct Convolution in Hartley Domain
 ################################################################
@@ -224,7 +225,7 @@ def conv_1d(x_ht: torch.Tensor, weights: torch.Tensor) -> torch.Tensor:
         torch.Tensor: Convolved tensor in the Hartley domain [batch, out_channels, modes1]
     """
     # For 1D, flip and shift along the last dimension (-1)
-    return compl_mult(x_ht, weights, dims=[-1], shifts=(1,))
+    return compl_mult_1d(x_ht, weights, dims=[-1], shifts=(1,))
 
 def conv_2d(x_ht: torch.Tensor, weights: torch.Tensor) -> torch.Tensor:
     """
@@ -238,7 +239,7 @@ def conv_2d(x_ht: torch.Tensor, weights: torch.Tensor) -> torch.Tensor:
         torch.Tensor: Convolved tensor in the Hartley domain [batch, out_channels, modes1, modes2]
     """
     # For 2D, flip and shift along the last two dimensions (-1, -2)
-    return compl_mult(x_ht, weights, dims=[-1, -2], shifts=(1, 1))
+    return compl_mult_2d(x_ht, weights, dims=[-1, -2], shifts=(1, 1))
 
 def conv_3d(x_ht: torch.Tensor, weights: torch.Tensor) -> torch.Tensor:
     """
@@ -252,7 +253,7 @@ def conv_3d(x_ht: torch.Tensor, weights: torch.Tensor) -> torch.Tensor:
         torch.Tensor: Convolved tensor in the Hartley domain [batch, out_channels, modes1, modes2, modes3]
     """
     # For 3D, flip and shift along the last three dimensions (-1, -2, -3)
-    return compl_mult(x_ht, weights, dims=[-1, -2, -3], shifts=(1, 1, 1))
+    return compl_mult_3d(x_ht, weights, dims=[-1, -2, -3], shifts=(1, 1, 1))
 
 ################################################################
 # Spectral Convolution Layers
