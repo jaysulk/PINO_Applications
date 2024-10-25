@@ -72,12 +72,9 @@ def idht_1d(X: torch.Tensor) -> torch.Tensor:
     # Assume the last dimension is the transform dimension
     N = X.shape[-1]
     
-    # Convert Hartley coefficients back to complex FFT coefficients
-    complex_coeffs = torch.complex(X, X) / 2
-    
     # Perform the inverse FFT along the last dimension
     # The output length for irfft is (N * 2 - 2) to match the real FFT output
-    x = torch.fft.irfft(complex_coeffs, n=(N * 2 - 2), dim=-1)
+    x = torch.fft.irfft(X, n=(N * 2 - 2), dim=-1)
     
     # Scale the result by the number of points
     x = x / N
@@ -96,12 +93,9 @@ def idht_2d(X: torch.Tensor) -> torch.Tensor:
     # Assume the last two dimensions are height and width
     H, W = X.shape[-2], X.shape[-1]
     
-    # Convert Hartley coefficients back to complex FFT coefficients
-    complex_coeffs = torch.complex(X, X) / 2
-    
     # Perform the inverse FFT along the last two dimensions
     # The output sizes for irfft2 are (H * 2 - 2, W * 2 - 2)
-    x = torch.fft.irfft2(complex_coeffs, s=(H * 2 - 2, W * 2 - 2), dim=(-2, -1))
+    x = torch.fft.irfft2(X, s=(H * 2 - 2, W * 2 - 2), dim=(-2, -1))
     
     # Scale the result by the number of points
     x = x / (H * W)
@@ -120,12 +114,9 @@ def idht_3d(X: torch.Tensor) -> torch.Tensor:
     # Assume the last three dimensions are depth, height, and width
     D, H, W = X.shape[-3], X.shape[-2], X.shape[-1]
     
-    # Convert Hartley coefficients back to complex FFT coefficients
-    complex_coeffs = torch.complex(X, X) / 2
-    
     # Perform the inverse FFT along the last three dimensions
     # The output sizes for irfftn are (D * 2 - 2, H * 2 - 2, W * 2 - 2)
-    x = torch.fft.irfftn(complex_coeffs, s=(D * 2 - 2, H * 2 - 2, W * 2 - 2), dim=(-3, -2, -1))
+    x = torch.fft.irfftn(X, s=(D * 2 - 2, H * 2 - 2, W * 2 - 2), dim=(-3, -2, -1))
     
     # Scale the result by the number of points
     x = x / (D * H * W)
