@@ -80,43 +80,85 @@ def idht_3d(X: torch.Tensor) -> torch.Tensor:
 ################################################################
 
 def compl_mul1d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
-    X1_H_k = x1
-    X2_H_k = x2
-    X1_H_neg_k = torch.roll(torch.flip(x1, dims=[-1]), shifts=1, dims=[-1])
-    X2_H_neg_k = torch.roll(torch.flip(x2, dims=[-1]), shifts=1, dims=[-1])
+    """
+    Performs complex multiplication for 1D data.
 
-    result = 0.5 * (torch.einsum('bix,iox->box', X1_H_k, X2_H_k) - 
-                     torch.einsum('bix,iox->box', X1_H_neg_k, X2_H_neg_k) +
-                     torch.einsum('bix,iox->box', X1_H_k, X2_H_neg_k) + 
-                     torch.einsum('bix,iox->box', X1_H_neg_k, X2_H_k))
+    Args:
+        x1 (torch.Tensor): Tensor of shape [batch, in_channels, modes1, 2]
+        x2 (torch.Tensor): Tensor of shape [in_channels, out_channels, modes1, 2]
+
+    Returns:
+        torch.Tensor: Tensor of shape [batch, out_channels, modes1, 2]
+    """
+    X1_H_k = x1  # [batch, in_channels, modes1, 2]
+    X2_H_k = x2  # [in_channels, out_channels, modes1, 2]
+    X1_H_neg_k = torch.roll(torch.flip(x1, dims=[-1]), shifts=1, dims=[-1])  # [batch, in_channels, modes1, 2]
+    X2_H_neg_k = torch.roll(torch.flip(x2, dims=[-1]), shifts=1, dims=[-1])  # [in_channels, out_channels, modes1, 2]
+
+    # Updated einsum subscripts to include the complex dimension 'c'
+    result = 0.5 * (
+        torch.einsum('bixc,ioxc->boxc', X1_H_k, X2_H_k) - 
+        torch.einsum('bixc,ioxc->boxc', X1_H_neg_k, X2_H_neg_k) +
+        torch.einsum('bixc,ioxc->boxc', X1_H_k, X2_H_neg_k) + 
+        torch.einsum('bixc,ioxc->boxc', X1_H_neg_k, X2_H_k)
+    )
 
     return result
+
 
 def compl_mul2d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
-    X1_H_k = x1
-    X2_H_k = x2
-    X1_H_neg_k = torch.roll(torch.flip(x1, dims=[-1, -2]), shifts=(1, 1), dims=[-1, -2])
-    X2_H_neg_k = torch.roll(torch.flip(x2, dims=[-1, -2]), shifts=(1, 1), dims=[-1, -2])
+    """
+    Performs complex multiplication for 2D data.
+
+    Args:
+        x1 (torch.Tensor): Tensor of shape [batch, in_channels, modes1, modes2, 2]
+        x2 (torch.Tensor): Tensor of shape [in_channels, out_channels, modes1, modes2, 2]
+
+    Returns:
+        torch.Tensor: Tensor of shape [batch, out_channels, modes1, modes2, 2]
+    """
+    X1_H_k = x1  # [batch, in_channels, modes1, modes2, 2]
+    X2_H_k = x2  # [in_channels, out_channels, modes1, modes2, 2]
+    X1_H_neg_k = torch.roll(torch.flip(x1, dims=[-1, -2]), shifts=(1, 1), dims=[-1, -2])  # [batch, in_channels, modes1, modes2, 2]
+    X2_H_neg_k = torch.roll(torch.flip(x2, dims=[-1, -2]), shifts=(1, 1), dims=[-1, -2])  # [in_channels, out_channels, modes1, modes2, 2]
     
-    result = 0.5 * (torch.einsum('bixy,ioxy->boxy', X1_H_k, X2_H_k) - 
-                    torch.einsum('bixy,ioxy->boxy', X1_H_neg_k, X2_H_neg_k) +
-                    torch.einsum('bixy,ioxy->boxy', X1_H_k, X2_H_neg_k) + 
-                    torch.einsum('bixy,ioxy->boxy', X1_H_neg_k, X2_H_k))
+    # Updated einsum subscripts to include the complex dimension 'c'
+    result = 0.5 * (
+        torch.einsum('bixyc,ioxyc->boxyc', X1_H_k, X2_H_k) - 
+        torch.einsum('bixyc,ioxyc->boxyc', X1_H_neg_k, X2_H_neg_k) +
+        torch.einsum('bixyc,ioxyc->boxyc', X1_H_k, X2_H_neg_k) + 
+        torch.einsum('bixyc,ioxyc->boxyc', X1_H_neg_k, X2_H_k)
+    )
     
     return result
+
 
 def compl_mul3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
-    X1_H_k = x1
-    X2_H_k = x2
-    X1_H_neg_k = torch.roll(torch.flip(x1, dims=[-3, -2, -1]), shifts=(1, 1, 1), dims=[-3, -2, -1])
-    X2_H_neg_k = torch.roll(torch.flip(x2, dims=[-3, -2, -1]), shifts=(1, 1, 1), dims=[-3, -2, -1])
+    """
+    Performs complex multiplication for 3D data.
 
-    result = 0.5 * (torch.einsum('bixyz,ioxyz->boxyz', X1_H_k, X2_H_k) - 
-                     torch.einsum('bixyz,ioxyz->boxyz', X1_H_neg_k, X2_H_neg_k) +
-                     torch.einsum('bixyz,ioxyz->boxyz', X1_H_k, X2_H_neg_k) + 
-                     torch.einsum('bixyz,ioxyz->boxyz', X1_H_neg_k, X2_H_k))
+    Args:
+        x1 (torch.Tensor): Tensor of shape [batch, in_channels, modes1, modes2, modes3, 2]
+        x2 (torch.Tensor): Tensor of shape [in_channels, out_channels, modes1, modes2, modes3, 2]
+
+    Returns:
+        torch.Tensor: Tensor of shape [batch, out_channels, modes1, modes2, modes3, 2]
+    """
+    X1_H_k = x1  # [batch, in_channels, modes1, modes2, modes3, 2]
+    X2_H_k = x2  # [in_channels, out_channels, modes1, modes2, modes3, 2]
+    X1_H_neg_k = torch.roll(torch.flip(x1, dims=[-1, -2, -3]), shifts=(1, 1, 1), dims=[-1, -2, -3])  # [batch, in_channels, modes1, modes2, modes3, 2]
+    X2_H_neg_k = torch.roll(torch.flip(x2, dims=[-1, -2, -3]), shifts=(1, 1, 1), dims=[-1, -2, -3])  # [in_channels, out_channels, modes1, modes2, modes3, 2]
+
+    # Updated einsum subscripts to include the complex dimension 'c'
+    result = 0.5 * (
+        torch.einsum('bixyzc,ioxyzc->boxyzc', X1_H_k, X2_H_k) - 
+        torch.einsum('bixyzc,ioxyzc->boxyzc', X1_H_neg_k, X2_H_neg_k) +
+        torch.einsum('bixyzc,ioxyzc->boxyzc', X1_H_k, X2_H_neg_k) + 
+        torch.einsum('bixyzc,ioxyzc->boxyzc', X1_H_neg_k, X2_H_k)
+    )
 
     return result
+
 
 def reconstruct_phase(out_ht_complex):
     """
