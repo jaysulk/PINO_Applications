@@ -130,103 +130,261 @@ def compl_mul3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
 #    return result
 
 ################################################################
-# Spectral Convolution Layers
+# 1D Hartley convolution layer with adaptive basis refinement
 ################################################################
 
 class SpectralConv1d(nn.Module):
     def __init__(self, in_channels, out_channels, modes1):
         super(SpectralConv1d, self).__init__()
+
         self.in_channels = in_channels
         self.out_channels = out_channels
+        assert self.in_channels == self.out_channels, "For adaptive refinement, in_channels must equal out_channels in SpectralConv1d."
+
         self.modes1 = modes1
+        self.refine_modes1 = modes1  # Can be adjusted separately if needed
+
         self.scale = (1 / (in_channels * out_channels))
         self.weights1 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1))
+        self.refine_weights1 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.refine_modes1))
+
+        # Set a default error threshold
+        self.error_threshold = 0.1
 
     def forward(self, x):
         batchsize = x.shape[0]
-        x_ht = dht_1d(x)  # [batch, in_channels, length]
+
+        # Compute Hartley coefficients
+        x_ht = dht_1d(x)
+
+        # Multiply relevant Hartley modes
         out_ht = torch.zeros(batchsize, self.out_channels, x.size(-1), device=x.device, dtype=x.dtype)
-        out_ht[:, :, :self.modes1] = compl_mul1d(x_ht[:, :, :self.modes1], self.weights1)
-        x = idht_1d(out_ht)  # [batch, out_channels, length]
- #       x = gaussian_smoothing(x, sigma=1.0)  # Apply Gaussian smoothing
- #       x = low_pass_filter(x, self.cutoff)
-        return x
+        out_ht[:, :, :self.modes1] = conv_1d(x_ht[:, :, :self.modes1], self.weights1)
+
+        # Inverse Hartley to reconstruct the signal
+        x_reconstructed = idht_1d(out_ht)
+
+        # Compute reconstruction error
+        error = torch.abs(x - x_reconstructed)
+
+        # Create a mask for refinement based on error threshold
+        mask = (error > self.error_threshold).float()
+        x_refine = x * mask
+
+        # Compute Hartley coefficients for refined regions
+        x_refine_ht = dht_1d(x_refine)
+
+        # Multiply relevant Hartley modes for refinement
+        refine_out_ht = torch.zeros(batchsize, self.out_channels, x.size(-1), device=x.device, dtype=x.dtype)
+        refine_out_ht[:, :, :self.refine_modes1] = conv_1d(x_refine_ht[:, :, :self.refine_modes1], self.refine_weights1)
+
+        # Combine refined output with initial output
+        out_ht += refine_out_ht
+
+        # Return to physical space
+        x_final = idht_1d(out_ht)
+
+        return x_final
+
+################################################################
+# 2D Hartley convolution layer with adaptive basis refinement
+################################################################
 
 class SpectralConv2d(nn.Module):
     def __init__(self, in_channels, out_channels, modes1, modes2):
         super(SpectralConv2d, self).__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
+        assert self.in_channels == self.out_channels, "For adaptive refinement, in_channels must equal out_channels in SpectralConv2d."
+
         self.modes1 = modes1
         self.modes2 = modes2
+        self.refine_modes1 = modes1
+        self.refine_modes2 = modes2
+
         self.scale = (1 / (in_channels * out_channels))
         self.weights1 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2))
+        self.refine_weights1 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.refine_modes1, self.refine_modes2))
+
+        self.error_threshold = 0.1
 
     def forward(self, x):
         batchsize = x.shape[0]
         size1, size2 = x.shape[-2], x.shape[-1]
-        x_ht = dht_2d(x)  # [batch, in_channels, height, width]
+
+        # Compute Hartley coefficients
+        x_ht = dht_2d(x)
+
+        # Multiply relevant Hartley modes
         out_ht = torch.zeros(batchsize, self.out_channels, size1, size2, device=x.device, dtype=x.dtype)
-        out_ht[:, :, :self.modes1, :self.modes2] = compl_mul2d(x_ht[:, :, :self.modes1, :self.modes2], self.weights1)
-        x = idht_2d(out_ht)  # [batch, out_channels, height, width]
-#        x = gaussian_smoothing(x, sigma=1.0)  # Apply Gaussian smoothing
-#        x = low_pass_filter(x, self.cutoff)
-        return x
+        out_ht[:, :, :self.modes1, :self.modes2] = conv_2d(x_ht[:, :, :self.modes1, :self.modes2], self.weights1)
+
+        # Inverse Hartley to reconstruct the signal
+        x_reconstructed = idht_2d(out_ht)
+
+        # Compute reconstruction error
+        error = torch.abs(x - x_reconstructed)
+
+        # Create a mask for refinement
+        mask = (error > self.error_threshold).float()
+        x_refine = x * mask
+
+        # Compute Hartley coefficients for refined regions
+        x_refine_ht = dht_2d(x_refine)
+
+        # Multiply relevant Hartley modes for refinement
+        refine_out_ht = torch.zeros(batchsize, self.out_channels, size1, size2, device=x.device, dtype=x.dtype)
+        refine_out_ht[:, :, :self.refine_modes1, :self.refine_modes2] = conv_2d(x_refine_ht[:, :, :self.refine_modes1, :self.refine_modes2], self.refine_weights1)
+
+        # Combine refined output with initial output
+        out_ht += refine_out_ht
+
+        # Return to physical space
+        x_final = idht_2d(out_ht)
+
+        return x_final
+
+################################################################
+# 3D Hartley convolution layer with adaptive basis refinement
+################################################################
 
 class SpectralConv3d(nn.Module):
     def __init__(self, in_channels, out_channels, modes1, modes2, modes3):
         super(SpectralConv3d, self).__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
+        assert self.in_channels == self.out_channels, "For adaptive refinement, in_channels must equal out_channels in SpectralConv3d."
+
         self.modes1 = modes1
         self.modes2 = modes2
         self.modes3 = modes3
+        self.refine_modes1 = modes1
+        self.refine_modes2 = modes2
+        self.refine_modes3 = modes3
+
         self.scale = (1 / (in_channels * out_channels))
         self.weights1 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3))
+        self.refine_weights1 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.refine_modes1, self.refine_modes2, self.refine_modes3))
+
+        self.error_threshold = 0.1
 
     def forward(self, x):
         batchsize = x.shape[0]
         size1, size2, size3 = x.shape[-3], x.shape[-2], x.shape[-1]
-        x_ht = dht_3d(x)  # [batch, in_channels, depth, height, width]
+
+        # Compute Hartley coefficients
+        x_ht = dht_3d(x)
+
+        # Multiply relevant Hartley modes
         out_ht = torch.zeros(batchsize, self.out_channels, size1, size2, size3, device=x.device, dtype=x.dtype)
-        out_ht[:, :, :self.modes1, :self.modes2, :self.modes3] = compl_mul3d(x_ht[:, :, :self.modes1, :self.modes2, :self.modes3], self.weights1)
-        x = idht_3d(out_ht)  # [batch, out_channels, depth, height, width]
-#        x = gaussian_smoothing(x, sigma=1.0)  # Apply Gaussian smoothing
-#        x = low_pass_filter(x, self.cutoff)
-        return x
+        out_ht[:, :, :self.modes1, :self.modes2, :self.modes3] = conv_3d(x_ht[:, :, :self.modes1, :self.modes2, :self.modes3], self.weights1)
+
+        # Inverse Hartley to reconstruct the signal
+        x_reconstructed = idht_3d(out_ht)
+
+        # Compute reconstruction error
+        error = torch.abs(x - x_reconstructed)
+
+        # Create a mask for refinement
+        mask = (error > self.error_threshold).float()
+        x_refine = x * mask
+
+        # Compute Hartley coefficients for refined regions
+        x_refine_ht = dht_3d(x_refine)
+
+        # Multiply relevant Hartley modes for refinement
+        refine_out_ht = torch.zeros(batchsize, self.out_channels, size1, size2, size3, device=x.device, dtype=x.dtype)
+        refine_out_ht[:, :, :self.refine_modes1, :self.refine_modes2, :self.refine_modes3] = conv_3d(x_refine_ht[:, :, :self.refine_modes1, :self.refine_modes2, :self.refine_modes3], self.refine_weights1)
+
+        # Combine refined output with initial output
+        out_ht += refine_out_ht
+
+        # Return to physical space
+        x_final = idht_3d(out_ht)
+
+        return x_final
 
 ################################################################
-# FourierBlock
+# FourierBlock (Using SpectralConv1d, SpectralConv2d, SpectralConv3d)
 ################################################################
 
-class FourierBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, modes1, modes2, modes3, activation='tanh'):
-        super(FourierBlock, self).__init__()
-        self.in_channel = in_channels
-        self.out_channel = out_channels
-        self.speconv = SpectralConv3d(in_channels, out_channels, modes1, modes2, modes3)
-        self.linear = nn.Conv1d(in_channels, out_channels, 1)
+class FourierBlock1d(nn.Module):
+    def __init__(self, in_channels, out_channels, modes1, activation='tanh'):
+        super(FourierBlock1d, self).__init__()
+        assert in_channels == out_channels, "For adaptive refinement, in_channels must equal out_channels in FourierBlock1d."
+
+        self.speconv = SpectralConv1d(in_channels, out_channels, modes1)
+        self.linear = nn.Conv1d(in_channels, out_channels, kernel_size=1)
 
         if activation == 'tanh':
-            self.activation = torch.tanh
+            self.activation = nn.Tanh()
         elif activation == 'gelu':
             self.activation = nn.GELU()
-        elif activation == 'swish':
-            self.activation = self.swish
         elif activation == 'none':
             self.activation = None
         else:
-            raise ValueError(f"Unsupported activation: {activation}")
-
-    @staticmethod
-    def swish(x):
-        return x * torch.sigmoid(x)
+            raise ValueError(f'{activation} is not supported')
 
     def forward(self, x):
-        x1 = self.speconv(x)
-        x2 = self.linear(x.view(x.shape[0], self.in_channel, -1))
-        x2 = x2.view(x.shape[0], self.out_channel, x.shape[2], x.shape[3], x.shape[4])
-        out = x1 + x2
+        x1 = self.speconv(x)  # [batch, out_channels, length]
+        x2 = self.linear(x)   # [batch, out_channels, length]
+        x = x1 + x2           # [batch, out_channels, length]
+
         if self.activation is not None:
-            out = self.activation(out)
-        return out
+            x = self.activation(x)
+
+        return x
+
+class FourierBlock2d(nn.Module):
+    def __init__(self, in_channels, out_channels, modes1, modes2, activation='tanh'):
+        super(FourierBlock2d, self).__init__()
+        assert in_channels == out_channels, "For adaptive refinement, in_channels must equal out_channels in FourierBlock2d."
+
+        self.speconv = SpectralConv2d(in_channels, out_channels, modes1, modes2)
+        self.linear = nn.Conv2d(in_channels, out_channels, kernel_size=1)
+
+        if activation == 'tanh':
+            self.activation = nn.Tanh()
+        elif activation == 'gelu':
+            self.activation = nn.GELU()
+        elif activation == 'none':
+            self.activation = None
+        else:
+            raise ValueError(f'{activation} is not supported')
+
+    def forward(self, x):
+        x1 = self.speconv(x)  # [batch, out_channels, height, width]
+        x2 = self.linear(x)   # [batch, out_channels, height, width]
+        x = x1 + x2           # [batch, out_channels, height, width]
+
+        if self.activation is not None:
+            x = self.activation(x)
+
+        return x
+
+class FourierBlock3d(nn.Module):
+    def __init__(self, in_channels, out_channels, modes1, modes2, modes3, activation='tanh'):
+        super(FourierBlock3d, self).__init__()
+        assert in_channels == out_channels, "For adaptive refinement, in_channels must equal out_channels in FourierBlock3d."
+
+        self.speconv = SpectralConv3d(in_channels, out_channels, modes1, modes2, modes3)
+        self.linear = nn.Conv3d(in_channels, out_channels, kernel_size=1)
+
+        if activation == 'tanh':
+            self.activation = nn.Tanh()
+        elif activation == 'gelu':
+            self.activation = nn.GELU()
+        elif activation == 'none':
+            self.activation = None
+        else:
+            raise ValueError(f'{activation} is not supported')
+
+    def forward(self, x):
+        x1 = self.speconv(x)  # [batch, out_channels, depth, height, width]
+        x2 = self.linear(x)   # [batch, out_channels, depth, height, width]
+        x = x1 + x2           # [batch, out_channels, depth, height, width]
+
+        if self.activation is not None:
+            x = self.activation(x)
+
+        return x
