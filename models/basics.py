@@ -118,6 +118,23 @@ def compl_mul3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
 
     return result
 
+def reconstruct_phase(out_ht_complex):
+    """
+    Reconstructs the amplitude and phase from complex Hartley coefficients.
+    
+    Args:
+        out_ht_complex (torch.Tensor): Complex tensor with last dimension of size 2 
+                                       representing real and imaginary parts.
+    
+    Returns:
+        torch.Tensor: Reconstructed complex tensor with phase information.
+    """
+    amplitude = torch.sqrt(out_ht_complex[..., 0]**2 + out_ht_complex[..., 1]**2)
+    phase = torch.atan2(out_ht_complex[..., 1], out_ht_complex[..., 0])
+    real = amplitude * torch.cos(phase)
+    imag = amplitude * torch.sin(phase)
+    return torch.stack([real, imag], dim=-1)
+
 ################################################################
 # Spectral Convolution Layers
 ################################################################
@@ -129,17 +146,45 @@ class SpectralConv1d(nn.Module):
         self.out_channels = out_channels
         self.modes1 = modes1
         self.scale = (1 / (in_channels * out_channels))
-        self.weights1 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1))
+        # Initialize weights with real and imaginary parts
+        self.weights1 = nn.Parameter(
+            self.scale * torch.rand(in_channels, out_channels, self.modes1, 2)
+        )  # Shape: (in_channels, out_channels, modes1, 2)
 
     def forward(self, x):
         batchsize = x.shape[0]
-        x_ht = dht_1d(x)  # [batch, in_channels, length]
-        out_ht = torch.zeros(batchsize, self.out_channels, x.size(-1), device=x.device, dtype=x.dtype)
-        out_ht[:, :, :self.modes1] = compl_mul1d(x_ht[:, :, :self.modes1], self.weights1)
-        x = idht_1d(out_ht)  # [batch, out_channels, length]
- #       x = gaussian_smoothing(x, sigma=1.0)  # Apply Gaussian smoothing
- #       x = low_pass_filter(x, self.cutoff)
+        # Perform Discrete Hartley Transform
+        x_ht = dht_1d(x)  # Shape: [batch, in_channels, length]
+        
+        # Convert to complex representation by adding an imaginary part (initialized to zero)
+        x_ht_complex = torch.stack([x_ht, torch.zeros_like(x_ht)], dim=-1)  # Shape: [batch, in_channels, length, 2]
+        
+        # Initialize output Hartley coefficients as complex numbers
+        out_ht_complex = torch.zeros(
+            batchsize, self.out_channels, x.size(-1), 2, device=x.device, dtype=x.dtype
+        )  # Shape: [batch, out_channels, length, 2]
+        
+        # Perform complex multiplication for the specified modes
+        # Slice the relevant modes
+        x_ht_slice = x_ht_complex[:, :, :self.modes1, :]  # Shape: [batch, in_channels, modes1, 2]
+        
+        # Perform complex multiplication
+        out_ht = compl_mul1d(x_ht_slice, self.weights1)  # Shape: [batch, out_channels, modes1, 2]
+        
+        # Assign the multiplied modes back to out_ht_complex
+        out_ht_complex[:, :, :self.modes1, :] = out_ht  # Shape: [batch, out_channels, length, 2]
+        
+        # Reconstruct phase information
+        out_ht_complex_reconstructed = reconstruct_phase(out_ht_complex)  # Shape: [batch, out_channels, length, 2]
+        
+        # Combine real and imaginary parts for inverse DHT
+        out_ht_real = out_ht_complex_reconstructed[..., 0] + out_ht_complex_reconstructed[..., 1]  # Shape: [batch, out_channels, length]
+        
+        # Perform Inverse Discrete Hartley Transform
+        x = idht_1d(out_ht_real)  # Shape: [batch, out_channels, length]
+        
         return x
+
 
 class SpectralConv2d(nn.Module):
     def __init__(self, in_channels, out_channels, modes1, modes2):
@@ -149,17 +194,44 @@ class SpectralConv2d(nn.Module):
         self.modes1 = modes1
         self.modes2 = modes2
         self.scale = (1 / (in_channels * out_channels))
-        self.weights1 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2))
+        # Initialize weights with real and imaginary parts
+        self.weights1 = nn.Parameter(
+            self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, 2)
+        )  # Shape: (in_channels, out_channels, modes1, modes2, 2)
 
     def forward(self, x):
         batchsize = x.shape[0]
         size1, size2 = x.shape[-2], x.shape[-1]
-        x_ht = dht_2d(x)  # [batch, in_channels, height, width]
-        out_ht = torch.zeros(batchsize, self.out_channels, size1, size2, device=x.device, dtype=x.dtype)
-        out_ht[:, :, :self.modes1, :self.modes2] = compl_mul2d(x_ht[:, :, :self.modes1, :self.modes2], self.weights1)
-        x = idht_2d(out_ht)  # [batch, out_channels, height, width]
-#        x = gaussian_smoothing(x, sigma=1.0)  # Apply Gaussian smoothing
-#        x = low_pass_filter(x, self.cutoff)
+        # Perform Discrete Hartley Transform
+        x_ht = dht_2d(x)  # Shape: [batch, in_channels, height, width]
+        
+        # Convert to complex representation by adding an imaginary part (initialized to zero)
+        x_ht_complex = torch.stack([x_ht, torch.zeros_like(x_ht)], dim=-1)  # Shape: [batch, in_channels, height, width, 2]
+        
+        # Initialize output Hartley coefficients as complex numbers
+        out_ht_complex = torch.zeros(
+            batchsize, self.out_channels, size1, size2, 2, device=x.device, dtype=x.dtype
+        )  # Shape: [batch, out_channels, height, width, 2]
+        
+        # Perform complex multiplication for the specified modes
+        # Slice the relevant modes
+        x_ht_slice = x_ht_complex[:, :, :self.modes1, :self.modes2, :]  # Shape: [batch, in_channels, modes1, modes2, 2]
+        
+        # Perform complex multiplication
+        out_ht = compl_mul2d(x_ht_slice, self.weights1)  # Shape: [batch, out_channels, modes1, modes2, 2]
+        
+        # Assign the multiplied modes back to out_ht_complex
+        out_ht_complex[:, :, :self.modes1, :self.modes2, :] = out_ht  # Shape: [batch, out_channels, height, width, 2]
+        
+        # Reconstruct phase information
+        out_ht_complex_reconstructed = reconstruct_phase(out_ht_complex)  # Shape: [batch, out_channels, height, width, 2]
+        
+        # Combine real and imaginary parts for inverse DHT
+        out_ht_real = out_ht_complex_reconstructed[..., 0] + out_ht_complex_reconstructed[..., 1]  # Shape: [batch, out_channels, height, width]
+        
+        # Perform Inverse Discrete Hartley Transform
+        x = idht_2d(out_ht_real)  # Shape: [batch, out_channels, height, width]
+        
         return x
 
 class SpectralConv3d(nn.Module):
@@ -171,17 +243,44 @@ class SpectralConv3d(nn.Module):
         self.modes2 = modes2
         self.modes3 = modes3
         self.scale = (1 / (in_channels * out_channels))
-        self.weights1 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3))
+        # Initialize weights with real and imaginary parts
+        self.weights1 = nn.Parameter(
+            self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3, 2)
+        )  # Shape: (in_channels, out_channels, modes1, modes2, modes3, 2)
 
     def forward(self, x):
         batchsize = x.shape[0]
         size1, size2, size3 = x.shape[-3], x.shape[-2], x.shape[-1]
-        x_ht = dht_3d(x)  # [batch, in_channels, depth, height, width]
-        out_ht = torch.zeros(batchsize, self.out_channels, size1, size2, size3, device=x.device, dtype=x.dtype)
-        out_ht[:, :, :self.modes1, :self.modes2, :self.modes3] = compl_mul3d(x_ht[:, :, :self.modes1, :self.modes2, :self.modes3], self.weights1)
-        x = idht_3d(out_ht)  # [batch, out_channels, depth, height, width]
-#        x = gaussian_smoothing(x, sigma=1.0)  # Apply Gaussian smoothing
-#        x = low_pass_filter(x, self.cutoff)
+        # Perform Discrete Hartley Transform
+        x_ht = dht_3d(x)  # Shape: [batch, in_channels, depth, height, width]
+        
+        # Convert to complex representation by adding an imaginary part (initialized to zero)
+        x_ht_complex = torch.stack([x_ht, torch.zeros_like(x_ht)], dim=-1)  # Shape: [batch, in_channels, depth, height, width, 2]
+        
+        # Initialize output Hartley coefficients as complex numbers
+        out_ht_complex = torch.zeros(
+            batchsize, self.out_channels, size1, size2, size3, 2, device=x.device, dtype=x.dtype
+        )  # Shape: [batch, out_channels, depth, height, width, 2]
+        
+        # Perform complex multiplication for the specified modes
+        # Slice the relevant modes
+        x_ht_slice = x_ht_complex[:, :, :self.modes1, :self.modes2, :self.modes3, :]  # Shape: [batch, in_channels, modes1, modes2, modes3, 2]
+        
+        # Perform complex multiplication
+        out_ht = compl_mul3d(x_ht_slice, self.weights1)  # Shape: [batch, out_channels, modes1, modes2, modes3, 2]
+        
+        # Assign the multiplied modes back to out_ht_complex
+        out_ht_complex[:, :, :self.modes1, :self.modes2, :self.modes3, :] = out_ht  # Shape: [batch, out_channels, depth, height, width, 2]
+        
+        # Reconstruct phase information
+        out_ht_complex_reconstructed = reconstruct_phase(out_ht_complex)  # Shape: [batch, out_channels, depth, height, width, 2]
+        
+        # Combine real and imaginary parts for inverse DHT
+        out_ht_real = out_ht_complex_reconstructed[..., 0] + out_ht_complex_reconstructed[..., 1]  # Shape: [batch, out_channels, depth, height, width]
+        
+        # Perform Inverse Discrete Hartley Transform
+        x = idht_3d(out_ht_real)  # Shape: [batch, out_channels, depth, height, width]
+        
         return x
 
 ################################################################
