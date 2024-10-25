@@ -7,39 +7,39 @@ from skimage.filters import gaussian
 # Gaussian Smoothing Function using scikit-image
 ################################################################
 
-def gaussian_smoothing(x, sigma=1.0):
-    """
-    Applies Gaussian smoothing to the output using scikit-image.
-    """
-    # Convert PyTorch tensor to NumPy array
-    x_np = x.detach().cpu().numpy()
-
-    # Apply Gaussian smoothing
-    if x.dim() == 3:  # 1D case
-        x_smoothed = gaussian(x_np, sigma=sigma, mode='wrap')
-    elif x.dim() == 4:  # 2D case
-        x_smoothed = gaussian(x_np, sigma=sigma)
-    elif x.dim() == 5:  # 3D case
-        x_smoothed = gaussian(x_np, sigma=sigma)
-    else:
-        raise ValueError("Input tensor must have 3, 4, or 5 dimensions.")
-    
-    # Convert back to PyTorch tensor
-    return torch.tensor(x_smoothed, device=x.device)
+#def gaussian_smoothing(x, sigma=1.0):
+#    """
+#    Applies Gaussian smoothing to the output using scikit-image.
+#    """
+#    # Convert PyTorch tensor to NumPy array
+#    x_np = x.detach().cpu().numpy()
+#
+#    # Apply Gaussian smoothing
+#    if x.dim() == 3:  # 1D case
+#        x_smoothed = gaussian(x_np, sigma=sigma, mode='wrap')
+#    elif x.dim() == 4:  # 2D case
+#        x_smoothed = gaussian(x_np, sigma=sigma)
+#    elif x.dim() == 5:  # 3D case
+#        x_smoothed = gaussian(x_np, sigma=sigma)
+#    else:
+#        raise ValueError("Input tensor must have 3, 4, or 5 dimensions.")
+#   
+#    # Convert back to PyTorch tensor
+#    return torch.tensor(x_smoothed, device=x.device)
 
 ################################################################
 # Low-Pass Filter Function
 ################################################################
 
-def low_pass_filter(x_ht, cutoff):
-    """
-    Applies a low-pass filter to the spectral coefficients (DHT output).
-    Frequencies higher than `cutoff` are dampened.
-    """
-    size = x_ht.shape[-1]  # Get the last dimension (frequency axis)
-    frequencies = torch.fft.fftfreq(size, d=1.0).to(x_ht.device)  # Compute frequency bins
-    filter_mask = torch.abs(frequencies) <= cutoff  # Mask for low frequencies
-    return x_ht * filter_mask.view(1, 1, -1).expand_as(x_ht)  # Apply mask
+#def low_pass_filter(x_ht, cutoff):
+#    """
+#    Applies a low-pass filter to the spectral coefficients (DHT output).
+#    Frequencies higher than `cutoff` are dampened.
+#    """
+#    size = x_ht.shape[-1]  # Get the last dimension (frequency axis)
+#    frequencies = torch.fft.fftfreq(size, d=1.0).to(x_ht.device)  # Compute frequency bins
+#    filter_mask = torch.abs(frequencies) <= cutoff  # Mask for low frequencies
+#    return x_ht * filter_mask.view(1, 1, -1).expand_as(x_ht)  # Apply mask
 
 ################################################################
 # Discrete Hartley Transforms (DHT)
@@ -137,8 +137,8 @@ class SpectralConv1d(nn.Module):
         out_ht = torch.zeros(batchsize, self.out_channels, x.size(-1), device=x.device, dtype=x.dtype)
         out_ht[:, :, :self.modes1] = compl_mul1d(x_ht[:, :, :self.modes1], self.weights1)
         x = idht_1d(out_ht)  # [batch, out_channels, length]
-        x = gaussian_smoothing(x, sigma=1.0)  # Apply Gaussian smoothing
-        x = low_pass_filter(x, self.cutoff)
+ #       x = gaussian_smoothing(x, sigma=1.0)  # Apply Gaussian smoothing
+ #       x = low_pass_filter(x, self.cutoff)
         return x
 
 class SpectralConv2d(nn.Module):
@@ -158,8 +158,8 @@ class SpectralConv2d(nn.Module):
         out_ht = torch.zeros(batchsize, self.out_channels, size1, size2, device=x.device, dtype=x.dtype)
         out_ht[:, :, :self.modes1, :self.modes2] = compl_mul2d(x_ht[:, :, :self.modes1, :self.modes2], self.weights1)
         x = idht_2d(out_ht)  # [batch, out_channels, height, width]
-        x = gaussian_smoothing(x, sigma=1.0)  # Apply Gaussian smoothing
-        x = low_pass_filter(x, self.cutoff)
+#        x = gaussian_smoothing(x, sigma=1.0)  # Apply Gaussian smoothing
+#        x = low_pass_filter(x, self.cutoff)
         return x
 
 class SpectralConv3d(nn.Module):
@@ -180,8 +180,8 @@ class SpectralConv3d(nn.Module):
         out_ht = torch.zeros(batchsize, self.out_channels, size1, size2, size3, device=x.device, dtype=x.dtype)
         out_ht[:, :, :self.modes1, :self.modes2, :self.modes3] = compl_mul3d(x_ht[:, :, :self.modes1, :self.modes2, :self.modes3], self.weights1)
         x = idht_3d(out_ht)  # [batch, out_channels, depth, height, width]
-        x = gaussian_smoothing(x, sigma=1.0)  # Apply Gaussian smoothing
-        x = low_pass_filter(x, self.cutoff)
+#        x = gaussian_smoothing(x, sigma=1.0)  # Apply Gaussian smoothing
+#        x = low_pass_filter(x, self.cutoff)
         return x
 
 ################################################################
