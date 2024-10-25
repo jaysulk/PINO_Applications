@@ -159,29 +159,33 @@ def compl_mul3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
 
     return result
 
+################################################################
+# Phase Reconstruction Function
+################################################################
 
-def reconstruct_phase(out_ht_complex):
+def reconstruct_phase(out_ht_complex: torch.Tensor) -> torch.Tensor:
     """
-    Reconstructs the amplitude and phase from complex Hartley coefficients.
+    Reconstructs the complex Hartley coefficients from amplitude and phase.
     
     Args:
-        out_ht_complex (torch.Tensor): Complex tensor with last dimension of size 2 
-                                       representing real and imaginary parts.
+        out_ht_complex (torch.Tensor): Tensor with last dimension size 2 representing real and imaginary parts.
     
     Returns:
-        torch.Tensor: Reconstructed complex tensor with phase information.
+        torch.Tensor: Reconstructed Hartley coefficients as a complex tensor.
     """
+    # Compute amplitude
     amplitude = torch.sqrt(out_ht_complex[..., 0]**2 + out_ht_complex[..., 1]**2)
-
-    # Avoid division by zero by adding a small epsilon
-    epsilon = 1e-8
-    amplitude = amplitude + epsilon
-
     
-    phase = torch.atan2(out_ht_complex[..., 1], out_ht_complex[..., 0])
+    # Compute phase, adding epsilon to prevent division by zero
+    epsilon = 1e-8
+    phase = torch.atan2(out_ht_complex[..., 1], out_ht_complex[..., 0] + epsilon)
+    
+    # Reconstruct complex Hartley coefficients using amplitude and phase
     real = amplitude * torch.cos(phase)
     imag = amplitude * torch.sin(phase)
-    return torch.stack([real, imag], dim=-1)
+    
+    # Return as complex tensor
+    return torch.complex(real, imag)  # Shape: [batch, out_channels, modes1, ... , complex]
 
 ################################################################
 # Spectral Convolution Layers
