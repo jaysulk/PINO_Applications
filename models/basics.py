@@ -195,7 +195,9 @@ class SpectralConv2d(nn.Module):
         super(SpectralConv2d, self).__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
-        assert self.in_channels == self.out_channels, "For adaptive refinement, in_channels must equal out_channels in SpectralConv2d."
+
+        # Remove the assertion to allow in_channels and out_channels to differ
+        # assert self.in_channels == self.out_channels, "For adaptive refinement, in_channels must equal out_channels in SpectralConv2d."
 
         self.modes1 = modes1
         self.modes2 = modes2
@@ -234,7 +236,8 @@ class SpectralConv2d(nn.Module):
 
         # Multiply relevant Hartley modes for refinement
         refine_out_ht = torch.zeros(batchsize, self.out_channels, size1, size2, device=x.device, dtype=x.dtype)
-        refine_out_ht[:, :, :self.refine_modes1, :self.refine_modes2] = conv_2d(x_refine_ht[:, :, :self.refine_modes1, :self.refine_modes2], self.refine_weights1)
+        refine_out_ht[:, :, :self.refine_modes1, :self.refine_modes2] = conv_2d(
+            x_refine_ht[:, :, :self.refine_modes1, :self.refine_modes2], self.refine_weights1)
 
         # Combine refined output with initial output
         out_ht += refine_out_ht
@@ -243,6 +246,7 @@ class SpectralConv2d(nn.Module):
         x_final = idht_2d(out_ht)
 
         return x_final
+
 
 ################################################################
 # 3D Hartley convolution layer with adaptive basis refinement
