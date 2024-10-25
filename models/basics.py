@@ -172,6 +172,12 @@ def reconstruct_phase(out_ht_complex):
         torch.Tensor: Reconstructed complex tensor with phase information.
     """
     amplitude = torch.sqrt(out_ht_complex[..., 0]**2 + out_ht_complex[..., 1]**2)
+
+    # Avoid division by zero by adding a small epsilon
+    epsilon = 1e-8
+    amplitude = amplitude + epsilon
+
+    
     phase = torch.atan2(out_ht_complex[..., 1], out_ht_complex[..., 0])
     real = amplitude * torch.cos(phase)
     imag = amplitude * torch.sin(phase)
