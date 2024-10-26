@@ -68,8 +68,7 @@ def dht_1d(x: torch.Tensor) -> torch.Tensor:
 
 def dht_2d(x: torch.Tensor) -> torch.Tensor:
     transform_dims = [2, 3]  # Height and Width dimensions
-    #return torch.fft.fftn(x, dim=transform_dims).real - torch.fft.fftn(x.flip(-2, -1), dim=transform_dims).imag
-    return torch.fft.fft2(x).real - torch.fft.fftn(x.flip(-2, -1)).imag
+    return torch.fft.fftn(x, dim=transform_dims).real - torch.fft.fftn(x.flip(-2, -1), dim=transform_dims).imag
 
 def dht_3d(x: torch.Tensor) -> torch.Tensor:
     transform_dims = [2, 3, 4]  # Depth, Height, and Width dimensions
