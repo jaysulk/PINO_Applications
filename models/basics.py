@@ -7,120 +7,141 @@ from skimage.filters import gaussian
 # Gaussian Smoothing Function using scikit-image
 ################################################################
 
-#def gaussian_smoothing(x, sigma=1.0):
-#    """
-#    Applies Gaussian smoothing to the output using scikit-image.
-#    """
-#    # Convert PyTorch tensor to NumPy array
-#    x_np = x.detach().cpu().numpy()
-#
-#    # Apply Gaussian smoothing
-#    if x.dim() == 3:  # 1D case
-#        x_smoothed = gaussian(x_np, sigma=sigma, mode='wrap')
-#    elif x.dim() == 4:  # 2D case
-#        x_smoothed = gaussian(x_np, sigma=sigma)
-#    elif x.dim() == 5:  # 3D case
-#        x_smoothed = gaussian(x_np, sigma=sigma)
-#    else:
-#        raise ValueError("Input tensor must have 3, 4, or 5 dimensions.")
-#   
-#    # Convert back to PyTorch tensor
-#    return torch.tensor(x_smoothed, device=x.device)
+def gaussian_smoothing(x, sigma=1.0):
+    """
+    Applies Gaussian smoothing to the input tensor using scikit-image.
+
+    Args:
+        x (torch.Tensor): Input tensor.
+        sigma (float): Standard deviation for Gaussian kernel.
+
+    Returns:
+        torch.Tensor: Smoothed tensor.
+    """
+    # Convert PyTorch tensor to NumPy array
+    x_np = x.detach().cpu().numpy()
+
+    # Apply Gaussian smoothing
+    if x.dim() == 3:  # 1D case (e.g., [batch, channels, length])
+        x_smoothed = gaussian(x_np, sigma=sigma, mode='wrap')
+    elif x.dim() == 4:  # 2D case (e.g., [batch, channels, height, width])
+        x_smoothed = gaussian(x_np, sigma=sigma, mode='wrap')
+    elif x.dim() == 5:  # 3D case (e.g., [batch, channels, depth, height, width])
+        x_smoothed = gaussian(x_np, sigma=sigma, mode='wrap')
+    else:
+        raise ValueError("Input tensor must have 3, 4, or 5 dimensions.")
+   
+    # Convert back to PyTorch tensor
+    return torch.tensor(x_smoothed, device=x.device, dtype=x.dtype)
 
 ################################################################
 # Low-Pass Filter Function
 ################################################################
 
-#def low_pass_filter(x_ht, cutoff):
-#    """
-#    Applies a low-pass filter to the spectral coefficients (DHT output).
-#    Frequencies higher than `cutoff` are dampened.
-#    """
-#    size = x_ht.shape[-1]  # Get the last dimension (frequency axis)
-#    frequencies = torch.fft.fftfreq(size, d=1.0).to(x_ht.device)  # Compute frequency bins
-#    filter_mask = torch.abs(frequencies) <= cutoff  # Mask for low frequencies
-#    return x_ht * filter_mask.view(1, 1, -1).expand_as(x_ht)  # Apply mask
+def low_pass_filter(x_ht, cutoff):
+    """
+    Applies a low-pass filter to the spectral coefficients (DHT output).
+    Frequencies higher than `cutoff` are dampened.
+
+    Args:
+        x_ht (torch.Tensor): Spectral coefficients.
+        cutoff (float): Cutoff frequency (as a fraction of the Nyquist frequency).
+
+    Returns:
+        torch.Tensor: Filtered spectral coefficients.
+    """
+    size = x_ht.shape[-1]  # Get the last dimension (frequency axis)
+    frequencies = torch.fft.fftfreq(size, d=1.0).to(x_ht.device)  # Compute frequency bins
+    filter_mask = torch.abs(frequencies) <= cutoff  # Mask for low frequencies
+    # Expand mask to match the dimensions of x_ht
+    for _ in range(x_ht.dim() - 1):
+        filter_mask = filter_mask.unsqueeze(0)
+    return x_ht * filter_mask  # Apply mask
 
 ################################################################
 # Discrete Hartley Transforms (DHT)
 ################################################################
 
 def dht_1d(x: torch.Tensor) -> torch.Tensor:
-    transform_dims = [2]  # Length dimension
-    return torch.fft.fftn(x, dim=transform_dims).real - torch.fft.fftn(x.flip(-1), dim=transform_dims).imag
+    """
+    1D Discrete Hartley Transform (DHT).
+
+    Args:
+        x (torch.Tensor): Input tensor with shape (..., N).
+
+    Returns:
+        torch.Tensor: DHT-transformed tensor with shape (..., N).
+    """
+    return torch.fft.fft(x, dim=-1).real - torch.fft.fft(x, dim=-1).imag
 
 def dht_2d(x: torch.Tensor) -> torch.Tensor:
-    transform_dims = [2, 3]  # Height and Width dimensions
-    return torch.fft.fftn(x, dim=transform_dims).real - torch.fft.fftn(x.flip(-2, -1), dim=transform_dims).imag
+    """
+    2D Discrete Hartley Transform (DHT).
+
+    Args:
+        x (torch.Tensor): Input tensor with shape (..., H, W).
+
+    Returns:
+        torch.Tensor: DHT-transformed tensor with shape (..., H, W).
+    """
+    return torch.fft.fftn(x, dim=(-2, -1)).real - torch.fft.fftn(x, dim=(-2, -1)).imag
 
 def dht_3d(x: torch.Tensor) -> torch.Tensor:
-    transform_dims = [2, 3, 4]  # Depth, Height, and Width dimensions
-    return torch.fft.fftn(x, dim=transform_dims).real - torch.fft.fftn(x.flip(-3,-2,-1), dim=transform_dims).imag
+    """
+    3D Discrete Hartley Transform (DHT).
 
-import torch
+    Args:
+        x (torch.Tensor): Input tensor with shape (..., D, H, W).
+
+    Returns:
+        torch.Tensor: DHT-transformed tensor with shape (..., D, H, W).
+    """
+    return torch.fft.fftn(x, dim=(-3, -2, -1)).real - torch.fft.fftn(x, dim=(-3, -2, -1)).imag
+
+################################################################
+# Inverse Discrete Hartley Transforms (IDHT)
+################################################################
 
 def idht_1d(X: torch.Tensor) -> torch.Tensor:
     """
     1D Inverse Discrete Hartley Transform (IDHT).
 
-    Parameters:
-    X (torch.Tensor): 1D Hartley-transformed data with shape (..., N).
+    Since DHT is self-inverse up to a scaling factor, IDHT is equivalent to DHT scaled appropriately.
+
+    Args:
+        X (torch.Tensor): 1D DHT-transformed data with shape (..., N).
 
     Returns:
-    torch.Tensor: The original 1D data after applying IDHT.
+        torch.Tensor: The original 1D data after applying IDHT.
     """
-    # Assume the last dimension is the transform dimension
     N = X.shape[-1]
-    
-    # Perform the inverse FFT along the last dimension
-    # The output length for irfft is (N * 2 - 2) to match the real FFT output
-    x = torch.fft.irfft(X, n=(N * 2 - 2), dim=-1)
-    
-    # Scale the result by the number of points
-    x = x / N
-    return x
+    return dht_1d(X) / (2 * N)
 
 def idht_2d(X: torch.Tensor) -> torch.Tensor:
     """
     2D Inverse Discrete Hartley Transform (IDHT).
 
-    Parameters:
-    X (torch.Tensor): 2D Hartley-transformed data with shape (..., H, W).
+    Args:
+        X (torch.Tensor): 2D DHT-transformed data with shape (..., H, W).
 
     Returns:
-    torch.Tensor: The original 2D data after applying IDHT.
+        torch.Tensor: The original 2D data after applying IDHT.
     """
-    # Assume the last two dimensions are height and width
     H, W = X.shape[-2], X.shape[-1]
-    
-    # Perform the inverse FFT along the last two dimensions
-    # The output sizes for irfft2 are (H * 2 - 2, W * 2 - 2)
-    x = torch.fft.irfft2(X, s=(H * 2 - 2, W * 2 - 2), dim=(-2, -1))
-    
-    # Scale the result by the number of points
-    x = x / (H * W)
-    return x
+    return dht_2d(X) / (2 * H * W)
 
 def idht_3d(X: torch.Tensor) -> torch.Tensor:
     """
     3D Inverse Discrete Hartley Transform (IDHT).
 
-    Parameters:
-    X (torch.Tensor): 3D Hartley-transformed data with shape (..., D, H, W).
+    Args:
+        X (torch.Tensor): 3D DHT-transformed data with shape (..., D, H, W).
 
     Returns:
-    torch.Tensor: The original 3D data after applying IDHT.
+        torch.Tensor: The original 3D data after applying IDHT.
     """
-    # Assume the last three dimensions are depth, height, and width
     D, H, W = X.shape[-3], X.shape[-2], X.shape[-1]
-    
-    # Perform the inverse FFT along the last three dimensions
-    # The output sizes for irfftn are (D * 2 - 2, H * 2 - 2, W * 2 - 2)
-    x = torch.fft.irfftn(X, s=(D * 2 - 2, H * 2 - 2, W * 2 - 2), dim=(-3, -2, -1))
-    
-    # Scale the result by the number of points
-    x = x / (D * H * W)
-    return x
+    return dht_3d(X) / (2 * D * H * W)
 
 ################################################################
 # Convolutions
@@ -128,111 +149,44 @@ def idht_3d(X: torch.Tensor) -> torch.Tensor:
 
 def compl_mul1d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     """
-    Performs complex multiplication for 1D data.
+    Performs element-wise multiplication for 1D spectral data.
 
     Args:
-        x1 (torch.Tensor): Tensor of shape [batch, in_channels, modes1, 2]
-        x2 (torch.Tensor): Tensor of shape [in_channels, out_channels, modes1, 2]
+        x1 (torch.Tensor): Tensor of shape [batch, in_channels, modes1].
+        x2 (torch.Tensor): Tensor of shape [in_channels, out_channels, modes1].
 
     Returns:
-        torch.Tensor: Tensor of shape [batch, out_channels, modes1, 2]
+        torch.Tensor: Tensor of shape [batch, out_channels, modes1].
     """
-    X1_H_k = x1  # [batch, in_channels, modes1, 2]
-    X2_H_k = x2  # [in_channels, out_channels, modes1, 2]
-    X1_H_neg_k = torch.roll(torch.flip(x1, dims=[-1]), shifts=1, dims=[-1])  # [batch, in_channels, modes1, 2]
-    X2_H_neg_k = torch.roll(torch.flip(x2, dims=[-1]), shifts=1, dims=[-1])  # [in_channels, out_channels, modes1, 2]
-
-    # Updated einsum subscripts to include the complex dimension 'c'
-    result = 0.5 * (
-        torch.einsum('bixc,ioxc->boxc', X1_H_k, X2_H_k) - 
-        torch.einsum('bixc,ioxc->boxc', X1_H_neg_k, X2_H_neg_k) +
-        torch.einsum('bixc,ioxc->boxc', X1_H_k, X2_H_neg_k) + 
-        torch.einsum('bixc,ioxc->boxc', X1_H_neg_k, X2_H_k)
-    )
-
-    return result
-
+    # Element-wise multiplication and summation over in_channels
+    # Using broadcasting to multiply x1 and x2
+    return torch.einsum('bik, iok -> bok', x1, x2)
 
 def compl_mul2d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     """
-    Performs complex multiplication for 2D data.
+    Performs element-wise multiplication for 2D spectral data.
 
     Args:
-        x1 (torch.Tensor): Tensor of shape [batch, in_channels, modes1, modes2, 2]
-        x2 (torch.Tensor): Tensor of shape [in_channels, out_channels, modes1, modes2, 2]
+        x1 (torch.Tensor): Tensor of shape [batch, in_channels, modes1, modes2].
+        x2 (torch.Tensor): Tensor of shape [in_channels, out_channels, modes1, modes2].
 
     Returns:
-        torch.Tensor: Tensor of shape [batch, out_channels, modes1, modes2, 2]
+        torch.Tensor: Tensor of shape [batch, out_channels, modes1, modes2].
     """
-    X1_H_k = x1  # [batch, in_channels, modes1, modes2, 2]
-    X2_H_k = x2  # [in_channels, out_channels, modes1, modes2, 2]
-    X1_H_neg_k = torch.roll(torch.flip(x1, dims=[-1, -2]), shifts=(1, 1), dims=[-1, -2])  # [batch, in_channels, modes1, modes2, 2]
-    X2_H_neg_k = torch.roll(torch.flip(x2, dims=[-1, -2]), shifts=(1, 1), dims=[-1, -2])  # [in_channels, out_channels, modes1, modes2, 2]
-    
-    # Updated einsum subscripts to include the complex dimension 'c'
-    result = 0.5 * (
-        torch.einsum('bixyc,ioxyc->boxyc', X1_H_k, X2_H_k) - 
-        torch.einsum('bixyc,ioxyc->boxyc', X1_H_neg_k, X2_H_neg_k) +
-        torch.einsum('bixyc,ioxyc->boxyc', X1_H_k, X2_H_neg_k) + 
-        torch.einsum('bixyc,ioxyc->boxyc', X1_H_neg_k, X2_H_k)
-    )
-    
-    return result
-
+    return torch.einsum('bijk, oijk -> bojk', x1, x2)
 
 def compl_mul3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     """
-    Performs complex multiplication for 3D data.
+    Performs element-wise multiplication for 3D spectral data.
 
     Args:
-        x1 (torch.Tensor): Tensor of shape [batch, in_channels, modes1, modes2, modes3, 2]
-        x2 (torch.Tensor): Tensor of shape [in_channels, out_channels, modes1, modes2, modes3, 2]
+        x1 (torch.Tensor): Tensor of shape [batch, in_channels, modes1, modes2, modes3].
+        x2 (torch.Tensor): Tensor of shape [in_channels, out_channels, modes1, modes2, modes3].
 
     Returns:
-        torch.Tensor: Tensor of shape [batch, out_channels, modes1, modes2, modes3, 2]
+        torch.Tensor: Tensor of shape [batch, out_channels, modes1, modes2, modes3].
     """
-    X1_H_k = x1  # [batch, in_channels, modes1, modes2, modes3, 2]
-    X2_H_k = x2  # [in_channels, out_channels, modes1, modes2, modes3, 2]
-    X1_H_neg_k = torch.roll(torch.flip(x1, dims=[-1, -2, -3]), shifts=(1, 1, 1), dims=[-1, -2, -3])  # [batch, in_channels, modes1, modes2, modes3, 2]
-    X2_H_neg_k = torch.roll(torch.flip(x2, dims=[-1, -2, -3]), shifts=(1, 1, 1), dims=[-1, -2, -3])  # [in_channels, out_channels, modes1, modes2, modes3, 2]
-
-    # Updated einsum subscripts to include the complex dimension 'c'
-    result = 0.5 * (
-        torch.einsum('bixyzc,ioxyzc->boxyzc', X1_H_k, X2_H_k) - 
-        torch.einsum('bixyzc,ioxyzc->boxyzc', X1_H_neg_k, X2_H_neg_k) +
-        torch.einsum('bixyzc,ioxyzc->boxyzc', X1_H_k, X2_H_neg_k) + 
-        torch.einsum('bixyzc,ioxyzc->boxyzc', X1_H_neg_k, X2_H_k)
-    )
-
-    return result
-
-################################################################
-# Phase Reconstruction Function
-################################################################
-
-def reconstruct_phase(out_ht_complex: torch.Tensor) -> torch.Tensor:
-    """
-    Reconstructs the complex Hartley coefficients from amplitude and phase.
-    
-    Args:
-        out_ht_complex (torch.Tensor): Tensor with last dimension size 2 representing real and imaginary parts.
-    
-    Returns:
-        torch.Tensor: Reconstructed Hartley coefficients as a complex tensor.
-    """
-    # Compute amplitude
-    amplitude = torch.sqrt(out_ht_complex[..., 0]**2 + out_ht_complex[..., 1]**2)
-    
-    # Compute phase, adding epsilon to prevent division by zero
-    epsilon = 1e-8
-    phase = torch.atan2(out_ht_complex[..., 1], out_ht_complex[..., 0] + epsilon)
-    
-    # Reconstruct complex Hartley coefficients using amplitude and phase
-    real = amplitude * torch.cos(phase)
-    imag = amplitude * torch.sin(phase)
-    
-    # Return as complex tensor
-    return torch.complex(real, imag)  # Shape: [batch, out_channels, modes1, ... , complex]
+    return torch.einsum('bijkm, oijkm -> bojkm', x1, x2)
 
 ################################################################
 # Spectral Convolution Layers
@@ -245,44 +199,33 @@ class SpectralConv1d(nn.Module):
         self.out_channels = out_channels
         self.modes1 = modes1
         self.scale = (1 / (in_channels * out_channels))
-        # Initialize weights with real and imaginary parts
+        # Initialize weights for real-valued DHT coefficients
         self.weights1 = nn.Parameter(
-            self.scale * torch.rand(in_channels, out_channels, self.modes1, 2)
-        )  # Shape: (in_channels, out_channels, modes1, 2)
+            self.scale * torch.rand(in_channels, out_channels, self.modes1)
+        )  # Shape: (in_channels, out_channels, modes1)
 
     def forward(self, x):
         batchsize = x.shape[0]
         # Perform Discrete Hartley Transform
         x_ht = dht_1d(x)  # Shape: [batch, in_channels, length]
         
-        # Convert to complex representation by adding an imaginary part (initialized to zero)
-        x_ht_complex = torch.stack([x_ht, torch.zeros_like(x_ht)], dim=-1)  # Shape: [batch, in_channels, length, 2]
-        
-        # Initialize output Hartley coefficients as complex numbers
-        out_ht_complex = torch.zeros(
-            batchsize, self.out_channels, x.size(-1), 2, device=x.device, dtype=x.dtype
-        )  # Shape: [batch, out_channels, length, 2]
-        
-        # Perform complex multiplication for the specified modes
+        # Apply low-pass filter if needed (optional)
+        # x_ht = low_pass_filter(x_ht, cutoff=0.1)
+
         # Slice the relevant modes
-        x_ht_slice = x_ht_complex[:, :, :self.modes1, :]  # Shape: [batch, in_channels, modes1, 2]
+        x_ht_slice = x_ht[:, :, :self.modes1]  # Shape: [batch, in_channels, modes1]
         
-        # Perform complex multiplication
-        out_ht = compl_mul1d(x_ht_slice, self.weights1)  # Shape: [batch, out_channels, modes1, 2]
+        # Perform element-wise multiplication and sum over in_channels
+        out_ht = compl_mul1d(x_ht_slice, self.weights1)  # Shape: [batch, out_channels, modes1]
         
-        # Assign the multiplied modes back to out_ht_complex
-        out_ht_complex[:, :, :self.modes1, :] = out_ht  # Shape: [batch, out_channels, length, 2]
-        
-        # Reconstruct phase information
-        out_ht_complex_reconstructed = reconstruct_phase(out_ht_complex)  # Shape: [batch, out_channels, length, 2]
-        
-        # Combine real and imaginary parts for inverse DHT
-        out_ht_real = out_ht_complex_reconstructed[..., 0] + out_ht_complex_reconstructed[..., 1]  # Shape: [batch, out_channels, length]
+        # Create an output tensor with the same shape as x_ht
+        out_ht_full = torch.zeros_like(x_ht)
+        out_ht_full[:, :, :self.modes1] = out_ht  # Assign the multiplied modes
         
         # Perform Inverse Discrete Hartley Transform
-        x = idht_1d(out_ht_real)  # Shape: [batch, out_channels, length]
+        x_out = idht_1d(out_ht_full)  # Shape: [batch, out_channels, length]
         
-        return x
+        return x_out
 
 
 class SpectralConv2d(nn.Module):
@@ -293,10 +236,10 @@ class SpectralConv2d(nn.Module):
         self.modes1 = modes1
         self.modes2 = modes2
         self.scale = (1 / (in_channels * out_channels))
-        # Initialize weights with real and imaginary parts
+        # Initialize weights for real-valued DHT coefficients
         self.weights1 = nn.Parameter(
-            self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, 2)
-        )  # Shape: (in_channels, out_channels, modes1, modes2, 2)
+            self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2)
+        )  # Shape: (in_channels, out_channels, modes1, modes2)
 
     def forward(self, x):
         batchsize = x.shape[0]
@@ -304,34 +247,24 @@ class SpectralConv2d(nn.Module):
         # Perform Discrete Hartley Transform
         x_ht = dht_2d(x)  # Shape: [batch, in_channels, height, width]
         
-        # Convert to complex representation by adding an imaginary part (initialized to zero)
-        x_ht_complex = torch.stack([x_ht, torch.zeros_like(x_ht)], dim=-1)  # Shape: [batch, in_channels, height, width, 2]
-        
-        # Initialize output Hartley coefficients as complex numbers
-        out_ht_complex = torch.zeros(
-            batchsize, self.out_channels, size1, size2, 2, device=x.device, dtype=x.dtype
-        )  # Shape: [batch, out_channels, height, width, 2]
-        
-        # Perform complex multiplication for the specified modes
+        # Apply low-pass filter if needed (optional)
+        # x_ht = low_pass_filter(x_ht, cutoff=0.1)
+
         # Slice the relevant modes
-        x_ht_slice = x_ht_complex[:, :, :self.modes1, :self.modes2, :]  # Shape: [batch, in_channels, modes1, modes2, 2]
+        x_ht_slice = x_ht[:, :, :self.modes1, :self.modes2]  # Shape: [batch, in_channels, modes1, modes2]
         
-        # Perform complex multiplication
-        out_ht = compl_mul2d(x_ht_slice, self.weights1)  # Shape: [batch, out_channels, modes1, modes2, 2]
+        # Perform element-wise multiplication and sum over in_channels
+        out_ht = compl_mul2d(x_ht_slice, self.weights1)  # Shape: [batch, out_channels, modes1, modes2]
         
-        # Assign the multiplied modes back to out_ht_complex
-        out_ht_complex[:, :, :self.modes1, :self.modes2, :] = out_ht  # Shape: [batch, out_channels, height, width, 2]
-        
-        # Reconstruct phase information
-        out_ht_complex_reconstructed = reconstruct_phase(out_ht_complex)  # Shape: [batch, out_channels, height, width, 2]
-        
-        # Combine real and imaginary parts for inverse DHT
-        out_ht_real = out_ht_complex_reconstructed[..., 0] + out_ht_complex_reconstructed[..., 1]  # Shape: [batch, out_channels, height, width]
+        # Create an output tensor with the same shape as x_ht
+        out_ht_full = torch.zeros_like(x_ht)
+        out_ht_full[:, :, :self.modes1, :self.modes2] = out_ht  # Assign the multiplied modes
         
         # Perform Inverse Discrete Hartley Transform
-        x = idht_2d(out_ht_real)  # Shape: [batch, out_channels, height, width]
+        x_out = idht_2d(out_ht_full)  # Shape: [batch, out_channels, height, width]
         
-        return x
+        return x_out
+
 
 class SpectralConv3d(nn.Module):
     def __init__(self, in_channels, out_channels, modes1, modes2, modes3):
@@ -342,10 +275,10 @@ class SpectralConv3d(nn.Module):
         self.modes2 = modes2
         self.modes3 = modes3
         self.scale = (1 / (in_channels * out_channels))
-        # Initialize weights with real and imaginary parts
+        # Initialize weights for real-valued DHT coefficients
         self.weights1 = nn.Parameter(
-            self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3, 2)
-        )  # Shape: (in_channels, out_channels, modes1, modes2, modes3, 2)
+            self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3)
+        )  # Shape: (in_channels, out_channels, modes1, modes2, modes3)
 
     def forward(self, x):
         batchsize = x.shape[0]
@@ -353,47 +286,58 @@ class SpectralConv3d(nn.Module):
         # Perform Discrete Hartley Transform
         x_ht = dht_3d(x)  # Shape: [batch, in_channels, depth, height, width]
         
-        # Convert to complex representation by adding an imaginary part (initialized to zero)
-        x_ht_complex = torch.stack([x_ht, torch.zeros_like(x_ht)], dim=-1)  # Shape: [batch, in_channels, depth, height, width, 2]
-        
-        # Initialize output Hartley coefficients as complex numbers
-        out_ht_complex = torch.zeros(
-            batchsize, self.out_channels, size1, size2, size3, 2, device=x.device, dtype=x.dtype
-        )  # Shape: [batch, out_channels, depth, height, width, 2]
-        
-        # Perform complex multiplication for the specified modes
+        # Apply low-pass filter if needed (optional)
+        # x_ht = low_pass_filter(x_ht, cutoff=0.1)
+
         # Slice the relevant modes
-        x_ht_slice = x_ht_complex[:, :, :self.modes1, :self.modes2, :self.modes3, :]  # Shape: [batch, in_channels, modes1, modes2, modes3, 2]
+        x_ht_slice = x_ht[:, :, :self.modes1, :self.modes2, :self.modes3]  # Shape: [batch, in_channels, modes1, modes2, modes3]
         
-        # Perform complex multiplication
-        out_ht = compl_mul3d(x_ht_slice, self.weights1)  # Shape: [batch, out_channels, modes1, modes2, modes3, 2]
+        # Perform element-wise multiplication and sum over in_channels
+        out_ht = compl_mul3d(x_ht_slice, self.weights1)  # Shape: [batch, out_channels, modes1, modes2, modes3]
         
-        # Assign the multiplied modes back to out_ht_complex
-        out_ht_complex[:, :, :self.modes1, :self.modes2, :self.modes3, :] = out_ht  # Shape: [batch, out_channels, depth, height, width, 2]
-        
-        # Reconstruct phase information
-        out_ht_complex_reconstructed = reconstruct_phase(out_ht_complex)  # Shape: [batch, out_channels, depth, height, width, 2]
-        
-        # Combine real and imaginary parts for inverse DHT
-        out_ht_real = out_ht_complex_reconstructed[..., 0] + out_ht_complex_reconstructed[..., 1]  # Shape: [batch, out_channels, depth, height, width]
+        # Create an output tensor with the same shape as x_ht
+        out_ht_full = torch.zeros_like(x_ht)
+        out_ht_full[:, :, :self.modes1, :self.modes2, :self.modes3] = out_ht  # Assign the multiplied modes
         
         # Perform Inverse Discrete Hartley Transform
-        x = idht_3d(out_ht_real)  # Shape: [batch, out_channels, depth, height, width]
+        x_out = idht_3d(out_ht_full)  # Shape: [batch, out_channels, depth, height, width]
         
-        return x
+        return x_out
 
 ################################################################
 # FourierBlock
 ################################################################
 
 class FourierBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, modes1, modes2, modes3, activation='tanh'):
+    def __init__(self, in_channels, out_channels, modes1, modes2=None, modes3=None, activation='tanh'):
         super(FourierBlock, self).__init__()
-        self.in_channel = in_channels
-        self.out_channel = out_channels
-        self.speconv = SpectralConv3d(in_channels, out_channels, modes1, modes2, modes3)
-        self.linear = nn.Conv1d(in_channels, out_channels, 1)
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.modes1 = modes1
+        self.modes2 = modes2
+        self.modes3 = modes3
 
+        if modes2 is None and modes3 is None:
+            # 1D Fourier Block
+            self.speconv = SpectralConv1d(in_channels, out_channels, modes1)
+        elif modes3 is None:
+            # 2D Fourier Block
+            self.speconv = SpectralConv2d(in_channels, out_channels, modes1, modes2)
+        else:
+            # 3D Fourier Block
+            self.speconv = SpectralConv3d(in_channels, out_channels, modes1, modes2, modes3)
+        
+        # Linear layer to handle the non-spectral part
+        if self.speconv.__class__.__name__ == 'SpectralConv1d':
+            self.linear = nn.Conv1d(in_channels, out_channels, 1)
+        elif self.speconv.__class__.__name__ == 'SpectralConv2d':
+            self.linear = nn.Conv2d(in_channels, out_channels, 1)
+        elif self.speconv.__class__.__name__ == 'SpectralConv3d':
+            self.linear = nn.Conv3d(in_channels, out_channels, 1)
+        else:
+            raise ValueError("Unsupported SpectralConv layer.")
+
+        # Define activation
         if activation == 'tanh':
             self.activation = torch.tanh
         elif activation == 'gelu':
@@ -410,10 +354,23 @@ class FourierBlock(nn.Module):
         return x * torch.sigmoid(x)
 
     def forward(self, x):
+        # Spectral convolution
         x1 = self.speconv(x)
-        x2 = self.linear(x.view(x.shape[0], self.in_channel, -1))
-        x2 = x2.view(x.shape[0], self.out_channel, x.shape[2], x.shape[3], x.shape[4])
+        
+        # Non-spectral convolution
+        if self.speconv.__class__.__name__ == 'SpectralConv1d':
+            x2 = self.linear(x)
+        elif self.speconv.__class__.__name__ == 'SpectralConv2d':
+            x2 = self.linear(x)
+        elif self.speconv.__class__.__name__ == 'SpectralConv3d':
+            x2 = self.linear(x)
+        else:
+            raise ValueError("Unsupported SpectralConv layer.")
+
+        # Combine
         out = x1 + x2
+
+        # Apply activation
         if self.activation is not None:
             out = self.activation(out)
         return out
