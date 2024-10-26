@@ -63,34 +63,100 @@ def low_pass_filter(x_ht, cutoff):
 ################################################################
 
 def dht_1d(x: torch.Tensor) -> torch.Tensor:
+    """
+    Compute the 1D Discrete Hartley Transform (DHT) of the input tensor.
+
+    Args:
+        x (torch.Tensor): Input tensor with shape [batch, channels, length].
+
+    Returns:
+        torch.Tensor: DHT of the input tensor.
+    """
     transform_dims = [2]  # Length dimension
-    return torch.fft.fftn(x, dim=transform_dims).real - torch.fft.fftn(x.flip(-1), dim=transform_dims).imag
+    X = torch.fft.fftn(x, dim=transform_dims)
+    X = X.real - X.imag
+    return X
 
 def dht_2d(x: torch.Tensor) -> torch.Tensor:
+    """
+    Compute the 2D Discrete Hartley Transform (DHT) of the input tensor.
+
+    Args:
+        x (torch.Tensor): Input tensor with shape [batch, channels, height, width].
+
+    Returns:
+        torch.Tensor: DHT of the input tensor.
+    """
     transform_dims = [2, 3]  # Height and Width dimensions
-    return torch.fft.fftn(x, dim=transform_dims).real - torch.fft.fftn(x.flip(-2, -1), dim=transform_dims).imag
+    X = torch.fft.fftn(x, dim=transform_dims)
+    X = X.real - X.imag
+    return X
 
 def dht_3d(x: torch.Tensor) -> torch.Tensor:
+    """
+    Compute the 3D Discrete Hartley Transform (DHT) of the input tensor.
+
+    Args:
+        x (torch.Tensor): Input tensor with shape [batch, channels, depth, height, width].
+
+    Returns:
+        torch.Tensor: DHT of the input tensor.
+    """
     transform_dims = [2, 3, 4]  # Depth, Height, and Width dimensions
-    return torch.fft.fftn(x, dim=transform_dims).real - torch.fft.fftn(x.flip(-3,-2,-1), dim=transform_dims).imag
+    X = torch.fft.fftn(x, dim=transform_dims)
+    X = X.real - X.imag
+    return X
 
 ################################################################
 # Inverse Discrete Hartley Transforms (IDHT)
 ################################################################
 
 def idht_1d(X: torch.Tensor) -> torch.Tensor:
+    """
+    Compute the Inverse 1D Discrete Hartley Transform (IDHT) of the input tensor.
+
+    Since the DHT is involutory, IDHT(x) = (1/n) * DHT(DHT(x))
+
+    Args:
+        X (torch.Tensor): Input tensor in the DHT domain with shape [batch, channels, length].
+
+    Returns:
+        torch.Tensor: Inverse DHT of the input tensor.
+    """
     n = X.shape[2]  # Length
     x = dht_1d(X)
     x = x / n
     return x
 
 def idht_2d(X: torch.Tensor) -> torch.Tensor:
+    """
+    Compute the Inverse 2D Discrete Hartley Transform (IDHT) of the input tensor.
+
+    Since the DHT is involutory, IDHT(x) = (1/n) * DHT(DHT(x))
+
+    Args:
+        X (torch.Tensor): Input tensor in the DHT domain with shape [batch, channels, height, width].
+
+    Returns:
+        torch.Tensor: Inverse DHT of the input tensor.
+    """
     n = X.shape[2] * X.shape[3]  # Height * Width
     x = dht_2d(X)
     x = x / n
     return x
 
 def idht_3d(X: torch.Tensor) -> torch.Tensor:
+    """
+    Compute the Inverse 3D Discrete Hartley Transform (IDHT) of the input tensor.
+
+    Since the DHT is involutory, IDHT(x) = (1/n) * DHT(DHT(x))
+
+    Args:
+        X (torch.Tensor): Input tensor in the DHT domain with shape [batch, channels, depth, height, width].
+
+    Returns:
+        torch.Tensor: Inverse DHT of the input tensor.
+    """
     n = X.shape[2] * X.shape[3] * X.shape[4]  # Depth * Height * Width
     x = dht_3d(X)
     x = x / n
