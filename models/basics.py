@@ -241,27 +241,54 @@ def compl_mul3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     return result
 
 ################################################################
-# Spectral Convolution Layers
+# 1D Hartley Convolution Layer
 ################################################################
 
 class SpectralConv1d(nn.Module):
     def __init__(self, in_channels, out_channels, modes1):
         super(SpectralConv1d, self).__init__()
+
+        """
+        1D Hartley layer. It does DHT, linear transform, and Inverse DHT.
+        """
+
         self.in_channels = in_channels
         self.out_channels = out_channels
+        # Number of Hartley modes to multiply
         self.modes1 = modes1
+
         self.scale = (1 / (in_channels * out_channels))
-        self.weights1 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1))
+        self.weights1 = nn.Parameter(
+            self.scale * torch.rand(in_channels, out_channels, self.modes1)
+        )
 
     def forward(self, x):
         batchsize = x.shape[0]
+
+        # Compute Hartley coefficients
         x_ht = dht_1d(x)  # [batch, in_channels, length]
-        out_ht = torch.zeros(batchsize, self.out_channels, x.size(-1), device=x.device, dtype=x.dtype)
-        out_ht[:, :, :self.modes1] = compl_mul1d(x_ht[:, :, :self.modes1], self.weights1)
+
+        # Multiply relevant Hartley modes
+        out_ht = torch.zeros(
+            batchsize,
+            self.out_channels,
+            x.size(-1),
+            device=x.device,
+            dtype=x.dtype
+        )
+        out_ht[:, :, :self.modes1] = dht_conv_1d(
+            x_ht[:, :, :self.modes1],
+            self.weights1
+        )
+
+        # Return to physical space
         x = idht_1d(out_ht)  # [batch, out_channels, length]
- #       x = gaussian_smoothing(x, sigma=1.0)  # Apply Gaussian smoothing
- #       x = low_pass_filter(x, self.cutoff)
+
         return x
+
+################################################################
+# 2D Hartley Convolution Layer
+################################################################
 
 class SpectralConv2d(nn.Module):
     def __init__(self, in_channels, out_channels, modes1, modes2):
@@ -270,41 +297,86 @@ class SpectralConv2d(nn.Module):
         self.out_channels = out_channels
         self.modes1 = modes1
         self.modes2 = modes2
+
         self.scale = (1 / (in_channels * out_channels))
-        self.weights1 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2))
+        self.weights1 = nn.Parameter(
+            self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2)
+        )
 
     def forward(self, x):
         batchsize = x.shape[0]
-        size1, size2 = x.shape[-2], x.shape[-1]
+        size1 = x.shape[-2]
+        size2 = x.shape[-1]
+
+        # Compute Hartley coefficients
         x_ht = dht_2d(x)  # [batch, in_channels, height, width]
-        out_ht = torch.zeros(batchsize, self.out_channels, size1, size2, device=x.device, dtype=x.dtype)
-        out_ht[:, :, :self.modes1, :self.modes2] = compl_mul2d(x_ht[:, :, :self.modes1, :self.modes2], self.weights1)
+
+        # Multiply relevant Hartley modes
+        out_ht = torch.zeros(
+            batchsize,
+            self.out_channels,
+            size1,
+            size2,
+            device=x.device,
+            dtype=x.dtype
+        )
+        out_ht[:, :, :self.modes1, :self.modes2] = dht_conv_2d(
+            x_ht[:, :, :self.modes1, :self.modes2],
+            self.weights1
+        )
+
+        # Return to physical space
         x = idht_2d(out_ht)  # [batch, out_channels, height, width]
-#        x = gaussian_smoothing(x, sigma=1.0)  # Apply Gaussian smoothing
-#        x = low_pass_filter(x, self.cutoff)
+
         return x
+
+################################################################
+# 3D Hartley Convolution Layer
+################################################################
 
 class SpectralConv3d(nn.Module):
     def __init__(self, in_channels, out_channels, modes1, modes2, modes3):
         super(SpectralConv3d, self).__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
-        self.modes1 = modes1
+        self.modes1 = modes1  # Number of Hartley modes to multiply
         self.modes2 = modes2
         self.modes3 = modes3
+
         self.scale = (1 / (in_channels * out_channels))
-        self.weights1 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, self.modes1, self.modes2, self.modes3))
+        self.weights1 = nn.Parameter(
+            self.scale * torch.rand(
+                in_channels, out_channels, self.modes1, self.modes2, self.modes3
+            )
+        )
 
     def forward(self, x):
         batchsize = x.shape[0]
         size1, size2, size3 = x.shape[-3], x.shape[-2], x.shape[-1]
+
+        # Compute Hartley coefficients
         x_ht = dht_3d(x)  # [batch, in_channels, depth, height, width]
-        out_ht = torch.zeros(batchsize, self.out_channels, size1, size2, size3, device=x.device, dtype=x.dtype)
-        out_ht[:, :, :self.modes1, :self.modes2, :self.modes3] = compl_mul3d(x_ht[:, :, :self.modes1, :self.modes2, :self.modes3], self.weights1)
+
+        # Multiply relevant Hartley modes using the corrected dht_conv_3d
+        out_ht = torch.zeros(
+            batchsize,
+            self.out_channels,
+            size1,
+            size2,
+            size3,
+            device=x.device,
+            dtype=x.dtype
+        )
+        out_ht[:, :, :self.modes1, :self.modes2, :self.modes3] = dht_conv_3d(
+            x_ht[:, :, :self.modes1, :self.modes2, :self.modes3],
+            self.weights1
+        )
+
+        # Return to physical space
         x = idht_3d(out_ht)  # [batch, out_channels, depth, height, width]
-#        x = gaussian_smoothing(x, sigma=1.0)  # Apply Gaussian smoothing
-#        x = low_pass_filter(x, self.cutoff)
+
         return x
+
 
 ################################################################
 # FourierBlock
