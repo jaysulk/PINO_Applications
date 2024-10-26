@@ -100,42 +100,143 @@ def idht_3d(X: torch.Tensor) -> torch.Tensor:
 # Convolutions
 ################################################################
 
+def flip_periodic_1d(x: torch.Tensor) -> torch.Tensor:
+    """
+    Perform a periodic flip of the tensor along the length dimension.
+
+    Args:
+        x (torch.Tensor): Input tensor of shape [batch, channels, length].
+
+    Returns:
+        torch.Tensor: Periodically flipped tensor with the same shape as input.
+    """
+    dim = 2  # Length dimension
+
+    if x.size(dim) < 1:
+        raise ValueError(f"Dimension {dim} is too small to perform flip.")
+
+    # Initialize Z as a copy of x to avoid modifying the original tensor
+    Z = x.clone()
+
+    # Extract the first element
+    first = Z.index_select(dim, torch.tensor([0], device=x.device))
+
+    if Z.size(dim) > 1:
+        # Select all elements from index 1 onwards and flip them
+        remaining = Z.index_select(dim, torch.arange(1, Z.size(dim), device=x.device)).flip(dims=[dim])
+        # Concatenate first and flipped remaining along the current dimension
+        Z = torch.cat([first, remaining], dim=dim)
+    else:
+        # If there's only one element, no flipping needed
+        Z = first
+
+    return Z
+
+def flip_periodic_2d(x: torch.Tensor) -> torch.Tensor:
+    """
+    Perform a periodic flip of the tensor along height and width dimensions.
+
+    Args:
+        x (torch.Tensor): Input tensor of shape [batch, channels, height, width].
+
+    Returns:
+        torch.Tensor: Periodically flipped tensor with the same shape as input.
+    """
+    dims = [2, 3]  # Height and Width dimensions
+
+    Z = x.clone()
+
+    for dim in dims:
+        if Z.size(dim) < 1:
+            raise ValueError(f"Dimension {dim} is too small to perform flip.")
+
+        # Extract the first element
+        first = Z.index_select(dim, torch.tensor([0], device=x.device))
+
+        if Z.size(dim) > 1:
+            # Select all elements from index 1 onwards and flip them
+            remaining = Z.index_select(dim, torch.arange(1, Z.size(dim), device=x.device)).flip(dims=[dim])
+            # Concatenate first and flipped remaining along the current dimension
+            Z = torch.cat([first, remaining], dim=dim)
+        else:
+            # If there's only one element, no flipping needed
+            Z = first
+
+    return Z
+
+def flip_periodic_3d(x: torch.Tensor) -> torch.Tensor:
+    """
+    Perform a periodic flip of the tensor along depth, height, and width dimensions.
+
+    Args:
+        x (torch.Tensor): Input tensor of shape [batch, channels, depth, height, width].
+
+    Returns:
+        torch.Tensor: Periodically flipped tensor with the same shape as input.
+    """
+    dims = [2, 3, 4]  # Depth, Height, and Width dimensions
+    Z = x.clone()
+
+    for dim in dims:
+        if Z.size(dim) < 1:
+            raise ValueError(f"Dimension {dim} is too small to perform flip.")
+
+        # Extract the first element
+        first = Z.index_select(dim, torch.tensor([0], device=x.device))
+
+        if Z.size(dim) > 1:
+            # Select all elements from index 1 onwards and flip them
+            remaining = Z.index_select(dim, torch.arange(1, Z.size(dim), device=x.device)).flip(dims=[dim])
+            # Concatenate first and flipped remaining along the current dimension
+            Z = torch.cat([first, remaining], dim=dim)
+        else:
+            # If there's only one element, no flipping needed
+            Z = first
+
+    return Z
+
 def compl_mul1d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     X1_H_k = x1
     X2_H_k = x2
-    X1_H_neg_k = torch.roll(torch.flip(x1, dims=[-1]), shifts=1, dims=[-1])
-    X2_H_neg_k = torch.roll(torch.flip(x2, dims=[-1]), shifts=1, dims=[-1])
+    X1_H_neg_k = flip_periodic_1d(x1)
+    X2_H_neg_k = flip_periodic_1d(x2)
 
-    result = 0.5 * (torch.einsum('bix,iox->box', X1_H_k, X2_H_k) - 
-                     torch.einsum('bix,iox->box', X1_H_neg_k, X2_H_neg_k) +
-                     torch.einsum('bix,iox->box', X1_H_k, X2_H_neg_k) + 
-                     torch.einsum('bix,iox->box', X1_H_neg_k, X2_H_k))
+    result = 0.5 * (
+        torch.einsum('bix,iox->box', X1_H_k, X2_H_k) -
+        torch.einsum('bix,iox->box', X1_H_neg_k, X2_H_neg_k) +
+        torch.einsum('bix,iox->box', X1_H_k, X2_H_neg_k) +
+        torch.einsum('bix,iox->box', X1_H_neg_k, X2_H_k)
+    )
 
     return result
 
 def compl_mul2d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     X1_H_k = x1
     X2_H_k = x2
-    X1_H_neg_k = torch.roll(torch.flip(x1, dims=[-1, -2]), shifts=(1, 1), dims=[-1, -2])
-    X2_H_neg_k = torch.roll(torch.flip(x2, dims=[-1, -2]), shifts=(1, 1), dims=[-1, -2])
+    X1_H_neg_k = flip_periodic_2d(x1)
+    X2_H_neg_k = flip_periodic_2d(x2)
     
-    result = 0.5 * (torch.einsum('bixy,ioxy->boxy', X1_H_k, X2_H_k) - 
-                    torch.einsum('bixy,ioxy->boxy', X1_H_neg_k, X2_H_neg_k) +
-                    torch.einsum('bixy,ioxy->boxy', X1_H_k, X2_H_neg_k) + 
-                    torch.einsum('bixy,ioxy->boxy', X1_H_neg_k, X2_H_k))
+    result = 0.5 * (
+        torch.einsum('bixy,ioxy->boxy', X1_H_k, X2_H_k) -
+        torch.einsum('bixy,ioxy->boxy', X1_H_neg_k, X2_H_neg_k) +
+        torch.einsum('bixy,ioxy->boxy', X1_H_k, X2_H_neg_k) +
+        torch.einsum('bixy,ioxy->boxy', X1_H_neg_k, X2_H_k)
+    )
     
     return result
 
 def compl_mul3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
     X1_H_k = x1
     X2_H_k = x2
-    X1_H_neg_k = torch.roll(torch.flip(x1, dims=[-3, -2, -1]), shifts=(1, 1, 1), dims=[-3, -2, -1])
-    X2_H_neg_k = torch.roll(torch.flip(x2, dims=[-3, -2, -1]), shifts=(1, 1, 1), dims=[-3, -2, -1])
+    X1_H_neg_k = flip_periodic_3d(x1)
+    X2_H_neg_k = flip_periodic_3d(x2)
 
-    result = 0.5 * (torch.einsum('bixyz,ioxyz->boxyz', X1_H_k, X2_H_k) - 
-                     torch.einsum('bixyz,ioxyz->boxyz', X1_H_neg_k, X2_H_neg_k) +
-                     torch.einsum('bixyz,ioxyz->boxyz', X1_H_k, X2_H_neg_k) + 
-                     torch.einsum('bixyz,ioxyz->boxyz', X1_H_neg_k, X2_H_k))
+    result = 0.5 * (
+        torch.einsum('bixyz,ioxyz->boxyz', X1_H_k, X2_H_k) -
+        torch.einsum('bixyz,ioxyz->boxyz', X1_H_neg_k, X2_H_neg_k) +
+        torch.einsum('bixyz,ioxyz->boxyz', X1_H_k, X2_H_neg_k) +
+        torch.einsum('bixyz,ioxyz->boxyz', X1_H_neg_k, X2_H_k)
+    )
 
     return result
 
