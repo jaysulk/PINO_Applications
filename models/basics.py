@@ -276,7 +276,7 @@ class SpectralConv1d(nn.Module):
             device=x.device,
             dtype=x.dtype
         )
-        out_ht[:, :, :self.modes1] = dht_conv_1d(
+        out_ht[:, :, :self.modes1] = compl_mul1d(
             x_ht[:, :, :self.modes1],
             self.weights1
         )
@@ -320,7 +320,7 @@ class SpectralConv2d(nn.Module):
             device=x.device,
             dtype=x.dtype
         )
-        out_ht[:, :, :self.modes1, :self.modes2] = dht_conv_2d(
+        out_ht[:, :, :self.modes1, :self.modes2] = compl_mul2d(
             x_ht[:, :, :self.modes1, :self.modes2],
             self.weights1
         )
@@ -367,7 +367,7 @@ class SpectralConv3d(nn.Module):
             device=x.device,
             dtype=x.dtype
         )
-        out_ht[:, :, :self.modes1, :self.modes2, :self.modes3] = dht_conv_3d(
+        out_ht[:, :, :self.modes1, :self.modes2, :self.modes3] = compl_mul3d(
             x_ht[:, :, :self.modes1, :self.modes2, :self.modes3],
             self.weights1
         )
