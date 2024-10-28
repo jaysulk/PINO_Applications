@@ -1,154 +1,195 @@
-import numpy as np
+
 import torch
 import torch.nn as nn
-from functools import partial
 import torch.nn.functional as F
+from skimage.filters import gaussian
 
-def fht1d(x):
-    N = x.shape[-1]
-    # Check if N is a power of 2
-    if (N & (N - 1)) != 0:
-        # Pad x to the next power of 2
-        next_pow_two = 1 << (N - 1).bit_length()
-        pad_size = next_pow_two - N
-        x = F.pad(x, (0, pad_size))
-        N = next_pow_two
+################################################################
+# Gaussian Smoothing Function using scikit-image
+################################################################
 
-    if N == 1:
-        return x
+def gaussian_smoothing(x, sigma=1.0):
+    """
+    Applies Gaussian smoothing to the input tensor using scikit-image.
+
+    Args:
+        x (torch.Tensor): Input tensor.
+        sigma (float): Standard deviation for Gaussian kernel.
+
+    Returns:
+        torch.Tensor: Smoothed tensor.
+    """
+    # Convert PyTorch tensor to NumPy array
+    x_np = x.detach().cpu().numpy()
+
+    # Apply Gaussian smoothing
+    if x.dim() == 3:  # 1D case (e.g., [batch, channels, length])
+        x_smoothed = gaussian(x_np, sigma=sigma, mode='wrap')
+    elif x.dim() == 4:  # 2D case (e.g., [batch, channels, height, width])
+        x_smoothed = gaussian(x_np, sigma=sigma, mode='wrap')
+    elif x.dim() == 5:  # 3D case (e.g., [batch, channels, depth, height, width])
+        x_smoothed = gaussian(x_np, sigma=sigma, mode='wrap')
     else:
-        x_even = x[..., ::2]
-        x_odd = x[..., 1::2]
-        fht_even = fht1d(x_even)
-        fht_odd = fht1d(x_odd)
-        k = torch.arange(N // 2, device=x.device).reshape([1] * (x.ndim - 1) + [-1])
-        theta = 2 * torch.pi * k / N
-        cas = torch.cos(theta) + torch.sin(theta)
-        temp = cas * fht_odd
-        X = torch.cat([fht_even + temp, fht_even - temp], dim=-1)
-        return X
+        raise ValueError("Input tensor must have 3, 4, or 5 dimensions.")
+   
+    # Convert back to PyTorch tensor
+    return torch.tensor(x_smoothed, device=x.device, dtype=x.dtype)
 
-def fht_along_dim(x, dim):
-    # Move the target dimension to the last dimension
-    x = x.transpose(dim, -1)
+################################################################
+# Low-Pass Filter Function
+################################################################
+
+def low_pass_filter(x_ht, cutoff):
+    """
+    Applies a low-pass filter to the spectral coefficients (DHT output).
+    Frequencies higher than `cutoff` are dampened.
+
+    Args:
+        x_ht (torch.Tensor): Spectral coefficients.
+        cutoff (float): Cutoff frequency (as a fraction of the Nyquist frequency).
+
+    Returns:
+        torch.Tensor: Filtered spectral coefficients.
+    """
+    size = x_ht.shape[-1]  # Get the last dimension (frequency axis)
+    frequencies = torch.fft.fftfreq(size, d=1.0).to(x_ht.device)  # Compute frequency bins
+    filter_mask = torch.abs(frequencies) <= cutoff  # Mask for low frequencies
+    # Expand mask to match the dimensions of x_ht
+    for _ in range(x_ht.dim() - 1):
+        filter_mask = filter_mask.unsqueeze(0)
+    return x_ht * filter_mask  # Apply mask
+
+################################################################
+# Discrete Hartley Transforms (DHT)
+################################################################
+
+def dht_1d_axis(x: torch.Tensor, axis: int) -> torch.Tensor:
+    """
+    Compute the 1D DHT along a specified axis using the cas function.
+
+    Args:
+        x (torch.Tensor): Input tensor.
+        axis (int): Axis along which to compute the DHT.
+
+    Returns:
+        torch.Tensor: DHT of the input tensor along the specified axis.
+    """
+    N = x.size(axis)
+    device = x.device
+    n = torch.arange(N, device=device).unsqueeze(1)  # Shape [N, 1]
+    k = torch.arange(N, device=device).unsqueeze(0)  # Shape [1, N]
+    omega = 2 * torch.pi * n * k / N                # Shape [N, N]
+    cas_omega = torch.cos(omega) + torch.sin(omega) # Shape [N, N]
+
+    # Move the specified axis to the last dimension
+    x = x.transpose(axis, -1)
     original_shape = x.shape
-    N = x.shape[-1]
-    # Flatten the batch dimensions
-    x = x.reshape(-1, N)
-    # Apply fht1d
-    x = fht1d(x)
-    # Now x may have a different size in the last dimension
-    new_N = x.shape[-1]
-    # Restore the original shape with the new last dimension size
-    x = x.reshape(*original_shape[:-1], new_N)
-    # Truncate or pad the last dimension back to original N
-    if new_N > N:
-        x = x[..., :N]
-    elif new_N < N:
-        pad_size = N - new_N
-        x = F.pad(x, (0, pad_size))
-    # Move the last dimension back to its original position
-    x = x.transpose(dim, -1)
-    return x
-
-def dht(x: torch.Tensor, dims=None) -> torch.Tensor:
-    if dims is None:
-        dims = list(range(2, x.ndim))
-    for dim in dims:
-        x = fht_along_dim(x, dim)
-    return x
-
-def idht(x: torch.Tensor, dims=None) -> torch.Tensor:
-    if dims is None:
-        dims = list(range(2, x.ndim))
-    N = 1
-    for dim in dims:
-        N *= x.size(dim)
-    # Compute the DHT (Inverse Hartley Transform)
-    transformed = dht(x, dims=dims)
-    # Normalize the result
-    return transformed / N
+    x_flat = x.reshape(-1, N)                       # Flatten all other dimensions
+    H = x_flat @ cas_omega                          # Matrix multiplication
+    H = H.view(*original_shape)                     # Restore original shape
+    H = H.transpose(axis, -1)                       # Move the axis back to its original position
+    return H
 
 def dht_1d(x: torch.Tensor) -> torch.Tensor:
     """
-    Perform the 1D Discrete Hartley Transform along the last dimension.
+    Compute the 1D Discrete Hartley Transform (DHT) manually using the cas function.
 
     Args:
-        x (torch.Tensor): Input tensor of shape [..., N]
+        x (torch.Tensor): Input tensor with shape [batch, channels, length].
 
     Returns:
-        torch.Tensor: DHT-transformed tensor of the same shape.
+        torch.Tensor: DHT of the input tensor.
     """
-    return dht(x, dims=[-1])
-
-def idht_1d(x: torch.Tensor) -> torch.Tensor:
-    """
-    Perform the inverse 1D Discrete Hartley Transform along the last dimension.
-
-    Args:
-        x (torch.Tensor): DHT-transformed tensor of shape [..., N]
-
-    Returns:
-        torch.Tensor: Inverse DHT-transformed tensor of the same shape.
-    """
-    return idht(x, dims=[-1])
+    return dht_1d_axis(x, axis=2)
 
 def dht_2d(x: torch.Tensor) -> torch.Tensor:
     """
-    Perform the 2D Discrete Hartley Transform along the last two dimensions.
+    Compute the 2D Discrete Hartley Transform (DHT) manually using the cas function.
 
     Args:
-        x (torch.Tensor): Input tensor of shape [..., H, W]
+        x (torch.Tensor): Input tensor with shape [batch, channels, height, width].
 
     Returns:
-        torch.Tensor: DHT-transformed tensor of the same shape.
+        torch.Tensor: DHT of the input tensor.
     """
-    return dht(x, dims=[-2, -1])
-
-def idht_2d(x: torch.Tensor) -> torch.Tensor:
-    """
-    Perform the inverse 2D Discrete Hartley Transform along the last two dimensions.
-
-    Args:
-        x (torch.Tensor): DHT-transformed tensor of shape [..., H, W]
-
-    Returns:
-        torch.Tensor: Inverse DHT-transformed tensor of the same shape.
-    """
-    return idht(x, dims=[-2, -1])
+    x = dht_1d_axis(x, axis=2)  # DHT along height
+    x = dht_1d_axis(x, axis=3)  # DHT along width
+    return x
 
 def dht_3d(x: torch.Tensor) -> torch.Tensor:
     """
-    Perform the 3D Discrete Hartley Transform along the last three dimensions.
+    Compute the 3D Discrete Hartley Transform (DHT) manually using the cas function.
 
     Args:
-        x (torch.Tensor): Input tensor of shape [..., D, H, W]
+        x (torch.Tensor): Input tensor with shape [batch, channels, depth, height, width].
 
     Returns:
-        torch.Tensor: DHT-transformed tensor of the same shape.
+        torch.Tensor: DHT of the input tensor.
     """
-    return dht(x, dims=[-3, -2, -1])
+    x = dht_1d_axis(x, axis=2)  # DHT along depth
+    x = dht_1d_axis(x, axis=3)  # DHT along height
+    x = dht_1d_axis(x, axis=4)  # DHT along width
+    return x
 
-def idht_3d(x: torch.Tensor) -> torch.Tensor:
+
+################################################################
+# Inverse Discrete Hartley Transforms (IDHT)
+################################################################
+
+def idht_1d(X: torch.Tensor) -> torch.Tensor:
     """
-    Perform the inverse 3D Discrete Hartley Transform along the last three dimensions.
+    Compute the Inverse 1D Discrete Hartley Transform (IDHT) of the input tensor.
+
+    Since the DHT is involutory, IDHT(x) = (1/n) * DHT(DHT(x))
 
     Args:
-        x (torch.Tensor): DHT-transformed tensor of shape [..., D, H, W]
+        X (torch.Tensor): Input tensor in the DHT domain with shape [batch, channels, length].
 
     Returns:
-        torch.Tensor: Inverse DHT-transformed tensor of the same shape.
+        torch.Tensor: Inverse DHT of the input tensor.
     """
-    return idht(x, dims=[-3, -2, -1])
+    n = X.shape[2]  # Length
+    x = dht_1d(X)
+    x = x / n
+    return x
 
-def compl_mul1d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
-    return torch.einsum("bi...,io...->bo...", x1, x2)
+def idht_2d(X: torch.Tensor) -> torch.Tensor:
+    """
+    Compute the Inverse 2D Discrete Hartley Transform (IDHT) of the input tensor.
 
-def compl_mul2d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
-    return torch.einsum("bixy...,ioxy...->boxy...", x1, x2)
+    Since the DHT is involutory, IDHT(x) = (1/n) * DHT(DHT(x))
 
-def compl_mul3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
-    return torch.einsum("bixyz...,ioxyz...->boxyz...", x1, x2)
+    Args:
+        X (torch.Tensor): Input tensor in the DHT domain with shape [batch, channels, height, width].
+
+    Returns:
+        torch.Tensor: Inverse DHT of the input tensor.
+    """
+    n = X.shape[2] * X.shape[3]  # Height * Width
+    x = dht_2d(X)
+    x = x / n
+    return x
+
+def idht_3d(X: torch.Tensor) -> torch.Tensor:
+    """
+    Compute the Inverse 3D Discrete Hartley Transform (IDHT) of the input tensor.
+
+    Since the DHT is involutory, IDHT(x) = (1/n) * DHT(DHT(x))
+
+    Args:
+        X (torch.Tensor): Input tensor in the DHT domain with shape [batch, channels, depth, height, width].
+
+    Returns:
+        torch.Tensor: Inverse DHT of the input tensor.
+    """
+    n = X.shape[2] * X.shape[3] * X.shape[4]  # Depth * Height * Width
+    x = dht_3d(X)
+    x = x / n
+    return x
+
+################################################################
+# Convolutions
+################################################################
 
 def flip_periodic_1d(x: torch.Tensor) -> torch.Tensor:
     """
@@ -245,140 +286,50 @@ def flip_periodic_3d(x: torch.Tensor) -> torch.Tensor:
 
     return Z
 
-################################################################
-# Spectral Convolution Functions
-################################################################
+def compl_mul1d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
+    X1_H_k = x1
+    X2_H_k = x2
+    X1_H_neg_k = flip_periodic_1d(x1)
+    X2_H_neg_k = flip_periodic_1d(x2)
 
-def dht_conv_1d(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-    """
-    Compute the DHT of the convolution of two 1D tensors using the convolution theorem.
+    result = 0.5 * (
+        torch.einsum('bix,iox->box', X1_H_k, X2_H_k) -
+        torch.einsum('bix,iox->box', X1_H_neg_k, X2_H_neg_k) +
+        torch.einsum('bix,iox->box', X1_H_k, X2_H_neg_k) +
+        torch.einsum('bix,iox->box', X1_H_neg_k, X2_H_k)
+    )
 
-    Args:
-        x (torch.Tensor): First input tensor with shape [batch, in_channels, length]
-        y (torch.Tensor): Second input tensor with shape [in_channels, out_channels, modes1]
+    return result
 
-    Returns:
-        torch.Tensor: DHT of the convolution of x and y.
-    """
-    # Compute flipped versions
-    Xflip = flip_periodic_1d(x)
-    Yflip = flip_periodic_1d(y)
+def compl_mul2d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
+    X1_H_k = x1
+    X2_H_k = x2
+    X1_H_neg_k = flip_periodic_2d(x1)
+    X2_H_neg_k = flip_periodic_2d(x2)
+    
+    result = 0.5 * (
+        torch.einsum('bixy,ioxy->boxy', X1_H_k, X2_H_k) -
+        torch.einsum('bixy,ioxy->boxy', X1_H_neg_k, X2_H_neg_k) +
+        torch.einsum('bixy,ioxy->boxy', X1_H_k, X2_H_neg_k) +
+        torch.einsum('bixy,ioxy->boxy', X1_H_neg_k, X2_H_k)
+    )
+    
+    return result
 
-    # Compute even and odd components
-    Yeven = 0.5 * (y + Yflip)
-    Yodd  = 0.5 * (y - Yflip)
+def compl_mul3d(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
+    X1_H_k = x1
+    X2_H_k = x2
+    X1_H_neg_k = flip_periodic_3d(x1)
+    X2_H_neg_k = flip_periodic_3d(x2)
 
-    # Perform convolution using compl_mul
-    term1 = compl_mul1d(x, Yeven)
-    term2 = compl_mul1d(Xflip, Yodd)
+    result = 0.5 * (
+        torch.einsum('bixyz,ioxyz->boxyz', X1_H_k, X2_H_k) -
+        torch.einsum('bixyz,ioxyz->boxyz', X1_H_neg_k, X2_H_neg_k) +
+        torch.einsum('bixyz,ioxyz->boxyz', X1_H_k, X2_H_neg_k) +
+        torch.einsum('bixyz,ioxyz->boxyz', X1_H_neg_k, X2_H_k)
+    )
 
-    # Combine terms
-    Z = term1 + term2  # [batch, out_channels, length]
-
-    return Z
-
-def dht_conv_2d(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-    """
-    Compute the DHT of the convolution of two 2D tensors using the convolution theorem.
-
-    Args:
-        x (torch.Tensor): First input tensor with shape [batch, in_channels, height, width]
-        y (torch.Tensor): Second input tensor with shape [in_channels, out_channels, modes1, modes2]
-
-    Returns:
-        torch.Tensor: DHT of the convolution of x and y.
-    """
-    # Compute flipped versions
-    Xflip = flip_periodic_2d(x)
-    Yflip = flip_periodic_2d(y)
-
-    # Compute even and odd components
-    Yeven = 0.5 * (y + Yflip)
-    Yodd  = 0.5 * (y - Yflip)
-
-    # Perform convolution using compl_mul
-    term1 = compl_mul2d(x, Yeven)
-    term2 = compl_mul2d(Xflip, Yodd)
-
-    # Combine terms
-    Z = term1 + term2  # [batch, out_channels, height, width]
-
-    return Z
-
-def dht_conv_3d(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-    """
-    Compute the DHT of the convolution of two 3D tensors using the convolution theorem.
-
-    Args:
-        x (torch.Tensor): First input tensor with shape [batch, in_channels, depth, height, width]
-        y (torch.Tensor): Second input tensor with shape [in_channels, out_channels, modes1, modes2, modes3]
-
-    Returns:
-        torch.Tensor: DHT of the convolution of x and y.
-    """
-    # Compute flipped versions
-    Xflip = flip_periodic_3d(x)
-    Yflip = flip_periodic_3d(y)
-
-    # Compute even and odd components
-    Yeven = 0.5 * (y + Yflip)
-    Yodd  = 0.5 * (y - Yflip)
-
-    # Perform convolution using compl_mul
-    term1 = compl_mul3d(x, Yeven)
-    term2 = compl_mul3d(Xflip, Yodd)
-
-    # Combine terms
-    Z = term1 + term2  # [batch, out_channels, depth, height, width]
-
-    return Z
-
-################################################################
-# Direct Convolution in Hartley Domain
-################################################################
-
-def conv_1d(x_ht: torch.Tensor, weights: torch.Tensor) -> torch.Tensor:
-    """
-    Perform 1D convolution in the Hartley domain.
-
-    Args:
-        x_ht (torch.Tensor): Hartley-transformed input tensor [batch, in_channels, modes1]
-        weights (torch.Tensor): Hartley-transformed weights [in_channels, out_channels, modes1]
-
-    Returns:
-        torch.Tensor: Convolved tensor in the Hartley domain [batch, out_channels, modes1]
-    """
-    return compl_mul1d(x_ht, weights)
-
-def conv_2d(x_ht: torch.Tensor, weights: torch.Tensor) -> torch.Tensor:
-    """
-    Perform 2D convolution in the Hartley domain.
-
-    Args:
-        x_ht (torch.Tensor): Hartley-transformed input tensor [batch, in_channels, modes1, modes2]
-        weights (torch.Tensor): Hartley-transformed weights [in_channels, out_channels, modes1, modes2]
-
-    Returns:
-        torch.Tensor: Convolved tensor in the Hartley domain [batch, out_channels, modes1, modes2]
-    """
-    return compl_mul2d(x_ht, weights)
-
-def conv_3d(x_ht: torch.Tensor, weights: torch.Tensor) -> torch.Tensor:
-    """
-    Perform 3D convolution in the Hartley domain.
-
-    Args:
-        x_ht (torch.Tensor): Hartley-transformed input tensor [batch, in_channels, modes1, modes2, modes3]
-        weights (torch.Tensor): Hartley-transformed weights [in_channels, out_channels, modes1, modes2, modes3]
-
-    Returns:
-        torch.Tensor: Convolved tensor in the Hartley domain [batch, out_channels, modes1, modes2, modes3]
-    """
-    return compl_mul3d(x_ht, weights)
-
-################################################################
-# Spectral Convolution Layers
-################################################################
+    return result
 
 ################################################################
 # 1D Hartley Convolution Layer
@@ -416,7 +367,7 @@ class SpectralConv1d(nn.Module):
             device=x.device,
             dtype=x.dtype
         )
-        out_ht[:, :, :self.modes1] = dht_conv_1d(
+        out_ht[:, :, :self.modes1] = compl_mul1d(
             x_ht[:, :, :self.modes1],
             self.weights1
         )
@@ -460,7 +411,7 @@ class SpectralConv2d(nn.Module):
             device=x.device,
             dtype=x.dtype
         )
-        out_ht[:, :, :self.modes1, :self.modes2] = dht_conv_2d(
+        out_ht[:, :, :self.modes1, :self.modes2] = compl_mul2d(
             x_ht[:, :, :self.modes1, :self.modes2],
             self.weights1
         )
@@ -507,7 +458,7 @@ class SpectralConv3d(nn.Module):
             device=x.device,
             dtype=x.dtype
         )
-        out_ht[:, :, :self.modes1, :self.modes2, :self.modes3] = dht_conv_3d(
+        out_ht[:, :, :self.modes1, :self.modes2, :self.modes3] = compl_mul3d(
             x_ht[:, :, :self.modes1, :self.modes2, :self.modes3],
             self.weights1
         )
@@ -517,8 +468,9 @@ class SpectralConv3d(nn.Module):
 
         return x
 
+
 ################################################################
-# FourierBlock 
+# FourierBlock
 ################################################################
 
 class FourierBlock(nn.Module):
@@ -526,7 +478,7 @@ class FourierBlock(nn.Module):
         super(FourierBlock, self).__init__()
         self.in_channel = in_channels
         self.out_channel = out_channels
-        self.speconv = SpectralConv3d(in_channels, out_channels, modes1, modes2, modes3)  # Assuming 3D
+        self.speconv = SpectralConv3d(in_channels, out_channels, modes1, modes2, modes3)
         self.linear = nn.Conv1d(in_channels, out_channels, 1)
 
         if activation == 'tanh':
@@ -545,15 +497,10 @@ class FourierBlock(nn.Module):
         return x * torch.sigmoid(x)
 
     def forward(self, x):
-        '''
-        input x: (batchsize, channel width, x_grid, y_grid, z_grid)
-        '''
         x1 = self.speconv(x)
         x2 = self.linear(x.view(x.shape[0], self.in_channel, -1))
         x2 = x2.view(x.shape[0], self.out_channel, x.shape[2], x.shape[3], x.shape[4])
         out = x1 + x2
         if self.activation is not None:
             out = self.activation(out)
-        return out
-
         return out
