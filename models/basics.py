@@ -63,36 +63,48 @@ def low_pass_filter(x_ht, cutoff):
 # Discrete Hartley Transforms (DHT)
 ################################################################
 
-def dht_1d_axis(x: torch.Tensor, axis: int) -> torch.Tensor:
+import torch
+
+def fht(x: torch.Tensor) -> torch.Tensor:
     """
-    Compute the 1D DHT along a specified axis using the cas function.
+    Compute the Fast Hartley Transform (FHT) of a 1D input tensor.
 
     Args:
-        x (torch.Tensor): Input tensor.
-        axis (int): Axis along which to compute the DHT.
+        x (torch.Tensor): Input tensor with shape [..., N], where N is the length dimension.
 
     Returns:
-        torch.Tensor: DHT of the input tensor along the specified axis.
+        torch.Tensor: FHT of the input tensor.
     """
-    N = x.size(axis)
-    device = x.device
-    n = torch.arange(N, device=device).unsqueeze(1)  # Shape [N, 1]
-    k = torch.arange(N, device=device).unsqueeze(0)  # Shape [1, N]
-    omega = 2 * torch.pi * n * k / N                # Shape [N, N]
-    cas_omega = torch.cos(omega) + torch.sin(omega) # Shape [N, N]
-
-    # Move the specified axis to the last dimension
-    x = x.transpose(axis, -1)
-    original_shape = x.shape
-    x_flat = x.reshape(-1, N)                       # Flatten all other dimensions
-    H = x_flat @ cas_omega                          # Matrix multiplication
-    H = H.view(*original_shape)                     # Restore original shape
-    H = H.transpose(axis, -1)                       # Move the axis back to its original position
-    return H
+    N = x.size(-1)
+    if N == 1:
+        return x
+    else:
+        # Split input into even and odd parts
+        x_even = x[..., ::2]
+        x_odd = x[..., 1::2]
+        
+        # Recursively compute FHT of even and odd parts
+        F_even = fht(x_even)
+        F_odd = fht(x_odd)
+        
+        # Compute twiddle factors
+        k = torch.arange(N // 2, device=x.device).reshape(1, -1)
+        factor = 2 * torch.pi * k / N
+        cas_factor = torch.cos(factor) + torch.sin(factor)
+        
+        # Adjust dimensions for broadcasting
+        cas_factor = cas_factor.unsqueeze(0).expand_as(F_odd)
+        
+        # Combine results
+        temp = cas_factor * F_odd
+        F_first_half = F_even + temp
+        F_second_half = F_even - temp
+        F = torch.cat([F_first_half, F_second_half], dim=-1)
+        return F
 
 def dht_1d(x: torch.Tensor) -> torch.Tensor:
     """
-    Compute the 1D Discrete Hartley Transform (DHT) manually using the cas function.
+    Compute the 1D Discrete Hartley Transform (DHT) using the Fast Hartley Transform algorithm.
 
     Args:
         x (torch.Tensor): Input tensor with shape [batch, channels, length].
@@ -100,11 +112,20 @@ def dht_1d(x: torch.Tensor) -> torch.Tensor:
     Returns:
         torch.Tensor: DHT of the input tensor.
     """
-    return dht_1d_axis(x, axis=2)
+    # Ensure input length is a power of two
+    N = x.size(-1)
+    if (N & (N - 1)) != 0:
+        # Pad the input to the next power of two
+        next_power_of_two = 1 << (N - 1).bit_length()
+        pad_size = next_power_of_two - N
+        x = torch.nn.functional.pad(x, (0, pad_size))
+    x = x.to(torch.float64)  # Use higher precision
+    H = fht(x)
+    return H[..., :N]  # Remove padding if added
 
 def dht_2d(x: torch.Tensor) -> torch.Tensor:
     """
-    Compute the 2D Discrete Hartley Transform (DHT) manually using the cas function.
+    Compute the 2D Discrete Hartley Transform (DHT) using the Fast Hartley Transform algorithm.
 
     Args:
         x (torch.Tensor): Input tensor with shape [batch, channels, height, width].
@@ -112,13 +133,24 @@ def dht_2d(x: torch.Tensor) -> torch.Tensor:
     Returns:
         torch.Tensor: DHT of the input tensor.
     """
-    x = dht_1d_axis(x, axis=2)  # DHT along height
-    x = dht_1d_axis(x, axis=3)  # DHT along width
+    # Apply FHT along the height dimension
+    x_shape = x.shape
+    x = x.reshape(-1, x_shape[-2], x_shape[-1])  # Flatten batch and channel dimensions
+    x = x.permute(0, 2, 1)  # Bring height to the last dimension
+    x = fht(x)
+    x = x.permute(0, 2, 1)  # Restore original dimensions
+
+    # Apply FHT along the width dimension
+    x = x.permute(0, 2, 1)  # Bring width to the last dimension
+    x = fht(x)
+    x = x.permute(0, 2, 1)  # Restore original dimensions
+
+    x = x.reshape(*x_shape)
     return x
 
 def dht_3d(x: torch.Tensor) -> torch.Tensor:
     """
-    Compute the 3D Discrete Hartley Transform (DHT) manually using the cas function.
+    Compute the 3D Discrete Hartley Transform (DHT) using the Fast Hartley Transform algorithm.
 
     Args:
         x (torch.Tensor): Input tensor with shape [batch, channels, depth, height, width].
@@ -126,9 +158,25 @@ def dht_3d(x: torch.Tensor) -> torch.Tensor:
     Returns:
         torch.Tensor: DHT of the input tensor.
     """
-    x = dht_1d_axis(x, axis=2)  # DHT along depth
-    x = dht_1d_axis(x, axis=3)  # DHT along height
-    x = dht_1d_axis(x, axis=4)  # DHT along width
+    # Apply FHT along the depth dimension
+    x_shape = x.shape
+    x = x.reshape(-1, x_shape[-3], x_shape[-2], x_shape[-1])  # Flatten batch and channel dimensions
+
+    x = x.permute(0, 2, 3, 1)  # Bring depth to the last dimension
+    x = fht(x)
+    x = x.permute(0, 3, 1, 2)  # Restore original dimensions
+
+    # Apply FHT along the height dimension
+    x = x.permute(0, 1, 3, 2)  # Bring height to the last dimension
+    x = fht(x)
+    x = x.permute(0, 1, 3, 2)  # Restore original dimensions
+
+    # Apply FHT along the width dimension
+    x = x.permute(0, 1, 2, 3)  # Bring width to the last dimension
+    x = fht(x)
+    x = x.permute(0, 1, 2, 3)  # Restore original dimensions
+
+    x = x.reshape(*x_shape)
     return x
 
 
