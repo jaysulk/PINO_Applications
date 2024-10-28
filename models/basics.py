@@ -80,25 +80,27 @@ def dht_3d(x: torch.Tensor) -> torch.Tensor:
     X = X.real - X.imag
     return X
 
+
+import torch
+
 ################################################################
-# Inverse Discrete Hartley Transforms (IDHT)
+# Orthonormal Inverse Discrete Hartley Transforms (IDHT)
 ################################################################
 
 def idht_1d(X: torch.Tensor) -> torch.Tensor:
     n = X.shape[-1]  # Length
     x = dht_1d(X) 
-    return x / n  # Normalize by the length
+    return x / torch.sqrt(torch.tensor(n, dtype=x.dtype))  # Normalize by sqrt(n)
 
 def idht_2d(X: torch.Tensor) -> torch.Tensor:
     n = X.shape[-2] * X.shape[-1]  # Height * Width
     x = dht_2d(X) 
-    return x / n  # Normalize by the area
+    return x / torch.sqrt(torch.tensor(n, dtype=x.dtype))  # Normalize by sqrt(area)
 
 def idht_3d(X: torch.Tensor) -> torch.Tensor:
     n = X.shape[-3] * X.shape[-2] * X.shape[-1]  # Depth * Height * Width
     x = dht_3d(X) 
-    return x / n  # Normalize by the volume
-
+    return x / torch.sqrt(torch.tensor(n, dtype=x.dtype))  # Normalize by sqrt(volume)
 
 ################################################################
 # Convolutions
