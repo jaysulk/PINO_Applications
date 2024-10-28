@@ -89,19 +89,19 @@ import torch
 
 def idht_1d(x: torch.Tensor) -> torch.Tensor:
     transform_dims = [2]
-    X = torch.fft.fftn(x, dim=transform_dims, norm="orthonormal")  # Remove normalization
+    X = torch.fft.fftn(x, dim=transform_dims, norm="ortho")  # Remove normalization
     X = X.real - X.imag
     return X
 
 def idht_2d(x: torch.Tensor) -> torch.Tensor:
     transform_dims = [2, 3]
-    X = torch.fft.fftn(x, dim=transform_dims, norm="orthonormal")  # Remove normalization
+    X = torch.fft.fftn(x, dim=transform_dims, norm="ortho")  # Remove normalization
     X = X.real - X.imag
     return X
 
 def idht_3d(x: torch.Tensor) -> torch.Tensor:
     transform_dims = [2, 3, 4]
-    X = torch.fft.fftn(x, dim=transform_dims, norm="orthonormal")  # Remove normalization
+    X = torch.fft.fftn(x, dim=transform_dims, norm="ortho")  # Remove normalization
     X = X.real - X.imag
     return X
 
