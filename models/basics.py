@@ -85,19 +85,20 @@ def dht_3d(x: torch.Tensor) -> torch.Tensor:
 ################################################################
 
 def idht_1d(X: torch.Tensor) -> torch.Tensor:
-    #n = X.shape[2]  # Length
+    n = X.shape[-1]  # Length
     x = dht_1d(X) 
-    return x
+    return x / n  # Normalize by the length
 
 def idht_2d(X: torch.Tensor) -> torch.Tensor:
-    #n = X.shape[2] * X.shape[3]  # Height * Width
+    n = X.shape[-2] * X.shape[-1]  # Height * Width
     x = dht_2d(X) 
-    return x
+    return x / n  # Normalize by the area
 
 def idht_3d(X: torch.Tensor) -> torch.Tensor:
-    #n = X.shape[2] * X.shape[3] * X.shape[4]  # Depth * Height * Width
+    n = X.shape[-3] * X.shape[-2] * X.shape[-1]  # Depth * Height * Width
     x = dht_3d(X) 
-    return x
+    return x / n  # Normalize by the volume
+
 
 ################################################################
 # Convolutions
