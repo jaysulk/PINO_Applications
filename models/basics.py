@@ -85,18 +85,18 @@ def dht_3d(x: torch.Tensor) -> torch.Tensor:
 ################################################################
 
 def idht_1d(X: torch.Tensor) -> torch.Tensor:
-    n = X.shape[2]  # Length
-    x = dht_1d(X) * n  # Remove division and scale the DHT result
+    #n = X.shape[2]  # Length
+    x = dht_1d(X) 
     return x
 
 def idht_2d(X: torch.Tensor) -> torch.Tensor:
-    n = X.shape[2] * X.shape[3]  # Height * Width
-    x = dht_2d(X) * n  # Remove division and scale the DHT result
+    #n = X.shape[2] * X.shape[3]  # Height * Width
+    x = dht_2d(X) 
     return x
 
 def idht_3d(X: torch.Tensor) -> torch.Tensor:
-    n = X.shape[2] * X.shape[3] * X.shape[4]  # Depth * Height * Width
-    x = dht_3d(X) * n  # Remove division and scale the DHT result
+    #n = X.shape[2] * X.shape[3] * X.shape[4]  # Depth * Height * Width
+    x = dht_3d(X) 
     return x
 
 ################################################################
