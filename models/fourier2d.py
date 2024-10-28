@@ -2,20 +2,18 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from functools import reduce
-from functools import partial
-
-from .basics import SpectralConv1d
+from .lowrank2d import LowRank2d
+from .basics import SpectralConv2d
 
 
-class SineActivation(nn.Module):
-    def forward(self, x):
-        return torch.sin(x)
-
-
-class FNN1d(nn.Module):
-    def __init__(self, modes, width, layers=None, activation_function='sine'):
-        super(FNN1d, self).__init__()
+class FNN2d(nn.Module):
+    def __init__(self, modes1, modes2,
+                 width=64, fc_dim=128,
+                 layers=None,
+                 in_dim=3, out_dim=1,
+                 activation_function='sine',
+                 pad_x=0, pad_y=0):
+        super(FNN2d, self).__init__()
 
         """
         The overall network. It contains several layers of the Fourier layer.
@@ -24,68 +22,89 @@ class FNN1d(nn.Module):
            where W is defined by self.ws and K is defined by self.sp_convs.
         3. Project from the channel space to the output space by self.fc1 and self.fc2.
         
-        Input: the solution of the initial condition and location (a(x), x)
-        Input shape: (batchsize, x=s, c=2)
-        Output: the solution at a later timestep
-        Output shape: (batchsize, x=s, c=1)
+        Input: the solution of the coefficient function and locations (a(x, y), x, y)
+        Input shape: (batchsize, x=s, y=s, c=3)
+        Output: the solution 
+        Output shape: (batchsize, x=s, y=s, c=1)
         """
 
-        self.modes1 = modes
+        self.modes1 = modes1
+        self.modes2 = modes2
         self.width = width
+        self.in_dim = in_dim
+        self.out_dim = out_dim
+        self.padding = (0, 0, 0, pad_y, 0, pad_x)
+        # Input channel is 3: (a(x, y), x, y)
         if layers is None:
-            layers = [width] * 4
-
-        self.fc0 = nn.Linear(2, layers[0])  # Input channel is 2: (a(x), x)
+            self.layers = [width] * 4
+        else:
+            self.layers = layers
+        self.fc0 = nn.Linear(in_dim, self.layers[0])
 
         self.sp_convs = nn.ModuleList([
-            SpectralConv1d(in_size, out_size, self.modes1)
-            for in_size, out_size in zip(layers, layers[1:])
+            SpectralConv2d(in_size, out_size, mode1_num, mode2_num)
+            for in_size, out_size, mode1_num, mode2_num
+            in zip(self.layers, self.layers[1:], self.modes1, self.modes2)
         ])
 
         self.ws = nn.ModuleList([
             nn.Conv1d(in_size, out_size, 1)
-            for in_size, out_size in zip(layers, layers[1:])
+            for in_size, out_size in zip(self.layers, self.layers[1:])
         ])
 
-        self.fc1 = nn.Linear(layers[-1], 128)
-        self.fc2 = nn.Linear(128, 1)
+        self.fc1 = nn.Linear(self.layers[-1], fc_dim)
+        self.fc2 = nn.Linear(fc_dim, out_dim)
 
         # Define the activation function
         self.activation = self.get_activation_function(activation_function)
 
     def get_activation_function(self, activation_function):
         if activation_function == 'sine':
-            return SineActivation()
+            return torch.sin
         elif activation_function == 'relu':
-            return nn.ReLU()
+            return F.relu
         elif activation_function == 'softplus':
-            return nn.Softplus()
+            return F.softplus
         elif activation_function == 'elu':
-            return nn.ELU()
+            return F.elu
         elif activation_function == 'silu':
-            return nn.SiLU()  # Swish activation
+            return F.silu  # Swish function
         elif activation_function == 'tanh':
-            return nn.Tanh()
+            return torch.tanh
         elif activation_function == 'gelu':
-            return nn.GELU()
+            return F.gelu
+        elif activation_function == 'swish':
+            return lambda x: x * torch.sigmoid(x)
         else:
-            raise ValueError(f"Unsupported activation function: {activation_function}")
+            raise ValueError(f'{activation_function} is not supported')
 
     def forward(self, x):
+        '''
+        Args:
+            - x: (batch size, x_grid, y_grid, in_dim)
+        Returns:
+            - x: (batch size, x_grid, y_grid, out_dim)
+        '''
         length = len(self.ws)
+        batchsize = x.shape[0]
+        nx, ny = x.shape[1], x.shape[2]  # Original shape
+        x = F.pad(x, self.padding, "constant", 0)
+        size_x, size_y = x.shape[1], x.shape[2]
 
         x = self.fc0(x)
-        x = x.permute(0, 2, 1)  # Change to shape [batchsize, channels, x]
+        x = x.permute(0, 3, 1, 2)  # Change to shape [batchsize, channels, x, y]
 
         for i, (speconv, w) in enumerate(zip(self.sp_convs, self.ws)):
             x1 = speconv(x)
-            x2 = w(x)
+            x2 = w(x.view(batchsize, self.layers[i], -1)).view(
+                batchsize, self.layers[i + 1], size_x, size_y)
             x = x1 + x2
             if i != length - 1:
                 x = self.activation(x)
-
-        x = x.permute(0, 2, 1)  # Change back to shape [batchsize, x, channels]
+        x = x.permute(0, 2, 3, 1)  # Change back to shape [batchsize, x, y, channels]
         x = self.fc1(x)
         x = self.activation(x)
         x = self.fc2(x)
+        x = x.reshape(batchsize, size_x, size_y, self.out_dim)
+        x = x[:, :nx, :ny, :]  # Remove padding
         return x
