@@ -17,10 +17,10 @@ class FNN2d(nn.Module):
 
         """
         The overall network. It contains 4 layers of the Fourier layer.
-        1. Lift the input to the desire channel dimension by self.fc0 .
+        1. Lift the input to the desired channel dimension by self.fc0.
         2. 4 layers of the integral operators u' = (W + K)(u).
-            W defined by self.w; K defined by self.conv .
-        3. Project from the channel space to the output space by self.fc1 and self.fc2 .
+           W defined by self.w; K defined by self.conv.
+        3. Project from the channel space to the output space by self.fc1 and self.fc2.
         
         input: the solution of the coefficient function and locations (a(x, y), x, y)
         input shape: (batchsize, x=s, y=s, c=3)
@@ -34,33 +34,46 @@ class FNN2d(nn.Module):
         self.in_dim = in_dim
         self.out_dim = out_dim
         self.padding = (0, 0, 0, pad_y, 0, pad_x)
-        # input channel is 3: (a(x, y), x, y)
+        # Input channel is 3: (a(x, y), x, y)
         if layers is None:
             self.layers = [width] * 4
         else:
             self.layers = layers
         self.fc0 = nn.Linear(in_dim, layers[0])
 
-        self.sp_convs = nn.ModuleList([SpectralConv2d(
-            in_size, out_size, mode1_num, mode2_num)
-            for in_size, out_size, mode1_num, mode2_num
-            in zip(self.layers, self.layers[1:], self.modes1, self.modes2)])
+        self.sp_convs = nn.ModuleList([
+            SpectralConv2d(in_size, out_size, mode1_num, mode2_num)
+            for in_size, out_size, mode1_num, mode2_num in zip(
+                self.layers, self.layers[1:], self.modes1, self.modes2)
+        ])
 
-        self.ws = nn.ModuleList([nn.Conv1d(in_size, out_size, 1)
-                                 for in_size, out_size in zip(self.layers, self.layers[1:])])
+        self.ws = nn.ModuleList([
+            nn.Conv1d(in_size, out_size, 1)
+            for in_size, out_size in zip(self.layers, self.layers[1:])
+        ])
 
         self.fc1 = nn.Linear(layers[-1], fc_dim)
         self.fc2 = nn.Linear(fc_dim, out_dim)
-        if activation =='tanh':
-            self.activation = F.tanh
+
+        # Activation functions
+        if activation == 'tanh':
+            self.activation = torch.tanh
         elif activation == 'gelu':
             self.activation = F.gelu
         elif activation == 'relu':
-            self.activation == F.relu
+            self.activation = F.relu
         elif activation == 'swish':
             self.activation = self.swish
         elif activation == 'sinc':
             self.activation = self.sinc
+        elif activation == 'sine':
+            self.activation = torch.sin
+        elif activation == 'softplus':
+            self.activation = F.softplus
+        elif activation == 'elu':
+            self.activation = F.elu
+        elif activation == 'silu':
+            self.activation = F.silu  # Swish function in PyTorch
         else:
             raise ValueError(f'{activation} is not supported')
 
@@ -70,22 +83,20 @@ class FNN2d(nn.Module):
 
     @staticmethod
     def sinc(x):
-        # Condition for handling the case when x is zero
+        # Handle the case when x is zero
         condition = torch.eq(x, 0.0)
-    
         return torch.where(condition, torch.ones_like(x), torch.sin(x) / x)
-
 
     def forward(self, x):
         '''
         Args:
-            - x : (batch size, x_grid, y_grid, 2)
+            - x: (batch size, x_grid, y_grid, in_dim)
         Returns:
-            - x: (batch size, x_grid, y_grid, 1)
+            - x: (batch size, x_grid, y_grid, out_dim)
         '''
         length = len(self.ws)
         batchsize = x.shape[0]
-        nx, ny = x.shape[1], x.shape[2] # original shape
+        nx, ny = x.shape[1], x.shape[2]  # Original shape
         x = F.pad(x, self.padding, "constant", 0)
         size_x, size_y = x.shape[1], x.shape[2]
 
@@ -94,7 +105,8 @@ class FNN2d(nn.Module):
 
         for i, (speconv, w) in enumerate(zip(self.sp_convs, self.ws)):
             x1 = speconv(x)
-            x2 = w(x.view(batchsize, self.layers[i], -1)).view(batchsize, self.layers[i+1], size_x, size_y)
+            x2 = w(x.view(batchsize, self.layers[i], -1)).view(
+                batchsize, self.layers[i + 1], size_x, size_y)
             x = x1 + x2
             if i != length - 1:
                 x = self.activation(x)
@@ -103,12 +115,12 @@ class FNN2d(nn.Module):
         x = self.activation(x)
         x = self.fc2(x)
         x = x.reshape(batchsize, size_x, size_y, self.out_dim)
-        x = x[..., :nx, :ny, :]
+        x = x[:, :nx, :ny, :]
         return x
 
 
 class PINO2d(nn.Module):
-    def __init__(self, modes1, modes2, width, layers=None, in_dim=3, out_dim=1):
+    def __init__(self, modes1, modes2, width, layers=None, in_dim=3, out_dim=1, activation='tanh'):
         '''
         Args:
             modes1: number of modes to keep
@@ -128,16 +140,51 @@ class PINO2d(nn.Module):
             self.layers = layers
         self.fc0 = nn.Linear(in_dim, layers[0])
 
-        self.sp_convs = nn.ModuleList([SpectralConv2d(
-            in_size, out_size, mode1_num, mode2_num)
-            for in_size, out_size, mode1_num, mode2_num
-            in zip(self.layers, self.layers[1:], self.modes1, self.modes2)])
+        self.sp_convs = nn.ModuleList([
+            SpectralConv2d(in_size, out_size, mode1_num, mode2_num)
+            for in_size, out_size, mode1_num, mode2_num in zip(
+                self.layers, self.layers[1:], self.modes1, self.modes2)
+        ])
 
-        self.ws = nn.ModuleList([nn.Conv1d(in_size, out_size, 1)
-                                 for in_size, out_size in zip(self.layers[:-1], self.layers[1:-1])])
+        self.ws = nn.ModuleList([
+            nn.Conv1d(in_size, out_size, 1)
+            for in_size, out_size in zip(self.layers[:-1], self.layers[1:-1])
+        ])
         self.ws.append(LowRank2d(self.layers[-2], self.layers[-1]))
-        self.fc1 = nn.Linear(layers[-1], layers[-1] * 4)
-        self.fc2 = nn.Linear(layers[-1] * 4, out_dim)
+        self.fc1 = nn.Linear(self.layers[-1], self.layers[-1] * 4)
+        self.fc2 = nn.Linear(self.layers[-1] * 4, out_dim)
+
+        # Activation functions
+        if activation == 'tanh':
+            self.activation = torch.tanh
+        elif activation == 'gelu':
+            self.activation = F.gelu
+        elif activation == 'relu':
+            self.activation = F.relu
+        elif activation == 'swish':
+            self.activation = self.swish
+        elif activation == 'sinc':
+            self.activation = self.sinc
+        elif activation == 'sine':
+            self.activation = torch.sin
+        elif activation == 'softplus':
+            self.activation = F.softplus
+        elif activation == 'elu':
+            self.activation = F.elu
+        elif activation == 'silu':
+            self.activation = F.silu  # Swish function in PyTorch
+        else:
+            raise ValueError(f'{activation} is not supported')
+
+    @staticmethod
+    def swish(x):
+        return x * torch.sigmoid(x)
+
+    @staticmethod
+    def sinc(x):
+        # Handle the case when x is zero
+        condition = torch.eq(x, 0.0)
+        return torch.where(condition, torch.ones_like(x), torch.sin(x) / x)
 
     def forward(self, x, y=None):
         batchsize = x.shape[0]
@@ -150,25 +197,26 @@ class PINO2d(nn.Module):
         for i, (speconv, w) in enumerate(zip(self.sp_convs, self.ws)):
             if i != length - 1:
                 x1 = speconv(x)
-                x2 = w(x.view(batchsize, self.layers[i], -1))\
-                .view(batchsize, self.layers[i+1], size_x, size_y)
+                x2 = w(x.view(batchsize, self.layers[i], -1)).view(
+                    batchsize, self.layers[i + 1], size_x, size_y)
+                # Padding to match dimensions if necessary
                 if x1.shape[3] < x2.shape[3]:
-                    x1 = F.pad(x1, (0, x2.shape[3]-x1.shape[3], 0, 0, 0, 0))
+                    x1 = F.pad(x1, (0, x2.shape[3] - x1.shape[3], 0, 0))
                 else:
-                    x2 = F.pad(x2, (0, x1.shape[3]-x2.shape[3], 0, 0, 0, 0))
+                    x2 = F.pad(x2, (0, x1.shape[3] - x2.shape[3], 0, 0))
                 x = x1 + x2
-                x = F.selu(x)
+                x = self.activation(x)
             else:
                 x1 = speconv(x, y).reshape(batchsize, self.layers[-1], -1)
                 x2 = w(x, y).reshape(batchsize, self.layers[-1], -1)
-                if x1.shape[3] < x2.shape[3]:
-                    x1 = F.pad(x1, (0, x2.shape[3]-x1.shape[3], 0, 0, 0, 0))
+                if x1.shape[2] < x2.shape[2]:
+                    x1 = F.pad(x1, (0, x2.shape[2] - x1.shape[2]))
                 else:
-                     x2 = F.pad(x2, (0, x1.shape[3]-x2.shape[3], 0, 0, 0, 0))
+                    x2 = F.pad(x2, (0, x1.shape[2] - x2.shape[2]))
                 x = x1 + x2
         x = x.permute(0, 2, 1)
         x = self.fc1(x)
-        x = F.selu(x)
+        x = self.activation(x)
         x = self.fc2(x)
         return x
 
@@ -183,10 +231,10 @@ class FNN2d_AD(nn.Module):
 
         """
         The overall network. It contains 4 layers of the Fourier layer.
-        1. Lift the input to the desire channel dimension by self.fc0 .
+        1. Lift the input to the desired channel dimension by self.fc0.
         2. 4 layers of the integral operators u' = (W + K)(u).
-            W defined by self.w; K defined by self.conv .
-        3. Project from the channel space to the output space by self.fc1 and self.fc2 .
+           W defined by self.w; K defined by self.conv.
+        3. Project from the channel space to the output space by self.fc1 and self.fc2.
         
         input: the solution of the coefficient function and locations (a(x, y), x, y)
         input shape: (batchsize, x=s, y=s, c=3)
@@ -197,34 +245,47 @@ class FNN2d_AD(nn.Module):
         self.modes1 = modes1
         self.modes2 = modes2
         self.width = width
-        # input channel is 3: (a(x, y), x, y)
+        # Input channel is 3: (a(x, y), x, y)
         if layers is None:
             self.layers = [width] * 4
         else:
             self.layers = layers
         self.fc0 = nn.Linear(in_dim, layers[0])
 
-        self.sp_convs = nn.ModuleList([SpectralConv2d(
-            in_size, out_size, mode1_num, mode2_num)
-            for in_size, out_size, mode1_num, mode2_num
-            in zip(self.layers, self.layers[1:], self.modes1, self.modes2)])
+        self.sp_convs = nn.ModuleList([
+            SpectralConv2d(in_size, out_size, mode1_num, mode2_num)
+            for in_size, out_size, mode1_num, mode2_num in zip(
+                self.layers, self.layers[1:], self.modes1, self.modes2)
+        ])
 
-        self.ws = nn.ModuleList([nn.Conv1d(in_size, out_size, 1)
-                                 for in_size, out_size in zip(self.layers[:-1], self.layers[1:-1])])
+        self.ws = nn.ModuleList([
+            nn.Conv1d(in_size, out_size, 1)
+            for in_size, out_size in zip(self.layers[:-1], self.layers[1:-1])
+        ])
         self.ws.append(LowRank2d(self.layers[-2], self.layers[-1]))
 
         self.fc1 = nn.Linear(layers[-1], fc_dim)
         self.fc2 = nn.Linear(fc_dim, out_dim)
-        if activation =='tanh':
-            self.activation = F.tanh
+
+        # Activation functions
+        if activation == 'tanh':
+            self.activation = torch.tanh
         elif activation == 'gelu':
             self.activation = F.gelu
         elif activation == 'relu':
-            self.activation == F.relu
+            self.activation = F.relu
         elif activation == 'swish':
             self.activation = self.swish
         elif activation == 'sinc':
             self.activation = self.sinc
+        elif activation == 'sine':
+            self.activation = torch.sin
+        elif activation == 'softplus':
+            self.activation = F.softplus
+        elif activation == 'elu':
+            self.activation = F.elu
+        elif activation == 'silu':
+            self.activation = F.silu  # Swish function in PyTorch
         else:
             raise ValueError(f'{activation} is not supported')
 
@@ -234,18 +295,16 @@ class FNN2d_AD(nn.Module):
 
     @staticmethod
     def sinc(x):
-        # Condition for handling the case when x is zero
+        # Handle the case when x is zero
         condition = torch.eq(x, 0.0)
-    
         return torch.where(condition, torch.ones_like(x), torch.sin(x) / x)
-
 
     def forward(self, x, y=None):
         '''
         Args:
-            - x : (batch size, x_grid, y_grid, 2)
+            - x: (batch size, x_grid, y_grid, in_dim)
         Returns:
-            - x: (batch size, x_grid, y_grid, 1)
+            - x: (batch size, x_grid, y_grid, out_dim)
         '''
         length = len(self.ws)
         batchsize = x.shape[0]
@@ -257,14 +316,14 @@ class FNN2d_AD(nn.Module):
         for i, (speconv, w) in enumerate(zip(self.sp_convs, self.ws)):
             if i != length - 1:
                 x1 = speconv(x)
-                x2 = w(x.view(batchsize, self.layers[i], -1)).view(batchsize, self.layers[i+1], size_x, size_y)
+                x2 = w(x.view(batchsize, self.layers[i], -1)).view(
+                    batchsize, self.layers[i + 1], size_x, size_y)
                 x = x1 + x2
                 x = self.activation(x)
             else:
                 x1 = speconv(x, y).reshape(batchsize, self.layers[-1], -1)
                 x2 = w(x, y).reshape(batchsize, self.layers[-1], -1)
                 x = x1 + x2
-        # x = x.permute(0, 2, 3, 1)
         x = x.permute(0, 2, 1)
         x = self.fc1(x)
         x = self.activation(x)
