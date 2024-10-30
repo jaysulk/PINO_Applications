@@ -41,14 +41,35 @@ class FNN3d(nn.Module):
         self.fc1 = nn.Linear(layers[-1], fc_dim)
         self.fc2 = nn.Linear(fc_dim, self.out_dim)
         
-        if activation =='tanh':
-            self.activation = F.tanh
+        if activation == 'tanh':
+            self.activation = F.tanh  # Tanh activation function
         elif activation == 'gelu':
-            self.activation = F.gelu
+            self.activation = F.gelu  # GELU activation function
         elif activation == 'relu':
-            self.activation == F.relu
+            self.activation = F.relu  # ReLU activation function
+        elif activation == 'elu':
+            self.activation = F.elu  # ELU activation function
+        elif activation == 'swish':
+            self.activation = self.swish  # Swish activation function
+        elif activation == 'leaky_relu':
+            self.activation = F.leaky_relu  # Leaky ReLU activation function
+        elif activation == 'prelu':
+            self.activation = nn.PReLU()  # PReLU activation function
+        elif activation == 'sinc':
+            self.activation = self.sinc  # Sinc activation function
         else:
-            raise ValueError(f'{activation} is not supported')
+            raise ValueError(f'{activation} is not supported')  # Raise error for unsupported activation functions
+
+    @staticmethod
+    def swish(x):
+        """Swish activation function: x * sigmoid(x)"""
+        return x * torch.sigmoid(x)
+
+    @staticmethod
+    def sinc(x):
+        """Sinc activation function: sinc(x) = sin(x) / x with handling for x=0."""
+        condition = torch.eq(x, 0.0)  # Condition for handling x=0
+        return torch.where(condition, torch.ones_like(x), torch.sin(x) / x)  # Compute sinc
 
     def forward(self, x):
         '''
